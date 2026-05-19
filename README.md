@@ -4,6 +4,8 @@ CRM de WhatsApp interno da Probel — visual estilo WhatsApp Web, integrado via 
 
 > **Status:** Fundação (etapas 1–5) entregue. As etapas 6–15 (QR Code, webhooks, envio/recebimento, inbox, Kanban, dashboard) virão nas próximas iterações.
 
+> 👉 **Primeira vez instalando?** Siga o [**Guia Passo a Passo (SETUP.md)**](SETUP.md) — explica cada clique, do zero ao primeiro login.
+
 ---
 
 ## Stack
