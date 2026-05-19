@@ -4,6 +4,11 @@ out
 .env
 .env.local
 .env*.local
+
+# Arquivos com credenciais — NUNCA comitar
+CREDENTIALS.md
+credentials.md
+.credentials.md
 .DS_Store
 *.log
 .vercel
