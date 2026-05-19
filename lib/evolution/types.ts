@@ -57,3 +57,14 @@ export interface EvolutionWebhookConfig {
   webhookBase64?: boolean;
   events: string[];
 }
+
+export interface EvolutionSendTextResponse {
+  key: {
+    remoteJid: string;
+    fromMe: boolean;
+    id: string;
+  };
+  message?: { conversation?: string };
+  messageTimestamp?: number | string;
+  status?: string;
+}

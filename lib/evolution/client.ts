@@ -7,7 +7,18 @@ import type {
   EvolutionConnectionStateResponse,
   EvolutionQrResponse,
   EvolutionWebhookConfig,
+  EvolutionSendTextResponse,
 } from "./types";
+
+/**
+ * Converte JID do WhatsApp pro formato aceito pelo endpoint /message/sendText.
+ * - Individuais: "5534...@s.whatsapp.net" → "5534..."
+ * - Grupos: "abc-123@g.us" → mantém igual
+ */
+function jidToNumber(jid: string): string {
+  if (jid.endsWith("@g.us")) return jid;
+  return jid.replace(/@s\.whatsapp\.net$/, "").replace(/@c\.us$/, "");
+}
 
 export class EvolutionError extends Error {
   constructor(
@@ -110,6 +121,21 @@ export const evolution = {
     return evoFetch(`/webhook/set/${instanceName}`, {
       method: "POST",
       body: JSON.stringify({ webhook: config }),
+    });
+  },
+
+  /**
+   * Envia mensagem de texto pra um JID (individual ou grupo).
+   * Retorna a key com id da mensagem na Evolution.
+   */
+  async sendText(remoteJid: string, text: string): Promise<EvolutionSendTextResponse> {
+    const { instanceName } = getConfig();
+    return evoFetch(`/message/sendText/${instanceName}`, {
+      method: "POST",
+      body: JSON.stringify({
+        number: jidToNumber(remoteJid),
+        text,
+      }),
     });
   },
 

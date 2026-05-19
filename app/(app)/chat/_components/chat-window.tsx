@@ -2,13 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Phone, MoreVertical, Smile, Paperclip, SendHorizonal } from "lucide-react";
+import { Phone, MoreVertical } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar } from "./avatar";
 import { MessageBubble } from "./message-bubble";
 import { DateSeparator } from "./date-separator";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { ComposeBar } from "./compose-bar";
 import { isSameDay } from "@/lib/format/date";
 import { formatPhone } from "@/lib/format/avatar";
 import { markAsReadAction } from "../actions";
@@ -142,33 +141,7 @@ export function ChatWindow({
         )}
       </div>
 
-      {/* Compose (desabilitado até Etapa 10) */}
-      <footer className="bg-wa-header px-3 py-2 border-l border-wa-border shrink-0">
-        <div className="flex items-center gap-2">
-          <button
-            className="p-2 text-wa-textSecondary cursor-not-allowed opacity-50"
-            disabled
-            aria-label="Emoji"
-          >
-            <Smile className="h-5 w-5" />
-          </button>
-          <button
-            className="p-2 text-wa-textSecondary cursor-not-allowed opacity-50"
-            disabled
-            aria-label="Anexar"
-          >
-            <Paperclip className="h-5 w-5" />
-          </button>
-          <Input
-            disabled
-            placeholder="Envio de mensagens disponível na próxima etapa…"
-            className="bg-wa-panel border-0 text-sm h-10"
-          />
-          <Button disabled size="icon" variant="ghost" aria-label="Enviar">
-            <SendHorizonal className="h-5 w-5" />
-          </Button>
-        </div>
-      </footer>
+      <ComposeBar conversationId={conversation.id} />
     </div>
   );
 }
