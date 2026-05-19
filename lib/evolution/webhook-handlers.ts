@@ -219,6 +219,45 @@ async function getOrCreateConversation(
   return created.id;
 }
 
+async function ensureLeadForContact(contactId: string, conversationId: string) {
+  const supabase = createServiceClient();
+  const { data: existing } = await supabase
+    .from("leads")
+    .select("id")
+    .eq("contact_id", contactId)
+    .maybeSingle();
+  if (existing) return;
+
+  // Pega o primeiro stage do pipeline (Novo Lead)
+  const { data: stage } = await supabase
+    .from("pipeline_stages")
+    .select("id")
+    .order("position", { ascending: true })
+    .limit(1)
+    .single();
+  if (!stage) return;
+
+  // Pega dados do contato pra preencher nome/phone do lead
+  const { data: contact } = await supabase
+    .from("contacts")
+    .select("name, push_name, phone, is_group")
+    .eq("id", contactId)
+    .single();
+  // Não cria lead pra grupos
+  if (contact?.is_group) return;
+
+  await supabase.from("leads").insert({
+    contact_id: contactId,
+    conversation_id: conversationId,
+    stage_id: stage.id,
+    name: contact?.name ?? contact?.push_name ?? null,
+    phone: contact?.phone ?? null,
+    source: "whatsapp",
+    status: "open",
+    last_contact_at: new Date().toISOString(),
+  });
+}
+
 export async function handleMessagesUpsert(instanceName: string, data: MessagesUpsertData) {
   const instanceId = await getOrCreateInstance(instanceName);
   const contactId = await getOrCreateContact(
@@ -227,6 +266,9 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
     data.pushName ?? null
   );
   const conversationId = await getOrCreateConversation(instanceId, contactId, data.key.remoteJid);
+
+  // Cria lead automaticamente em "Novo Lead" se ainda não houver
+  await ensureLeadForContact(contactId, conversationId);
 
   const extracted = extractMessageContent(data.message);
   const timestamp = new Date(data.messageTimestamp * 1000).toISOString();
