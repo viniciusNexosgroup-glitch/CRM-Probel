@@ -17,6 +17,7 @@ import {
   DisconnectButton,
 } from "./actions-buttons";
 import { QrCard } from "./qr-card";
+import { WebhookCard } from "./webhook-card";
 
 export const dynamic = "force-dynamic";
 
@@ -58,8 +59,19 @@ async function fetchAndPersistInstance() {
   }
 }
 
+async function fetchCurrentWebhook(): Promise<string | null> {
+  try {
+    const wh = await evolution.findWebhook();
+    return (wh as { url?: string } | null)?.url ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export default async function WhatsAppSettingsPage() {
   const { instance, status, error } = await fetchAndPersistInstance();
+  const currentWebhookUrl = await fetchCurrentWebhook();
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
   return (
     <div className="min-h-screen container max-w-3xl py-8 space-y-6">
@@ -160,15 +172,7 @@ export default async function WhatsAppSettingsPage() {
             <QrCard />
           )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Webhook</CardTitle>
-              <CardDescription>
-                O CRM ainda não está configurado pra receber webhooks da Evolution.
-                Isso será feito na próxima etapa (6b).
-              </CardDescription>
-            </CardHeader>
-          </Card>
+          <WebhookCard currentWebhookUrl={currentWebhookUrl} expectedAppUrl={appUrl} />
         </>
       )}
     </div>

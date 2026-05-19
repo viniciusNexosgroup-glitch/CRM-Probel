@@ -6,6 +6,17 @@ import { createClient } from "@/lib/supabase/server";
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
 
+const WEBHOOK_EVENTS = [
+  "MESSAGES_UPSERT",
+  "MESSAGES_UPDATE",
+  "CONNECTION_UPDATE",
+  "QRCODE_UPDATED",
+  "CONTACTS_UPSERT",
+  "CONTACTS_UPDATE",
+  "CHATS_UPSERT",
+  "CHATS_UPDATE",
+];
+
 /**
  * Busca dados atualizados da instância na Evolution e faz upsert na tabela whatsapp_instances.
  */
@@ -62,6 +73,49 @@ export async function disconnectAction(): Promise<ActionResult> {
     await syncInstanceAction();
     revalidatePath("/settings/whatsapp");
     return { ok: true };
+  } catch (e) {
+    if (e instanceof EvolutionError) {
+      return { ok: false, error: e.message };
+    }
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+/**
+ * Configura o webhook da Evolution apontando para este CRM.
+ * Usa NEXT_PUBLIC_APP_URL + EVOLUTION_WEBHOOK_SECRET pra montar a URL completa.
+ */
+export async function configureWebhookAction(): Promise<ActionResult<{ url: string }>> {
+  try {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    const secret = process.env.EVOLUTION_WEBHOOK_SECRET;
+    if (!appUrl || !secret) {
+      return {
+        ok: false,
+        error:
+          "NEXT_PUBLIC_APP_URL e EVOLUTION_WEBHOOK_SECRET devem estar definidos no ambiente.",
+      };
+    }
+    if (appUrl.startsWith("http://localhost") || appUrl.startsWith("http://127.")) {
+      return {
+        ok: false,
+        error:
+          "NEXT_PUBLIC_APP_URL está apontando pra localhost. A Evolution está na internet e não consegue chamar localhost. Configure este CRM em produção (Vercel) primeiro.",
+      };
+    }
+
+    const webhookUrl = `${appUrl.replace(/\/+$/, "")}/api/webhooks/evolution/${secret}`;
+
+    await evolution.setWebhook({
+      enabled: true,
+      url: webhookUrl,
+      webhookByEvents: false,
+      webhookBase64: false,
+      events: WEBHOOK_EVENTS,
+    });
+
+    revalidatePath("/settings/whatsapp");
+    return { ok: true, data: { url: webhookUrl } };
   } catch (e) {
     if (e instanceof EvolutionError) {
       return { ok: false, error: e.message };
