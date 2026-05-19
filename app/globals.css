@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 158 75% 33%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 158 75% 33%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 200 21% 8%;        /* #0b141a wa-bg */
+    --foreground: 192 15% 94%;        /* #e9edef */
+    --card: 202 23% 10%;              /* #111b21 wa-panel */
+    --card-foreground: 192 15% 94%;
+    --popover: 202 23% 10%;
+    --popover-foreground: 192 15% 94%;
+    --primary: 164 100% 33%;          /* #00a884 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 200 14% 16%;         /* #202c33 */
+    --secondary-foreground: 192 15% 94%;
+    --muted: 200 14% 16%;
+    --muted-foreground: 200 8% 58%;   /* #8696a0 */
+    --accent: 200 16% 20%;            /* #2a3942 */
+    --accent-foreground: 192 15% 94%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 200 14% 16%;
+    --input: 200 14% 16%;
+    --ring: 164 100% 33%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html, body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Scrollbar estilo WhatsApp Web */
+.wa-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.wa-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.wa-scroll::-webkit-scrollbar-thumb {
+  background: hsl(var(--accent));
+  border-radius: 3px;
+}
+.wa-scroll::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.4);
+}
