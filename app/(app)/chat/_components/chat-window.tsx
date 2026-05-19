@@ -32,7 +32,7 @@ export function ChatWindow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation.id]);
 
-  // Realtime: nova mensagem nesta conversa
+  // Realtime + polling fallback pra mensagens dessa conversa
   useEffect(() => {
     setMessages(initialMessages);
     const supabase = createClient();
@@ -43,6 +43,28 @@ export function ChatWindow({
         supabase.realtime.setAuth(session.access_token);
       }
     });
+
+    // Polling de mensagens dessa conversa a cada 3s (mais responsivo que a sidebar)
+    async function pollMessages() {
+      if (!mounted) return;
+      const { data } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("conversation_id", conversation.id)
+        .order("timestamp", { ascending: true })
+        .limit(200);
+      if (!mounted || !data) return;
+      setMessages((prev) => {
+        // Só atualiza se há diferença pra não causar re-render inútil
+        if (prev.length === data.length && prev[prev.length - 1]?.id === data[data.length - 1]?.id) {
+          // Mesmas mensagens — checa só os status que podem ter mudado
+          const changed = data.some((d, i) => prev[i]?.status !== d.status);
+          if (!changed) return prev;
+        }
+        return data as MessageRow[];
+      });
+    }
+    const pollInterval = setInterval(pollMessages, 3000);
 
     const channel = supabase
       .channel(`crm-messages-${conversation.id}`)
@@ -55,7 +77,6 @@ export function ChatWindow({
           filter: `conversation_id=eq.${conversation.id}`,
         },
         (payload) => {
-          console.log("[realtime/chat] INSERT", payload.new);
           const m = payload.new as MessageRow;
           setMessages((prev) => {
             if (prev.some((x) => x.id === m.id)) return prev;
@@ -72,18 +93,17 @@ export function ChatWindow({
           filter: `conversation_id=eq.${conversation.id}`,
         },
         (payload) => {
-          console.log("[realtime/chat] UPDATE", payload.new);
           const m = payload.new as MessageRow;
           setMessages((prev) => prev.map((x) => (x.id === m.id ? m : x)));
         }
       )
-      .subscribe((status, err) => {
-        console.log(`[realtime/chat:${conversation.id}] subscribe status:`, status);
-        if (err) console.error("[realtime/chat] error:", err);
+      .subscribe((status) => {
+        console.log(`[realtime/chat:${conversation.id}] status:`, status);
       });
 
     return () => {
       mounted = false;
+      clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
   }, [conversation.id, initialMessages]);

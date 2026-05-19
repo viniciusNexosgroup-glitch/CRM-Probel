@@ -35,12 +35,18 @@ export function ConversationList({
   const [query, setQuery] = useState("");
   const [, startTransition] = useTransition();
 
-  // Realtime: escuta INSERT/UPDATE em conversations → atualiza preview e ordem
+  // Realtime + polling fallback
   useEffect(() => {
     const supabase = createClient();
     let mounted = true;
+    let realtimeWorking = false;
 
-    // Garante que o realtime tenha o token JWT do usuário logado
+    // Polling: refresh a cada 5s (fallback garantido)
+    const pollInterval = setInterval(() => {
+      if (mounted) startTransition(() => router.refresh());
+    }, 5000);
+
+    // Realtime (idealmente vai funcionar, mas se não funcionar o polling cobre)
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.access_token && mounted) {
         supabase.realtime.setAuth(session.access_token);
@@ -48,31 +54,30 @@ export function ConversationList({
     });
 
     const channel = supabase
-      .channel("crm-conversations")
+      .channel("crm-inbox")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "conversations" },
-        (payload) => {
-          console.log("[realtime/conversations]", payload.eventType, payload.new ?? payload.old);
-          startTransition(() => router.refresh());
+        () => {
+          realtimeWorking = true;
+          if (mounted) startTransition(() => router.refresh());
         }
       )
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
-        (payload) => {
-          // Mensagem nova em qualquer conversa → reordena a lista
-          console.log("[realtime/messages]", "INSERT", payload.new);
-          startTransition(() => router.refresh());
+        () => {
+          realtimeWorking = true;
+          if (mounted) startTransition(() => router.refresh());
         }
       )
-      .subscribe((status, err) => {
-        console.log("[realtime/conversations] subscribe status:", status);
-        if (err) console.error("[realtime/conversations] error:", err);
+      .subscribe((status) => {
+        console.log("[realtime/inbox] status:", status, realtimeWorking ? "(events flowing)" : "");
       });
 
     return () => {
       mounted = false;
+      clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
   }, [router]);
