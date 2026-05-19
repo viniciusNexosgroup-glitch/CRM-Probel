@@ -14,6 +14,7 @@ credentials.md
 .vercel
 next-env.d.ts
 .turbo
+*.tsbuildinfo
 .idea
 .vscode/*
 !.vscode/settings.json
