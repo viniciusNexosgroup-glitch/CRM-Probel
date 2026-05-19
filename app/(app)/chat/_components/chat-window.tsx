@@ -84,7 +84,9 @@ export function ChatWindow({
   }, [messages.length]);
 
   const contactName =
-    conversation.contact.name ?? conversation.contact.push_name ?? conversation.contact.phone ?? "Sem nome";
+    conversation.contact.name?.trim() ||
+    conversation.contact.push_name?.trim() ||
+    (conversation.contact.phone ? formatPhone(conversation.contact.phone) : "Sem nome");
 
   return (
     <div className="flex-1 flex flex-col bg-wa-bg min-w-0">

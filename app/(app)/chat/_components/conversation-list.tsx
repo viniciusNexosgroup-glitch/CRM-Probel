@@ -9,7 +9,17 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Avatar } from "./avatar";
 import { formatRelativeTime } from "@/lib/format/date";
+import { formatPhone } from "@/lib/format/avatar";
 import type { ConversationWithContact } from "../types";
+
+function displayName(c: ConversationWithContact["contact"]): string {
+  const name = c.name?.trim();
+  if (name) return name;
+  const pushName = c.push_name?.trim();
+  if (pushName) return pushName;
+  if (c.phone) return formatPhone(c.phone);
+  return "Sem nome";
+}
 
 export function ConversationList({
   initial,
@@ -54,7 +64,7 @@ export function ConversationList({
     if (!query.trim()) return conversations;
     const q = query.toLowerCase();
     return conversations.filter((c) => {
-      const name = (c.contact.name ?? c.contact.push_name ?? c.contact.phone ?? "").toLowerCase();
+      const name = displayName(c.contact).toLowerCase();
       const preview = (c.last_message_text ?? "").toLowerCase();
       return name.includes(q) || preview.includes(q);
     });
@@ -113,14 +123,14 @@ export function ConversationList({
                 >
                   <Avatar
                     src={c.contact.profile_pic_url}
-                    name={c.contact.name ?? c.contact.push_name ?? c.contact.phone}
+                    name={displayName(c.contact)}
                     seed={c.contact.whatsapp_id}
                     size={48}
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="font-medium text-wa-textPrimary truncate">
-                        {c.contact.name ?? c.contact.push_name ?? c.contact.phone ?? "Sem nome"}
+                        {displayName(c.contact)}
                       </span>
                       <span
                         className={cn(
