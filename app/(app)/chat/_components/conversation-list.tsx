@@ -38,19 +38,41 @@ export function ConversationList({
   // Realtime: escuta INSERT/UPDATE em conversations → atualiza preview e ordem
   useEffect(() => {
     const supabase = createClient();
+    let mounted = true;
+
+    // Garante que o realtime tenha o token JWT do usuário logado
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.access_token && mounted) {
+        supabase.realtime.setAuth(session.access_token);
+      }
+    });
+
     const channel = supabase
       .channel("crm-conversations")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "conversations" },
-        () => {
-          // Quando algo muda, re-busca a lista completa (simples e correto)
-          // O componente pai vai re-renderizar pelo refresh do router
+        (payload) => {
+          console.log("[realtime/conversations]", payload.eventType, payload.new ?? payload.old);
           startTransition(() => router.refresh());
         }
       )
-      .subscribe();
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        (payload) => {
+          // Mensagem nova em qualquer conversa → reordena a lista
+          console.log("[realtime/messages]", "INSERT", payload.new);
+          startTransition(() => router.refresh());
+        }
+      )
+      .subscribe((status, err) => {
+        console.log("[realtime/conversations] subscribe status:", status);
+        if (err) console.error("[realtime/conversations] error:", err);
+      });
+
     return () => {
+      mounted = false;
       supabase.removeChannel(channel);
     };
   }, [router]);

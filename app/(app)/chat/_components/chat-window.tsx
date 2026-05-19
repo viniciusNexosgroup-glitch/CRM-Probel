@@ -36,6 +36,14 @@ export function ChatWindow({
   useEffect(() => {
     setMessages(initialMessages);
     const supabase = createClient();
+    let mounted = true;
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.access_token && mounted) {
+        supabase.realtime.setAuth(session.access_token);
+      }
+    });
+
     const channel = supabase
       .channel(`crm-messages-${conversation.id}`)
       .on(
@@ -47,6 +55,7 @@ export function ChatWindow({
           filter: `conversation_id=eq.${conversation.id}`,
         },
         (payload) => {
+          console.log("[realtime/chat] INSERT", payload.new);
           const m = payload.new as MessageRow;
           setMessages((prev) => {
             if (prev.some((x) => x.id === m.id)) return prev;
@@ -63,12 +72,18 @@ export function ChatWindow({
           filter: `conversation_id=eq.${conversation.id}`,
         },
         (payload) => {
+          console.log("[realtime/chat] UPDATE", payload.new);
           const m = payload.new as MessageRow;
           setMessages((prev) => prev.map((x) => (x.id === m.id ? m : x)));
         }
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log(`[realtime/chat:${conversation.id}] subscribe status:`, status);
+        if (err) console.error("[realtime/chat] error:", err);
+      });
+
     return () => {
+      mounted = false;
       supabase.removeChannel(channel);
     };
   }, [conversation.id, initialMessages]);
