@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { Search, MessageSquare, KanbanSquare, Settings } from "lucide-react";
+import { Search, MessageSquare } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -105,26 +105,10 @@ export function ConversationList({
 
   return (
     <aside className="w-full md:w-[400px] shrink-0 bg-wa-panel border-r border-wa-border flex flex-col">
-      <header className="h-16 bg-wa-header flex items-center justify-between px-4 shrink-0">
+      <header className="h-16 bg-wa-header flex items-center px-4 shrink-0">
         <div className="flex items-center gap-2">
           <MessageSquare className="h-5 w-5 text-primary" />
-          <h1 className="font-semibold text-wa-textPrimary">CRM Probel</h1>
-        </div>
-        <div className="flex items-center gap-1 text-wa-textSecondary">
-          <Link
-            href="/leads"
-            title="Funil de Leads"
-            className="p-2 hover:bg-wa-hover rounded-full"
-          >
-            <KanbanSquare className="h-4 w-4" />
-          </Link>
-          <Link
-            href="/settings/whatsapp"
-            title="Configurar WhatsApp"
-            className="p-2 hover:bg-wa-hover rounded-full"
-          >
-            <Settings className="h-4 w-4" />
-          </Link>
+          <h1 className="font-semibold text-wa-textPrimary">Conversas</h1>
         </div>
       </header>
 

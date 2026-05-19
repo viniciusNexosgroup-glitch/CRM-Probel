@@ -85,7 +85,7 @@ export default async function ChatPage({
   const messages = selected ? await getMessages(selected.id) : [];
 
   return (
-    <div className="h-screen flex bg-wa-bg overflow-hidden">
+    <div className="h-full flex bg-wa-bg overflow-hidden">
       <ConversationList initial={conversations} selectedId={selected?.id} />
       {selected ? <ChatWindow conversation={selected} initialMessages={messages} /> : <EmptyState />}
     </div>
