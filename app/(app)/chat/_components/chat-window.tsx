@@ -83,10 +83,12 @@ export function ChatWindow({
     if (nearBottom) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [messages.length]);
 
-  const contactName =
-    conversation.contact.name?.trim() ||
-    conversation.contact.push_name?.trim() ||
-    (conversation.contact.phone ? formatPhone(conversation.contact.phone) : "Sem nome");
+  const realName =
+    conversation.contact.name?.trim() || conversation.contact.push_name?.trim();
+  const formattedPhone = conversation.contact.phone ? formatPhone(conversation.contact.phone) : "";
+  const contactName = realName || formattedPhone || "Sem nome";
+  // Só mostra a linha de telefone embaixo se for diferente do nome (evita duplicação)
+  const subtitle = realName ? formattedPhone : "";
 
   return (
     <div className="flex-1 flex flex-col bg-wa-bg min-w-0">
@@ -101,7 +103,9 @@ export function ChatWindow({
           />
           <div className="min-w-0">
             <p className="font-medium text-wa-textPrimary truncate">{contactName}</p>
-            <p className="text-xs text-wa-textSecondary">{formatPhone(conversation.contact.phone)}</p>
+            {subtitle && (
+              <p className="text-xs text-wa-textSecondary">{subtitle}</p>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2 text-wa-textSecondary">
