@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { Search, MessageSquare, ChevronDown, Tag as TagIcon, X } from "lucide-react";
+import { Search, MessageSquare, ChevronDown, Tag as TagIcon, X, Pin, Star, Archive } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -27,13 +27,14 @@ function getConversationTags(c: ConversationWithContact): TagRow[] {
   return lead.lead_tags?.map((lt) => lt.tag) ?? [];
 }
 
-type QuickFilter = "all" | "unread" | "favorites" | "groups";
+type QuickFilter = "all" | "unread" | "favorites" | "groups" | "archived";
 
 const QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
   { value: "all", label: "Tudo" },
   { value: "unread", label: "Não lidas" },
   { value: "favorites", label: "Favoritas" },
   { value: "groups", label: "Grupos" },
+  { value: "archived", label: "Arquivadas" },
 ];
 
 export function ConversationList({
@@ -107,19 +108,23 @@ export function ConversationList({
   }, [tagDropdownOpen]);
 
   const filtered = useMemo(() => {
-    return conversations.filter((c) => {
-      // Quick filter
+    const list = conversations.filter((c) => {
+      // Arquivadas: aparecem só com filtro 'archived'
+      if (filter === "archived") {
+        if (!c.is_archived) return false;
+      } else {
+        if (c.is_archived) return false;
+      }
+
       if (filter === "unread" && c.unread_count <= 0) return false;
       if (filter === "favorites" && !c.contact.is_favorite) return false;
       if (filter === "groups" && !c.contact.is_group) return false;
 
-      // Tag filter
       if (selectedTagId) {
         const tags = getConversationTags(c);
         if (!tags.some((t) => t.id === selectedTagId)) return false;
       }
 
-      // Busca por texto
       if (query.trim()) {
         const q = query.toLowerCase();
         const name = displayName(c.contact).toLowerCase();
@@ -128,6 +133,14 @@ export function ConversationList({
       }
 
       return true;
+    });
+
+    // Sort: fixadas no topo, depois last_message_at desc
+    return list.sort((a, b) => {
+      if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
+      const ta = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+      const tb = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+      return tb - ta;
     });
   }, [conversations, query, filter, selectedTagId]);
 
@@ -270,8 +283,17 @@ export function ConversationList({
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2">
-                        <span className="font-medium text-wa-textPrimary truncate">
-                          {displayName(c.contact)}
+                        <span className="font-medium text-wa-textPrimary truncate flex items-center gap-1 min-w-0">
+                          {c.contact.is_favorite && (
+                            <Star className="h-3 w-3 text-amber-400 fill-amber-400 shrink-0" />
+                          )}
+                          {c.is_pinned && (
+                            <Pin className="h-3 w-3 text-primary fill-primary shrink-0" />
+                          )}
+                          {c.is_archived && (
+                            <Archive className="h-3 w-3 text-wa-textTertiary shrink-0" />
+                          )}
+                          <span className="truncate">{displayName(c.contact)}</span>
                         </span>
                         <span
                           className={cn(
