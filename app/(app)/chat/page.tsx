@@ -136,13 +136,15 @@ export default async function ChatPage({
     getAllTags(),
   ]);
 
-  const [messages, panelData, quickRepliesRes] = selected
+  const [messages, panelData, quickRepliesRes, mediasRes, mediaCatsRes] = selected
     ? await Promise.all([
         getMessages(selected.id),
         getContactPanelData(selected.contact.id),
         supabase.from("quick_replies").select("*").order("shortcut", { ascending: true }),
+        supabase.from("media_library").select("*").order("created_at", { ascending: false }),
+        supabase.from("media_categories").select("*").order("position", { ascending: true }),
       ])
-    : [[], null, null];
+    : [[], null, null, null, null];
 
   return (
     <div className="h-full flex bg-wa-bg overflow-hidden">
@@ -153,6 +155,8 @@ export default async function ChatPage({
           initialMessages={messages}
           panelData={panelData}
           quickReplies={quickRepliesRes?.data ?? []}
+          medias={mediasRes?.data ?? []}
+          mediaCategories={mediaCatsRes?.data ?? []}
         />
       ) : (
         <EmptyState />

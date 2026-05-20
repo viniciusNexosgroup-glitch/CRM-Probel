@@ -7,25 +7,33 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { sendTextMessageAction } from "../actions";
 import { QuickReplyPicker } from "./quick-reply-picker";
+import { MediaPicker } from "./media-picker";
 import { resolveTemplate, type TemplateContext } from "@/lib/format/template";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/types/database";
 
 type QuickReplyRow = Database["public"]["Tables"]["quick_replies"]["Row"];
+type MediaRow = Database["public"]["Tables"]["media_library"]["Row"];
+type CategoryRow = Database["public"]["Tables"]["media_categories"]["Row"];
 
 export function ComposeBar({
   conversationId,
   quickReplies = [],
+  medias = [],
+  mediaCategories = [],
   templateCtx,
 }: {
   conversationId: string;
   quickReplies?: QuickReplyRow[];
+  medias?: MediaRow[];
+  mediaCategories?: CategoryRow[];
   templateCtx?: TemplateContext;
 }) {
   const [pending, startTransition] = useTransition();
   const [text, setText] = useState("");
   const [pickerSelectedIdx, setPickerSelectedIdx] = useState(0);
   const [manualOpen, setManualOpen] = useState(false);
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const zapButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -176,10 +184,20 @@ export function ComposeBar({
           <Smile className="h-5 w-5" />
         </button>
         <button
-          className="p-2 text-wa-textSecondary cursor-not-allowed opacity-50"
-          disabled
-          aria-label="Anexar (em breve)"
-          title="Em breve"
+          onClick={() => setMediaPickerOpen(true)}
+          disabled={medias.length === 0}
+          className={cn(
+            "p-2 rounded transition-colors",
+            medias.length === 0
+              ? "text-wa-textSecondary opacity-50 cursor-not-allowed"
+              : "text-wa-textSecondary hover:bg-wa-hover hover:text-primary"
+          )}
+          aria-label="Enviar mídia"
+          title={
+            medias.length === 0
+              ? "Nenhuma mídia cadastrada — vá em Mídias no menu"
+              : "Enviar da biblioteca"
+          }
         >
           <Paperclip className="h-5 w-5" />
         </button>
@@ -231,6 +249,14 @@ export function ComposeBar({
           )}
         </Button>
       </div>
+
+      <MediaPicker
+        open={mediaPickerOpen}
+        onClose={() => setMediaPickerOpen(false)}
+        conversationId={conversationId}
+        medias={medias}
+        categories={mediaCategories}
+      />
     </footer>
   );
 }

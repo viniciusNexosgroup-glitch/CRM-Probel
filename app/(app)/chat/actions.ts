@@ -230,3 +230,110 @@ export async function deleteTaskAction(taskId: string): Promise<Result> {
   revalidatePath("/chat");
   return { ok: true };
 }
+
+// ============================================================
+// Media library send (Etapa 13)
+// ============================================================
+
+import type { EvolutionMediaType } from "@/lib/evolution/types";
+
+/** Mapeia file_type do banco pro mediatype da Evolution */
+function evolutionMediaType(fileType: string): EvolutionMediaType {
+  if (fileType === "image") return "image";
+  if (fileType === "video") return "video";
+  return "document";
+}
+
+export async function sendMediaFromLibraryAction(
+  conversationId: string,
+  mediaId: string,
+  caption?: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Não autenticado" };
+
+  const [convRes, mediaRes] = await Promise.all([
+    supabase
+      .from("conversations")
+      .select("id, instance_id, remote_jid")
+      .eq("id", conversationId)
+      .single(),
+    supabase.from("media_library").select("*").eq("id", mediaId).single(),
+  ]);
+
+  if (convRes.error || !convRes.data) return { ok: false, error: "Conversa não encontrada" };
+  if (mediaRes.error || !mediaRes.data) return { ok: false, error: "Mídia não encontrada" };
+
+  const conv = convRes.data;
+  const media = mediaRes.data;
+
+  // Áudios via Evolution v2 usam endpoint específico — por ora skip
+  if (media.file_type === "audio") {
+    return {
+      ok: false,
+      error: "Envio de áudio ainda não suportado por essa interface (em breve).",
+    };
+  }
+
+  const mediatype = evolutionMediaType(media.file_type);
+  const captionText = (caption ?? media.title)?.slice(0, 1024) || undefined;
+
+  let sent;
+  try {
+    sent = await evolution.sendMedia(conv.remote_jid, {
+      mediatype,
+      media: media.file_url,
+      mimetype: media.mimetype ?? undefined,
+      caption: captionText,
+      fileName: media.file_path.split("/").pop(),
+    });
+  } catch (e) {
+    if (e instanceof EvolutionError) return { ok: false, error: e.message };
+    return { ok: false, error: (e as Error).message };
+  }
+
+  const service = createServiceClient();
+  const now = new Date().toISOString();
+
+  const { error: insertErr } = await service.from("messages").insert({
+    conversation_id: conv.id,
+    instance_id: conv.instance_id,
+    evolution_message_id: sent.key.id,
+    remote_jid: conv.remote_jid,
+    from_me: true,
+    message_type: media.file_type,
+    content: captionText ?? null,
+    media_url: media.file_url,
+    media_mimetype: media.mimetype,
+    media_filename: media.file_path.split("/").pop() ?? null,
+    media_size: media.file_size,
+    media_caption: captionText ?? null,
+    status: "sent",
+    timestamp: now,
+  });
+  if (insertErr) {
+    console.warn("[sendMedia] Evolution ok mas insert falhou:", insertErr.message);
+  }
+
+  const preview =
+    media.file_type === "image"
+      ? `🖼 ${captionText ?? "Imagem"}`
+      : media.file_type === "video"
+        ? `🎬 ${captionText ?? "Vídeo"}`
+        : `📎 ${captionText ?? media.title}`;
+
+  await service
+    .from("conversations")
+    .update({
+      last_message_text: preview,
+      last_message_at: now,
+      last_message_from_me: true,
+    })
+    .eq("id", conv.id);
+
+  revalidatePath("/chat");
+  return { ok: true };
+}

@@ -8,6 +8,9 @@ import type {
   EvolutionQrResponse,
   EvolutionWebhookConfig,
   EvolutionSendTextResponse,
+  EvolutionSendMediaPayload,
+  EvolutionSendMediaResponse,
+  EvolutionMediaType,
 } from "./types";
 
 /**
@@ -135,6 +138,23 @@ export const evolution = {
       body: JSON.stringify({
         number: jidToNumber(remoteJid),
         text,
+      }),
+    });
+  },
+
+  /**
+   * Envia mídia (imagem, vídeo ou documento) via URL pública.
+   */
+  async sendMedia(
+    remoteJid: string,
+    payload: Omit<EvolutionSendMediaPayload, "number">
+  ): Promise<EvolutionSendMediaResponse> {
+    const { instanceName } = getConfig();
+    return evoFetch(`/message/sendMedia/${instanceName}`, {
+      method: "POST",
+      body: JSON.stringify({
+        number: jidToNumber(remoteJid),
+        ...payload,
       }),
     });
   },

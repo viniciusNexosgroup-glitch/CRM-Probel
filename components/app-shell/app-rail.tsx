@@ -13,6 +13,7 @@ import {
   User,
   Zap,
   LayoutDashboard,
+  Library,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/leads", label: "Funil", icon: KanbanSquare },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/settings/quick-replies", label: "Respostas", icon: Zap },
+  { href: "/settings/media-library", label: "Mídias", icon: Library },
   { href: "/settings/whatsapp", label: "WhatsApp", icon: Settings },
 ];
 

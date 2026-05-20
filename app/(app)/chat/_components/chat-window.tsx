@@ -17,17 +17,23 @@ import type { ConversationWithContact, ContactPanelData, MessageRow } from "../t
 import type { Database } from "@/types/database";
 
 type QuickReplyRow = Database["public"]["Tables"]["quick_replies"]["Row"];
+type MediaRow = Database["public"]["Tables"]["media_library"]["Row"];
+type CategoryRow = Database["public"]["Tables"]["media_categories"]["Row"];
 
 export function ChatWindow({
   conversation,
   initialMessages,
   panelData,
   quickReplies = [],
+  medias = [],
+  mediaCategories = [],
 }: {
   conversation: ConversationWithContact;
   initialMessages: MessageRow[];
   panelData: ContactPanelData | null;
   quickReplies?: QuickReplyRow[];
+  medias?: MediaRow[];
+  mediaCategories?: CategoryRow[];
 }) {
   const router = useRouter();
   const [messages, setMessages] = useState<MessageRow[]>(initialMessages);
@@ -214,6 +220,8 @@ export function ChatWindow({
       <ComposeBar
         conversationId={conversation.id}
         quickReplies={quickReplies}
+        medias={medias}
+        mediaCategories={mediaCategories}
         templateCtx={{
           contactName: conversation.contact.name,
           pushName: conversation.contact.push_name,

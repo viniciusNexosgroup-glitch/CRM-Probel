@@ -5,6 +5,12 @@ import { cn } from "@/lib/utils";
 import { formatTime } from "@/lib/format/date";
 import type { MessageRow } from "../types";
 
+/** True se a URL é nossa (Supabase Storage) — sem expiração. */
+function isStableUrl(url: string | null): boolean {
+  if (!url) return false;
+  return url.includes(".supabase.co/storage/") || url.includes("supabase.in/storage/");
+}
+
 function StatusIcon({ status }: { status: MessageRow["status"] }) {
   switch (status) {
     case "read":
@@ -22,7 +28,65 @@ function StatusIcon({ status }: { status: MessageRow["status"] }) {
   }
 }
 
-function MediaPlaceholder({ type, caption, filename, duration }: { type: MessageRow["message_type"]; caption?: string | null; filename?: string | null; duration?: number | null }) {
+function MediaPlaceholder({
+  type,
+  caption,
+  filename,
+  duration,
+  mediaUrl,
+}: {
+  type: MessageRow["message_type"];
+  caption?: string | null;
+  filename?: string | null;
+  duration?: number | null;
+  mediaUrl?: string | null;
+}) {
+  // Renderiza inline se for imagem com URL estável (Supabase Storage)
+  if (type === "image" && mediaUrl && isStableUrl(mediaUrl)) {
+    return (
+      <div className="space-y-1">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={mediaUrl}
+          alt={caption ?? "Imagem"}
+          className="rounded-md max-w-full max-h-80 object-cover cursor-pointer"
+          onClick={() => window.open(mediaUrl, "_blank")}
+        />
+        {caption && <p className="text-sm whitespace-pre-wrap break-words">{caption}</p>}
+      </div>
+    );
+  }
+
+  // Vídeo com URL estável: player
+  if (type === "video" && mediaUrl && isStableUrl(mediaUrl)) {
+    return (
+      <div className="space-y-1">
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+        <video src={mediaUrl} controls className="rounded-md max-w-full max-h-80" />
+        {caption && <p className="text-sm whitespace-pre-wrap break-words">{caption}</p>}
+      </div>
+    );
+  }
+
+  // Documento com URL estável: link de download
+  if (type === "document" && mediaUrl && isStableUrl(mediaUrl)) {
+    return (
+      <a
+        href={mediaUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="flex items-center gap-2 px-2 py-1.5 rounded bg-black/20 hover:bg-black/30 transition-colors"
+      >
+        <FileText className="h-5 w-5 opacity-70" />
+        <div className="text-sm min-w-0">
+          <p className="font-medium truncate">{filename ?? caption ?? "Documento"}</p>
+          <p className="text-xs opacity-70">Clique para abrir</p>
+        </div>
+      </a>
+    );
+  }
+
+  // Fallback: placeholder
   const Icon =
     type === "image" ? ImageIcon : type === "video" ? Video : type === "audio" ? Mic : FileText;
   const label =
@@ -65,6 +129,7 @@ export function MessageBubble({ msg }: { msg: MessageRow }) {
             caption={msg.media_caption ?? msg.content}
             filename={msg.media_filename}
             duration={msg.duration}
+            mediaUrl={msg.media_url}
           />
         ) : (
           <p className="whitespace-pre-wrap break-words pr-12">
