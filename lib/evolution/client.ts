@@ -178,6 +178,21 @@ export const evolution = {
   },
 
   /**
+   * Envia áudio como push-to-talk (mensagem de voz).
+   * Aceita URL pública ou base64. Evolution converte pra OGG Opus se precisar.
+   */
+  async sendAudio(remoteJid: string, audioUrl: string): Promise<EvolutionSendMediaResponse> {
+    const { instanceName } = getConfig();
+    return evoFetch(`/message/sendWhatsAppAudio/${instanceName}`, {
+      method: "POST",
+      body: JSON.stringify({
+        number: jidToNumber(remoteJid),
+        audio: audioUrl,
+      }),
+    });
+  },
+
+  /**
    * Envia mídia (imagem, vídeo ou documento) via URL pública.
    */
   async sendMedia(

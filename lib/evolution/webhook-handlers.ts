@@ -325,7 +325,9 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
               ? "Figurinha"
               : "Mensagem");
 
-  // Para conversas com mensagem do contato (não from_me), incrementa unread
+  // Mensagem do cliente → incrementa unread
+  // Mensagem da loja (de qualquer lugar: CRM, celular, etc) → zera unread
+  // (faz sentido: se a loja respondeu, ela viu)
   if (!data.key.fromMe) {
     const { data: conv } = await supabase
       .from("conversations")
@@ -334,18 +336,25 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
       .single();
     await supabase
       .from("conversations")
-      .update({ unread_count: (conv?.unread_count ?? 0) + 1 })
+      .update({
+        unread_count: (conv?.unread_count ?? 0) + 1,
+        last_message_text: preview,
+        last_message_at: timestamp,
+        last_message_from_me: false,
+      })
+      .eq("id", conversationId);
+  } else {
+    // Loja enviou — zera unread + atualiza preview
+    await supabase
+      .from("conversations")
+      .update({
+        unread_count: 0,
+        last_message_text: preview,
+        last_message_at: timestamp,
+        last_message_from_me: true,
+      })
       .eq("id", conversationId);
   }
-
-  await supabase
-    .from("conversations")
-    .update({
-      last_message_text: preview,
-      last_message_at: timestamp,
-      last_message_from_me: data.key.fromMe,
-    })
-    .eq("id", conversationId);
 
   // Auto-resposta fora do horário comercial (apenas pra mensagens recebidas, não-grupo)
   if (!data.key.fromMe && !isGroupJid(data.key.remoteJid)) {
@@ -519,7 +528,19 @@ export async function handleChatsUpdate(
     // Algumas versões da Evolution mandam unreadCount, outras unreadMessages
     const unread = chat.unreadCount ?? chat.unreadMessages;
     if (typeof unread === "number") {
-      updates.unread_count = Math.max(0, unread);
+      // Se a última msg foi NOSSA (last_message_from_me=true), ignora valor > 0
+      // (Evolution às vezes manda stale data — não queremos badge se a loja respondeu)
+      const { data: conv } = await supabase
+        .from("conversations")
+        .select("last_message_from_me")
+        .eq("instance_id", instance.id)
+        .eq("remote_jid", chat.remoteJid)
+        .maybeSingle();
+      if (unread > 0 && conv?.last_message_from_me) {
+        // ignora — vamos manter zerado
+      } else {
+        updates.unread_count = Math.max(0, unread);
+      }
     }
     if (typeof chat.archived === "boolean") {
       updates.is_archived = chat.archived;
