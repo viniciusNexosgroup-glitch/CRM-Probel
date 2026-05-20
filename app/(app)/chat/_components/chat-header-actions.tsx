@@ -236,9 +236,8 @@ function TagPills({
 export function ChatHeaderActions({ panelData }: { panelData: ContactPanelData | null }) {
   if (!panelData) return null;
   return (
-    <div className="bg-wa-header border-l border-t border-wa-border px-4 py-1.5 flex items-center gap-2 flex-wrap shrink-0">
+    <div className="flex items-center gap-2 min-w-0 flex-wrap">
       <StagePill panelData={panelData} />
-      <span className="text-wa-textTertiary text-xs">·</span>
       <TagPills panelData={panelData} />
     </div>
   );

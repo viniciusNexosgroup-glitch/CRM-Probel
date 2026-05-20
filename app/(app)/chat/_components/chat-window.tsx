@@ -144,10 +144,10 @@ export function ChatWindow({
     <div className="flex-1 flex min-w-0 h-full">
       <div className="flex-1 flex flex-col bg-wa-bg min-w-0">
       {/* Header */}
-      <header className="h-16 bg-wa-header flex items-center justify-between px-4 border-l border-wa-border shrink-0">
+      <header className="h-16 bg-wa-header flex items-center justify-between gap-3 px-4 border-l border-wa-border shrink-0">
         <button
           onClick={() => setPanelOpen(true)}
-          className="flex items-center gap-3 min-w-0 hover:bg-wa-hover/50 rounded-md px-2 py-1 -ml-2 transition-colors"
+          className="flex items-center gap-3 min-w-0 hover:bg-wa-hover/50 rounded-md px-2 py-1 -ml-2 transition-colors shrink-0"
         >
           <Avatar
             src={conversation.contact.profile_pic_url}
@@ -162,7 +162,10 @@ export function ChatWindow({
             )}
           </div>
         </button>
-        <div className="flex items-center gap-2 text-wa-textSecondary">
+        <div className="flex-1 min-w-0 flex justify-start">
+          <ChatHeaderActions panelData={panelData} />
+        </div>
+        <div className="flex items-center gap-2 text-wa-textSecondary shrink-0">
           <button className="p-2 hover:bg-wa-hover rounded-full" aria-label="Ligar">
             <Phone className="h-4 w-4" />
           </button>
@@ -183,7 +186,6 @@ export function ChatWindow({
           </button>
         </div>
       </header>
-      <ChatHeaderActions panelData={panelData} />
 
       {/* Mensagens */}
       <div
