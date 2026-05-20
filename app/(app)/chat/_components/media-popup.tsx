@@ -1,22 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition, useRef } from "react";
-import Image from "next/image";
 import { toast } from "sonner";
-import { Search, Image as ImageIcon, Video, Music, FileText, Loader2, Library } from "lucide-react";
+import { Search, Loader2, Library } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MediaThumb } from "@/components/media-thumb";
 import { sendMediaFromLibraryAction } from "../actions";
 import type { Database } from "@/types/database";
 
 type Media = Database["public"]["Tables"]["media_library"]["Row"];
 type Category = Database["public"]["Tables"]["media_categories"]["Row"];
-
-function FileIcon({ type, className }: { type: Media["file_type"]; className?: string }) {
-  if (type === "image") return <ImageIcon className={className} />;
-  if (type === "video") return <Video className={className} />;
-  if (type === "audio") return <Music className={className} />;
-  return <FileText className={className} />;
-}
 
 /**
  * Popup inline acima do compose com thumbnails da biblioteca de mídias.
@@ -177,27 +170,20 @@ export function MediaPopup({
                   )}
                 >
                   <div className="aspect-square flex items-center justify-center relative">
-                    {m.file_type === "image" ? (
-                      <Image
-                        src={m.file_url}
-                        alt={m.title}
-                        fill
-                        unoptimized
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="text-wa-textTertiary">
-                        <FileIcon type={m.file_type} className="h-7 w-7" />
-                      </div>
-                    )}
+                    <MediaThumb
+                      fileType={m.file_type}
+                      fileUrl={m.file_url}
+                      alt={m.title}
+                      iconSize="h-7 w-7"
+                    />
                     {sending && (
-                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
                         <Loader2 className="h-5 w-5 animate-spin text-primary" />
                       </div>
                     )}
                     {/* Badge do tipo */}
                     {m.file_type !== "image" && (
-                      <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[9px] px-1 py-0.5 rounded uppercase font-medium">
+                      <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[9px] px-1 py-0.5 rounded uppercase font-medium z-10">
                         {m.file_type}
                       </span>
                     )}

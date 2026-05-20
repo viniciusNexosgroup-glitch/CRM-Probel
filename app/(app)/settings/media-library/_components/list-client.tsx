@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import Image from "next/image";
 import {
   Plus,
   Trash2,
@@ -19,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { UploadDialog } from "./upload-dialog";
 import { deleteMediaAction, updateMediaAction } from "../actions";
 import { cn } from "@/lib/utils";
+import { MediaThumb } from "@/components/media-thumb";
 import type { Database } from "@/types/database";
 
 type Media = Database["public"]["Tables"]["media_library"]["Row"];
@@ -193,20 +193,13 @@ export function MediaList({
                     className="rounded-lg border border-border bg-card overflow-hidden hover:border-primary/40 transition-colors group"
                   >
                     <div className="aspect-square bg-wa-bg/40 flex items-center justify-center relative">
-                      {m.file_type === "image" ? (
-                        <Image
-                          src={m.file_url}
-                          alt={m.title}
-                          fill
-                          unoptimized
-                          className="object-cover"
-                        />
-                      ) : (
-                        <div className="text-wa-textTertiary">
-                          <FileIcon type={m.file_type} className="h-7 w-7" />
-                        </div>
-                      )}
-                      <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <MediaThumb
+                        fileType={m.file_type}
+                        fileUrl={m.file_url}
+                        alt={m.title}
+                        iconSize="h-7 w-7"
+                      />
+                      <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                         <TypeChangePopover media={m} onChanged={() => router.refresh()} />
                         <button
                           onClick={() => onDelete(m)}
