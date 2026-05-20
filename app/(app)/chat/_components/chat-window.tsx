@@ -9,6 +9,7 @@ import { MessageBubble } from "./message-bubble";
 import { DateSeparator } from "./date-separator";
 import { ComposeBar } from "./compose-bar";
 import { ContactPanel } from "./contact-panel";
+import { ChatHeaderActions } from "./chat-header-actions";
 import { isSameDay } from "@/lib/format/date";
 import { formatPhone } from "@/lib/format/avatar";
 import { markAsReadAction } from "../actions";
@@ -182,6 +183,7 @@ export function ChatWindow({
           </button>
         </div>
       </header>
+      <ChatHeaderActions panelData={panelData} />
 
       {/* Mensagens */}
       <div
