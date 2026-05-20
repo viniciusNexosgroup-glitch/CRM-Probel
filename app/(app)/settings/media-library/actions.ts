@@ -63,7 +63,7 @@ export async function updateMediaAction(
   payload: UpdateMediaPayload
 ): Promise<Result> {
   const supabase = await createClient();
-  const updates: Record<string, unknown> = {};
+  const updates: Database["public"]["Tables"]["media_library"]["Update"] = {};
   if (payload.title !== undefined) updates.title = payload.title.trim();
   if (payload.description !== undefined)
     updates.description = payload.description?.trim() || null;
