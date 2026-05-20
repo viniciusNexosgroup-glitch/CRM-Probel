@@ -1,5 +1,6 @@
 "use client";
 
+// Build id: 2026-05-19T19:00 (forçar rebuild — UI nova com abas URL externa/Upload)
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
