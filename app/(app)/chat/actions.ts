@@ -272,6 +272,52 @@ export async function toggleTaskAction(
   return { ok: true };
 }
 
+// ============================================================
+// Favoritar / Fixar / Arquivar conversas
+// ============================================================
+
+export async function toggleFavoriteAction(
+  contactId: string,
+  value: boolean
+): Promise<Result> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("contacts")
+    .update({ is_favorite: value })
+    .eq("id", contactId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/chat");
+  return { ok: true };
+}
+
+export async function togglePinnedAction(
+  conversationId: string,
+  value: boolean
+): Promise<Result> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("conversations")
+    .update({ is_pinned: value })
+    .eq("id", conversationId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/chat");
+  return { ok: true };
+}
+
+export async function toggleArchivedAction(
+  conversationId: string,
+  value: boolean
+): Promise<Result> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("conversations")
+    .update({ is_archived: value })
+    .eq("id", conversationId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/chat");
+  return { ok: true };
+}
+
 export async function deleteTaskAction(taskId: string): Promise<Result> {
   const supabase = await createClient();
   const { error } = await supabase.from("tasks").delete().eq("id", taskId);

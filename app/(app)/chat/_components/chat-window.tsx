@@ -2,7 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Phone, MoreVertical, PanelRightOpen, PanelRightClose } from "lucide-react";
+import {
+  Phone,
+  MoreVertical,
+  PanelRightOpen,
+  PanelRightClose,
+  Star,
+  Pin,
+  Archive,
+  ArchiveRestore,
+  Loader2,
+} from "lucide-react";
+import { toast } from "sonner";
+import { useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar } from "./avatar";
 import { MessageBubble } from "./message-bubble";
@@ -12,13 +24,123 @@ import { ContactPanel } from "./contact-panel";
 import { ChatHeaderActions } from "./chat-header-actions";
 import { isSameDay } from "@/lib/format/date";
 import { formatPhone } from "@/lib/format/avatar";
-import { markAsReadAction } from "../actions";
+import { cn } from "@/lib/utils";
+import {
+  markAsReadAction,
+  toggleFavoriteAction,
+  togglePinnedAction,
+  toggleArchivedAction,
+} from "../actions";
 import type { ConversationWithContact, ContactPanelData, MessageRow } from "../types";
 import type { Database } from "@/types/database";
 
 type QuickReplyRow = Database["public"]["Tables"]["quick_replies"]["Row"];
 type MediaRow = Database["public"]["Tables"]["media_library"]["Row"];
 type CategoryRow = Database["public"]["Tables"]["media_categories"]["Row"];
+
+function FavoritePinArchive({
+  conversation,
+}: {
+  conversation: ConversationWithContact;
+}) {
+  const router = useRouter();
+  const [pendingFav, startFav] = useTransition();
+  const [pendingPin, startPin] = useTransition();
+  const [pendingArc, startArc] = useTransition();
+
+  const isFavorite = conversation.contact.is_favorite;
+  const isPinned = conversation.is_pinned;
+  const isArchived = conversation.is_archived;
+
+  function onFavorite() {
+    startFav(async () => {
+      const res = await toggleFavoriteAction(conversation.contact.id, !isFavorite);
+      if (res.ok) {
+        toast.success(!isFavorite ? "Adicionado aos favoritos" : "Removido dos favoritos");
+        router.refresh();
+      } else {
+        toast.error("Falha", { description: res.error });
+      }
+    });
+  }
+  function onPin() {
+    startPin(async () => {
+      const res = await togglePinnedAction(conversation.id, !isPinned);
+      if (res.ok) {
+        toast.success(!isPinned ? "Conversa fixada" : "Conversa desafixada");
+        router.refresh();
+      } else {
+        toast.error("Falha", { description: res.error });
+      }
+    });
+  }
+  function onArchive() {
+    startArc(async () => {
+      const res = await toggleArchivedAction(conversation.id, !isArchived);
+      if (res.ok) {
+        toast.success(!isArchived ? "Conversa arquivada" : "Conversa desarquivada");
+        router.refresh();
+      } else {
+        toast.error("Falha", { description: res.error });
+      }
+    });
+  }
+
+  return (
+    <>
+      <button
+        onClick={onFavorite}
+        disabled={pendingFav}
+        className={cn(
+          "p-2 hover:bg-wa-hover rounded-full transition-colors",
+          isFavorite && "text-amber-400"
+        )}
+        title={isFavorite ? "Remover dos favoritos" : "Marcar como favorita"}
+        aria-label="Favoritar"
+      >
+        {pendingFav ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Star className={cn("h-4 w-4", isFavorite && "fill-current")} />
+        )}
+      </button>
+      <button
+        onClick={onPin}
+        disabled={pendingPin}
+        className={cn(
+          "p-2 hover:bg-wa-hover rounded-full transition-colors",
+          isPinned && "text-primary"
+        )}
+        title={isPinned ? "Desafixar" : "Fixar no topo"}
+        aria-label="Fixar"
+      >
+        {pendingPin ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Pin className={cn("h-4 w-4", isPinned && "fill-current")} />
+        )}
+      </button>
+      <button
+        onClick={onArchive}
+        disabled={pendingArc}
+        className={cn(
+          "p-2 hover:bg-wa-hover rounded-full transition-colors",
+          isArchived && "text-wa-textPrimary"
+        )}
+        title={isArchived ? "Desarquivar" : "Arquivar"}
+        aria-label="Arquivar"
+      >
+        {pendingArc ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : isArchived ? (
+          <ArchiveRestore className="h-4 w-4" />
+        ) : (
+          <Archive className="h-4 w-4" />
+        )}
+      </button>
+    </>
+  );
+}
 
 export function ChatWindow({
   conversation,
@@ -171,10 +293,8 @@ export function ChatWindow({
         <div className="flex-1 min-w-0 flex justify-start">
           <ChatHeaderActions panelData={panelData} />
         </div>
-        <div className="flex items-center gap-2 text-wa-textSecondary shrink-0">
-          <button className="p-2 hover:bg-wa-hover rounded-full" aria-label="Ligar">
-            <Phone className="h-4 w-4" />
-          </button>
+        <div className="flex items-center gap-1 text-wa-textSecondary shrink-0">
+          <FavoritePinArchive conversation={conversation} />
           <button
             onClick={() => setPanelOpen((o) => !o)}
             className="p-2 hover:bg-wa-hover rounded-full"
