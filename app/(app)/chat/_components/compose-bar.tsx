@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useRef, useEffect, KeyboardEvent } from "react";
 import { toast } from "sonner";
-import { Smile, Paperclip, SendHorizonal, Loader2, Zap } from "lucide-react";
+import { Smile, Paperclip, SendHorizonal, Loader2, Zap, Reply, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { sendTextMessageAction } from "../actions";
@@ -11,22 +11,37 @@ import { MediaPopup } from "./media-popup";
 import { resolveTemplate, type TemplateContext } from "@/lib/format/template";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/types/database";
+import type { MessageRow } from "../types";
 
 type QuickReplyRow = Database["public"]["Tables"]["quick_replies"]["Row"];
 type MediaRow = Database["public"]["Tables"]["media_library"]["Row"];
 type CategoryRow = Database["public"]["Tables"]["media_categories"]["Row"];
+
+function previewOfMsg(m: MessageRow): string {
+  if (m.content) return m.content;
+  if (m.media_caption) return m.media_caption;
+  if (m.message_type === "image") return "📷 Imagem";
+  if (m.message_type === "video") return "🎥 Vídeo";
+  if (m.message_type === "audio") return "🎵 Áudio";
+  if (m.message_type === "document") return m.media_filename ?? "📄 Documento";
+  return "Mensagem";
+}
 
 export function ComposeBar({
   conversationId,
   quickReplies = [],
   medias = [],
   mediaCategories = [],
+  replyingTo = null,
+  onCancelReply,
   templateCtx,
 }: {
   conversationId: string;
   quickReplies?: QuickReplyRow[];
   medias?: MediaRow[];
   mediaCategories?: CategoryRow[];
+  replyingTo?: MessageRow | null;
+  onCancelReply?: () => void;
   templateCtx?: TemplateContext;
 }) {
   const [pending, startTransition] = useTransition();
@@ -66,8 +81,10 @@ export function ComposeBar({
     if (!value || pending) return;
     setText("");
     setManualOpen(false);
+    const replyToCapture = replyingTo?.id ?? null;
+    onCancelReply?.();
     startTransition(async () => {
-      const res = await sendTextMessageAction(conversationId, value);
+      const res = await sendTextMessageAction(conversationId, value, replyToCapture);
       if (!res.ok) {
         toast.error("Falha ao enviar", { description: res.error });
         setText(value);
@@ -154,6 +171,26 @@ export function ComposeBar({
 
   return (
     <footer className="bg-wa-header px-3 py-2 border-l border-wa-border shrink-0 relative">
+      {replyingTo && (
+        <div className="mb-2 px-3 py-2 rounded-md bg-wa-bg/60 border-l-4 border-primary flex items-start gap-2">
+          <Reply className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] uppercase tracking-wider text-primary font-medium">
+              Respondendo {replyingTo.from_me ? "você" : "cliente"}
+            </p>
+            <p className="text-xs text-wa-textSecondary truncate">
+              {previewOfMsg(replyingTo)}
+            </p>
+          </div>
+          <button
+            onClick={onCancelReply}
+            className="p-1 text-wa-textSecondary hover:text-wa-textPrimary shrink-0"
+            aria-label="Cancelar resposta"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
       {showPicker && (
         <div data-quick-reply-picker>
           <QuickReplyPicker

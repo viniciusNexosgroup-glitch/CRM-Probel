@@ -159,12 +159,13 @@ export function ChatWindow({
 }) {
   const router = useRouter();
   const [messages, setMessages] = useState<MessageRow[]>(initialMessages);
-  // Painel fechado por padrão — só abre ao clicar no avatar/header
   const [panelOpen, setPanelOpen] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<MessageRow | null>(null);
 
-  // Fecha o painel automaticamente ao trocar de conversa
+  // Fecha painel + reply ao trocar de conversa
   useEffect(() => {
     setPanelOpen(false);
+    setReplyingTo(null);
   }, [conversation.id]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -323,17 +324,21 @@ export function ChatWindow({
             Nenhuma mensagem ainda nesta conversa.
           </div>
         ) : (
-          messages.map((m, i) => {
-            const prev = messages[i - 1];
-            const showDateSep =
-              !prev || !isSameDay(new Date(m.timestamp), new Date(prev.timestamp));
-            return (
-              <div key={m.id}>
-                {showDateSep && <DateSeparator date={m.timestamp} />}
-                <MessageBubble msg={m} />
-              </div>
-            );
-          })
+          (() => {
+            const map = new Map(messages.map((m) => [m.id, m]));
+            return messages.map((m, i) => {
+              const prev = messages[i - 1];
+              const showDateSep =
+                !prev || !isSameDay(new Date(m.timestamp), new Date(prev.timestamp));
+              const quoted = m.reply_to_id ? map.get(m.reply_to_id) ?? null : null;
+              return (
+                <div key={m.id}>
+                  {showDateSep && <DateSeparator date={m.timestamp} />}
+                  <MessageBubble msg={m} quotedMessage={quoted} onReply={setReplyingTo} />
+                </div>
+              );
+            });
+          })()
         )}
       </div>
 
@@ -342,6 +347,8 @@ export function ChatWindow({
         quickReplies={quickReplies}
         medias={medias}
         mediaCategories={mediaCategories}
+        replyingTo={replyingTo}
+        onCancelReply={() => setReplyingTo(null)}
         templateCtx={{
           contactName: conversation.contact.name,
           pushName: conversation.contact.push_name,

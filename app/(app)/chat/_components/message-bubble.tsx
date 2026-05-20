@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CheckCheck, Clock, AlertTriangle, FileText, Mic, Image as ImageIcon, Video } from "lucide-react";
+import { Check, CheckCheck, Clock, AlertTriangle, FileText, Mic, Image as ImageIcon, Video, Reply } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTime } from "@/lib/format/date";
 import type { MessageRow } from "../types";
@@ -111,18 +111,81 @@ function MediaPlaceholder({
   );
 }
 
-export function MessageBubble({ msg }: { msg: MessageRow }) {
+function previewOf(msg: MessageRow): string {
+  if (msg.content) return msg.content;
+  if (msg.media_caption) return msg.media_caption;
+  switch (msg.message_type) {
+    case "image":
+      return "📷 Imagem";
+    case "video":
+      return "🎥 Vídeo";
+    case "audio":
+      return "🎵 Áudio";
+    case "document":
+      return msg.media_filename ?? "📄 Documento";
+    case "sticker":
+      return "🏷️ Figurinha";
+    default:
+      return "Mensagem";
+  }
+}
+
+export function MessageBubble({
+  msg,
+  quotedMessage,
+  onReply,
+}: {
+  msg: MessageRow;
+  quotedMessage?: MessageRow | null;
+  onReply?: (msg: MessageRow) => void;
+}) {
   const fromMe = msg.from_me;
   const isMedia = msg.message_type !== "text" && msg.message_type !== "reaction";
 
   return (
-    <div className={cn("flex w-full", fromMe ? "justify-end" : "justify-start")}>
+    <div
+      className={cn(
+        "group flex w-full items-center gap-2",
+        fromMe ? "justify-end" : "justify-start"
+      )}
+    >
+      {/* Botão de reply à esquerda em msgs from_me, à direita em recebidas */}
+      {!fromMe && onReply && (
+        <button
+          onClick={() => onReply(msg)}
+          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-full bg-wa-panel hover:bg-wa-hover text-wa-textSecondary transition-opacity"
+          title="Responder"
+          aria-label="Responder"
+        >
+          <Reply className="h-3.5 w-3.5" />
+        </button>
+      )}
       <div
         className={cn(
-          "max-w-[75%] md:max-w-[65%] rounded-lg px-2.5 py-1.5 text-sm shadow-sm",
+          "max-w-[75%] md:max-w-[65%] rounded-lg px-2.5 py-1.5 text-sm shadow-sm order-2",
           fromMe ? "bg-wa-bubbleOut text-wa-textPrimary" : "bg-wa-bubbleIn text-wa-textPrimary"
         )}
       >
+        {quotedMessage && (
+          <div
+            className={cn(
+              "mb-1.5 px-2 py-1 rounded border-l-2 text-xs",
+              quotedMessage.from_me
+                ? "bg-black/15 border-emerald-400 text-wa-textSecondary"
+                : "bg-black/15 border-sky-400 text-wa-textSecondary"
+            )}
+          >
+            <p
+              className={cn(
+                "text-[10px] font-medium",
+                quotedMessage.from_me ? "text-emerald-400" : "text-sky-400"
+              )}
+            >
+              {quotedMessage.from_me ? "Você" : "Cliente"}
+            </p>
+            <p className="truncate">{previewOf(quotedMessage)}</p>
+          </div>
+        )}
         {isMedia ? (
           <MediaPlaceholder
             type={msg.message_type}
@@ -141,6 +204,16 @@ export function MessageBubble({ msg }: { msg: MessageRow }) {
           {fromMe && <StatusIcon status={msg.status} />}
         </div>
       </div>
+      {fromMe && onReply && (
+        <button
+          onClick={() => onReply(msg)}
+          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-full bg-wa-panel hover:bg-wa-hover text-wa-textSecondary transition-opacity order-3"
+          title="Responder"
+          aria-label="Responder"
+        >
+          <Reply className="h-3.5 w-3.5" />
+        </button>
+      )}
     </div>
   );
 }

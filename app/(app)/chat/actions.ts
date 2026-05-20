@@ -79,7 +79,8 @@ export async function markAsReadAction(conversationId: string) {
  */
 export async function sendTextMessageAction(
   conversationId: string,
-  text: string
+  text: string,
+  replyToMessageId?: string | null
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const trimmed = text.trim();
   if (!trimmed) return { ok: false, error: "Mensagem vazia" };
@@ -98,9 +99,39 @@ export async function sendTextMessageAction(
     .single();
   if (convErr || !conv) return { ok: false, error: "Conversa não encontrada" };
 
+  // Se é reply, busca a mensagem referenciada pra montar o quoted
+  let quoted: Parameters<typeof evolution.sendText>[2] | undefined;
+  if (replyToMessageId) {
+    const { data: ref } = await supabase
+      .from("messages")
+      .select("evolution_message_id, remote_jid, from_me, content, message_type, media_caption")
+      .eq("id", replyToMessageId)
+      .single();
+    if (ref?.evolution_message_id) {
+      const refText =
+        ref.content ??
+        ref.media_caption ??
+        (ref.message_type === "image"
+          ? "📷 Imagem"
+          : ref.message_type === "video"
+            ? "🎥 Vídeo"
+            : ref.message_type === "audio"
+              ? "🎵 Áudio"
+              : ref.message_type === "document"
+                ? "📄 Documento"
+                : "Mensagem");
+      quoted = {
+        id: ref.evolution_message_id,
+        remoteJid: ref.remote_jid,
+        fromMe: ref.from_me,
+        content: refText,
+      };
+    }
+  }
+
   let sent;
   try {
-    sent = await evolution.sendText(conv.remote_jid, trimmed);
+    sent = await evolution.sendText(conv.remote_jid, trimmed, quoted);
   } catch (e) {
     if (e instanceof EvolutionError) return { ok: false, error: e.message };
     return { ok: false, error: (e as Error).message };
@@ -119,6 +150,7 @@ export async function sendTextMessageAction(
     content: trimmed,
     status: "sent",
     timestamp: now,
+    reply_to_id: replyToMessageId ?? null,
   });
 
   // Se Evolution mandou mas DB falhou, o webhook MESSAGES_UPSERT vai inserir depois.
