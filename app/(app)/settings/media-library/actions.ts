@@ -7,6 +7,9 @@ import type { Database } from "@/types/database";
 type FileType = Database["public"]["Tables"]["media_library"]["Row"]["file_type"];
 type Result<T = void> = { ok: true; data?: T } | { ok: false; error: string };
 
+/** Marker em file_path pra identificar mídia hospedada externamente (sem upload no Supabase Storage) */
+export const EXTERNAL_PREFIX = "external://";
+
 export type CreateMediaPayload = {
   title: string;
   description: string | null;
@@ -18,10 +21,35 @@ export type CreateMediaPayload = {
   file_size: number | null;
 };
 
+/**
+ * Detecta URL do Google Drive e converte pra formato de download direto.
+ * - https://drive.google.com/file/d/FILEID/view?...
+ *   → https://drive.google.com/uc?export=download&id=FILEID
+ * - https://drive.google.com/open?id=FILEID
+ *   → https://drive.google.com/uc?export=download&id=FILEID
+ */
+export function normalizeExternalUrl(url: string): string {
+  const driveMatch =
+    url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+    url.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/) ||
+    url.match(/drive\.google\.com\/uc\?id=([a-zA-Z0-9_-]+)/);
+  if (driveMatch) {
+    return `https://drive.google.com/uc?export=download&id=${driveMatch[1]}`;
+  }
+  // Dropbox compartilhamento: ?dl=0 → ?dl=1 (direct download)
+  if (url.includes("dropbox.com") && url.includes("dl=0")) {
+    return url.replace("dl=0", "dl=1");
+  }
+  return url;
+}
+
 export async function createMediaAction(payload: CreateMediaPayload): Promise<Result> {
   if (!payload.title.trim()) return { ok: false, error: "Título é obrigatório" };
-  if (!payload.file_url || !payload.file_path) {
-    return { ok: false, error: "Faça o upload do arquivo antes de salvar" };
+  if (!payload.file_url) {
+    return { ok: false, error: "Informe a URL ou faça upload do arquivo" };
+  }
+  if (!payload.file_path) {
+    return { ok: false, error: "Caminho do arquivo inválido" };
   }
 
   const supabase = await createClient();
@@ -56,7 +84,8 @@ export async function deleteMediaAction(mediaId: string): Promise<Result> {
     .eq("id", mediaId)
     .single();
 
-  if (media?.file_path) {
+  // Só apaga do Storage se for arquivo hospedado lá (não-externo)
+  if (media?.file_path && !media.file_path.startsWith(EXTERNAL_PREFIX)) {
     await supabase.storage.from("media-library").remove([media.file_path]);
   }
 
