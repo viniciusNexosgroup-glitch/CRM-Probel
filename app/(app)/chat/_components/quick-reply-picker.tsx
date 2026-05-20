@@ -9,9 +9,10 @@ export function QuickReplyPicker({
   replies,
   query,
   onSelect,
-  onClose,
+  onClose: _onClose,
   selectedIndex,
   onIndexChange,
+  hint,
 }: {
   replies: QuickReplyRow[];
   query: string; // o que vem depois do /
@@ -19,6 +20,7 @@ export function QuickReplyPicker({
   onClose: () => void;
   selectedIndex: number;
   onIndexChange: (i: number) => void;
+  hint?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -61,7 +63,7 @@ export function QuickReplyPicker({
     >
       <div className="px-3 py-2 border-b border-wa-border text-[10px] uppercase tracking-wider text-wa-textTertiary flex justify-between">
         <span>Respostas rápidas</span>
-        <span>↑↓ navegar · Enter selecionar · Esc fechar</span>
+        <span>{hint ?? "↑↓ navegar · Enter selecionar · Esc fechar"}</span>
       </div>
       <ul>
         {filtered.map((r, i) => {

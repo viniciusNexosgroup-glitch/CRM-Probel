@@ -2,12 +2,13 @@
 
 import { useState, useTransition, useRef, useEffect, KeyboardEvent } from "react";
 import { toast } from "sonner";
-import { Smile, Paperclip, SendHorizonal, Loader2 } from "lucide-react";
+import { Smile, Paperclip, SendHorizonal, Loader2, Zap } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { sendTextMessageAction } from "../actions";
 import { QuickReplyPicker } from "./quick-reply-picker";
 import { resolveTemplate, type TemplateContext } from "@/lib/format/template";
+import { cn } from "@/lib/utils";
 import type { Database } from "@/types/database";
 
 type QuickReplyRow = Database["public"]["Tables"]["quick_replies"]["Row"];
@@ -24,22 +25,39 @@ export function ComposeBar({
   const [pending, startTransition] = useTransition();
   const [text, setText] = useState("");
   const [pickerSelectedIdx, setPickerSelectedIdx] = useState(0);
+  const [manualOpen, setManualOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const zapButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Detecta se está digitando uma quick reply: texto começa com / e não tem espaço ainda
+  // Picker abre por "/" no input OU por click no botão de raio
   const slashMatch = /^\/(\S*)$/.exec(text);
-  const showPicker = !!slashMatch && quickReplies.length > 0;
-  const slashQuery = slashMatch?.[1] ?? "";
+  const showFromSlash = !!slashMatch && quickReplies.length > 0;
+  const showPicker = showFromSlash || manualOpen;
+  const slashQuery = manualOpen ? "" : (slashMatch?.[1] ?? "");
 
   useEffect(() => {
     setPickerSelectedIdx(0);
-  }, [slashQuery]);
+  }, [slashQuery, manualOpen]);
 
-  function onSend(overrideText?: string) {
-    const value = (overrideText ?? text).trim();
+  // Click fora fecha o picker manual
+  useEffect(() => {
+    if (!manualOpen) return;
+    function onDocClick(e: MouseEvent) {
+      const target = e.target as Node;
+      // Não fecha se clicou no botão de raio ou dentro do picker
+      if (zapButtonRef.current?.contains(target)) return;
+      const picker = document.querySelector("[data-quick-reply-picker]");
+      if (picker?.contains(target)) return;
+      setManualOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [manualOpen]);
+
+  function sendNow(value: string) {
     if (!value || pending) return;
-
     setText("");
+    setManualOpen(false);
     startTransition(async () => {
       const res = await sendTextMessageAction(conversationId, value);
       if (!res.ok) {
@@ -50,29 +68,46 @@ export function ComposeBar({
     });
   }
 
-  function selectQuickReply(r: QuickReplyRow) {
+  function onSend() {
+    sendNow(text.trim());
+  }
+
+  function selectQuickReply(r: QuickReplyRow, immediate = false) {
     const resolved = templateCtx ? resolveTemplate(r.content, templateCtx) : r.content;
+    setManualOpen(false);
+
+    if (immediate) {
+      // Click direto no botão de raio → envia na hora
+      sendNow(resolved);
+      return;
+    }
+
+    // Veio por "/" digitado → coloca no input pra usuário revisar/editar antes de mandar
     setText(resolved);
     requestAnimationFrame(() => {
       inputRef.current?.focus();
-      // Move cursor pro final
       const el = inputRef.current;
       if (el) el.setSelectionRange(resolved.length, resolved.length);
     });
   }
 
-  function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (showPicker) {
-      const filteredCount = quickReplies.filter((r) => {
-        const q = slashQuery.toLowerCase();
-        if (!q) return true;
-        return (
+  function getFilteredReplies() {
+    const q = slashQuery.toLowerCase();
+    if (!q) return quickReplies.slice(0, 8);
+    return quickReplies
+      .filter(
+        (r) =>
           r.shortcut.toLowerCase().includes(q) ||
           r.title.toLowerCase().includes(q) ||
           (r.category?.toLowerCase().includes(q) ?? false)
-        );
-      }).length;
-      const visible = Math.min(filteredCount, 8);
+      )
+      .slice(0, 8);
+  }
+
+  function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (showPicker) {
+      const filtered = getFilteredReplies();
+      const visible = filtered.length;
 
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -86,21 +121,14 @@ export function ComposeBar({
       }
       if (e.key === "Escape") {
         e.preventDefault();
-        setText("");
+        if (manualOpen) {
+          setManualOpen(false);
+        } else {
+          setText("");
+        }
         return;
       }
       if (e.key === "Enter" || e.key === "Tab") {
-        const filtered = quickReplies
-          .filter((r) => {
-            const q = slashQuery.toLowerCase();
-            if (!q) return true;
-            return (
-              r.shortcut.toLowerCase().includes(q) ||
-              r.title.toLowerCase().includes(q) ||
-              (r.category?.toLowerCase().includes(q) ?? false)
-            );
-          })
-          .slice(0, 8);
         const chosen = filtered[pickerSelectedIdx];
         if (chosen) {
           e.preventDefault();
@@ -119,14 +147,24 @@ export function ComposeBar({
   return (
     <footer className="bg-wa-header px-3 py-2 border-l border-wa-border shrink-0 relative">
       {showPicker && (
-        <QuickReplyPicker
-          replies={quickReplies}
-          query={slashQuery}
-          onSelect={selectQuickReply}
-          onClose={() => setText("")}
-          selectedIndex={pickerSelectedIdx}
-          onIndexChange={setPickerSelectedIdx}
-        />
+        <div data-quick-reply-picker>
+          <QuickReplyPicker
+            replies={quickReplies}
+            query={slashQuery}
+            onSelect={(r) => selectQuickReply(r, manualOpen)}
+            onClose={() => {
+              setManualOpen(false);
+              setText("");
+            }}
+            selectedIndex={pickerSelectedIdx}
+            onIndexChange={setPickerSelectedIdx}
+            hint={
+              manualOpen
+                ? "Clique numa resposta para enviar"
+                : "↑↓ navegar · Enter selecionar · Esc fechar"
+            }
+          />
+        </div>
       )}
       <div className="flex items-center gap-2">
         <button
@@ -145,6 +183,26 @@ export function ComposeBar({
         >
           <Paperclip className="h-5 w-5" />
         </button>
+        <button
+          ref={zapButtonRef}
+          onClick={() => setManualOpen((o) => !o)}
+          disabled={quickReplies.length === 0}
+          className={cn(
+            "p-2 rounded transition-colors",
+            manualOpen
+              ? "bg-primary/20 text-primary"
+              : "text-wa-textSecondary hover:bg-wa-hover hover:text-primary",
+            quickReplies.length === 0 && "opacity-50 cursor-not-allowed"
+          )}
+          title={
+            quickReplies.length === 0
+              ? "Nenhuma resposta rápida cadastrada"
+              : "Respostas rápidas"
+          }
+          aria-label="Respostas rápidas"
+        >
+          <Zap className="h-5 w-5" />
+        </button>
         <Input
           ref={inputRef}
           value={text}
@@ -160,7 +218,7 @@ export function ComposeBar({
           autoFocus
         />
         <Button
-          onClick={() => onSend()}
+          onClick={onSend}
           disabled={!text.trim() || pending}
           size="icon"
           variant="ghost"
