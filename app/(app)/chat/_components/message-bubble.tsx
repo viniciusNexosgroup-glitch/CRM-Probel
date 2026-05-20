@@ -5,10 +5,16 @@ import { cn } from "@/lib/utils";
 import { formatTime } from "@/lib/format/date";
 import type { MessageRow } from "../types";
 
-/** True se a URL é nossa (Supabase Storage) — sem expiração. */
+/**
+ * True se a URL é "tocável" — não expira em pouco tempo.
+ * Exclui domínios efêmeros do WhatsApp (mmg/pps/web.whatsapp.net) que expiram em ~2h.
+ * Aceita Supabase Storage, Google Drive, Dropbox e outras URLs públicas.
+ */
 function isStableUrl(url: string | null): boolean {
   if (!url) return false;
-  return url.includes(".supabase.co/storage/") || url.includes("supabase.in/storage/");
+  // URLs efêmeras do WhatsApp não vão funcionar pra renderizar
+  if (/(?:mmg|pps|web)\.whatsapp\.net/.test(url)) return false;
+  return /^https?:\/\//.test(url);
 }
 
 function StatusIcon({ status }: { status: MessageRow["status"] }) {
@@ -62,8 +68,22 @@ function MediaPlaceholder({
     return (
       <div className="space-y-1">
         {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-        <video src={mediaUrl} controls className="rounded-md max-w-full max-h-80" />
+        <video
+          src={mediaUrl}
+          controls
+          preload="metadata"
+          className="rounded-md max-w-full max-h-80"
+          playsInline
+        />
         {caption && <p className="text-sm whitespace-pre-wrap break-words">{caption}</p>}
+        <a
+          href={mediaUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-[10px] opacity-60 hover:underline inline-block"
+        >
+          Abrir em nova aba
+        </a>
       </div>
     );
   }
