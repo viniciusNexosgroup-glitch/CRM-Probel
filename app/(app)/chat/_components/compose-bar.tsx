@@ -2,12 +2,13 @@
 
 import { useState, useTransition, useRef, useEffect, KeyboardEvent } from "react";
 import { toast } from "sonner";
-import { Smile, Paperclip, SendHorizonal, Loader2, Zap, Reply, X } from "lucide-react";
+import { Smile, Paperclip, SendHorizonal, Loader2, Zap, Reply, X, Mic } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { sendTextMessageAction } from "../actions";
 import { QuickReplyPicker } from "./quick-reply-picker";
 import { MediaPopup } from "./media-popup";
+import { AudioRecorder } from "./audio-recorder";
 import { resolveTemplate, type TemplateContext } from "@/lib/format/template";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/types/database";
@@ -49,6 +50,7 @@ export function ComposeBar({
   const [pickerSelectedIdx, setPickerSelectedIdx] = useState(0);
   const [manualOpen, setManualOpen] = useState(false);
   const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+  const [recordingAudio, setRecordingAudio] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const zapButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -169,6 +171,17 @@ export function ComposeBar({
     }
   }
 
+  if (recordingAudio) {
+    return (
+      <footer className="bg-wa-header px-3 py-2 border-l border-wa-border shrink-0">
+        <AudioRecorder
+          conversationId={conversationId}
+          onClose={() => setRecordingAudio(false)}
+        />
+      </footer>
+    );
+  }
+
   return (
     <footer className="bg-wa-header px-3 py-2 border-l border-wa-border shrink-0 relative">
       {replyingTo && (
@@ -282,19 +295,30 @@ export function ComposeBar({
           className="bg-wa-panel border-0 text-sm h-10"
           autoFocus
         />
-        <Button
-          onClick={onSend}
-          disabled={!text.trim() || pending}
-          size="icon"
-          variant="ghost"
-          aria-label="Enviar"
-        >
-          {pending ? (
-            <Loader2 className="animate-spin h-5 w-5" />
-          ) : (
-            <SendHorizonal className="h-5 w-5 text-wa-textSecondary" />
-          )}
-        </Button>
+        {text.trim() ? (
+          <Button
+            onClick={onSend}
+            disabled={pending}
+            size="icon"
+            variant="ghost"
+            aria-label="Enviar"
+          >
+            {pending ? (
+              <Loader2 className="animate-spin h-5 w-5" />
+            ) : (
+              <SendHorizonal className="h-5 w-5 text-wa-textSecondary" />
+            )}
+          </Button>
+        ) : (
+          <button
+            onClick={() => setRecordingAudio(true)}
+            className="p-2 rounded text-wa-textSecondary hover:bg-wa-hover hover:text-primary transition-colors"
+            title="Gravar áudio"
+            aria-label="Gravar áudio"
+          >
+            <Mic className="h-5 w-5" />
+          </button>
+        )}
       </div>
 
     </footer>

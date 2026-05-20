@@ -500,6 +500,79 @@ export async function startConversationAction(
 }
 
 // ============================================================
+// Audio message (gravar áudio do browser e enviar como PTT)
+// ============================================================
+
+/**
+ * Envia um áudio que foi previamente upado pro Supabase Storage.
+ * `audioPath` é o caminho dentro do bucket `contact-media`.
+ */
+export async function sendAudioMessageAction(
+  conversationId: string,
+  audioPath: string,
+  durationSeconds: number
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Não autenticado" };
+
+  const { data: conv, error: convErr } = await supabase
+    .from("conversations")
+    .select("id, instance_id, remote_jid")
+    .eq("id", conversationId)
+    .single();
+  if (convErr || !conv) return { ok: false, error: "Conversa não encontrada" };
+
+  const { data: publicData } = supabase.storage
+    .from("contact-media")
+    .getPublicUrl(audioPath);
+  const audioUrl = publicData.publicUrl;
+  if (!audioUrl) return { ok: false, error: "Falha ao obter URL do áudio" };
+
+  let sent;
+  try {
+    sent = await evolution.sendAudio(conv.remote_jid, audioUrl);
+  } catch (e) {
+    if (e instanceof EvolutionError) return { ok: false, error: e.message };
+    return { ok: false, error: (e as Error).message };
+  }
+
+  const service = createServiceClient();
+  const now = new Date().toISOString();
+
+  await service.from("messages").insert({
+    conversation_id: conv.id,
+    instance_id: conv.instance_id,
+    evolution_message_id: sent.key.id,
+    remote_jid: conv.remote_jid,
+    from_me: true,
+    message_type: "audio",
+    content: null,
+    media_url: audioUrl,
+    media_mimetype: "audio/ogg",
+    media_filename: audioPath.split("/").pop() ?? null,
+    duration: durationSeconds,
+    status: "sent",
+    timestamp: now,
+  });
+
+  await service
+    .from("conversations")
+    .update({
+      last_message_text: `🎵 Áudio (${durationSeconds}s)`,
+      last_message_at: now,
+      last_message_from_me: true,
+      unread_count: 0,
+    })
+    .eq("id", conv.id);
+
+  revalidatePath("/chat");
+  return { ok: true };
+}
+
+// ============================================================
 // Media library send (Etapa 13)
 // ============================================================
 
