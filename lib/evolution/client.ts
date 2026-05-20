@@ -143,6 +143,21 @@ export const evolution = {
   },
 
   /**
+   * Marca mensagens como lidas no WhatsApp (sincroniza o "visto" entre CRM e celular).
+   * Recebe as keys das mensagens (remoteJid, fromMe, id) e dispara o read receipt.
+   */
+  async markAsRead(
+    messages: Array<{ remoteJid: string; fromMe: boolean; id: string }>
+  ): Promise<unknown> {
+    if (messages.length === 0) return null;
+    const { instanceName } = getConfig();
+    return evoFetch(`/chat/markMessageAsRead/${instanceName}`, {
+      method: "POST",
+      body: JSON.stringify({ readMessages: messages }),
+    });
+  },
+
+  /**
    * Envia mídia (imagem, vídeo ou documento) via URL pública.
    */
   async sendMedia(
