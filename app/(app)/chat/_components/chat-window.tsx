@@ -2,26 +2,36 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Phone, MoreVertical } from "lucide-react";
+import { Phone, MoreVertical, PanelRightOpen, PanelRightClose } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar } from "./avatar";
 import { MessageBubble } from "./message-bubble";
 import { DateSeparator } from "./date-separator";
 import { ComposeBar } from "./compose-bar";
+import { ContactPanel } from "./contact-panel";
 import { isSameDay } from "@/lib/format/date";
 import { formatPhone } from "@/lib/format/avatar";
 import { markAsReadAction } from "../actions";
-import type { ConversationWithContact, MessageRow } from "../types";
+import type { ConversationWithContact, ContactPanelData, MessageRow } from "../types";
 
 export function ChatWindow({
   conversation,
   initialMessages,
+  panelData,
 }: {
   conversation: ConversationWithContact;
   initialMessages: MessageRow[];
+  panelData: ContactPanelData | null;
 }) {
   const router = useRouter();
   const [messages, setMessages] = useState<MessageRow[]>(initialMessages);
+  // Painel fechado por padrão — só abre ao clicar no avatar/header
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  // Fecha o painel automaticamente ao trocar de conversa
+  useEffect(() => {
+    setPanelOpen(false);
+  }, [conversation.id]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Mark as read ao abrir
@@ -125,26 +135,42 @@ export function ChatWindow({
   const subtitle = realName ? formattedPhone : "";
 
   return (
-    <div className="flex-1 flex flex-col bg-wa-bg min-w-0">
+    <div className="flex-1 flex min-w-0 h-full">
+      <div className="flex-1 flex flex-col bg-wa-bg min-w-0">
       {/* Header */}
       <header className="h-16 bg-wa-header flex items-center justify-between px-4 border-l border-wa-border shrink-0">
-        <div className="flex items-center gap-3 min-w-0">
+        <button
+          onClick={() => setPanelOpen(true)}
+          className="flex items-center gap-3 min-w-0 hover:bg-wa-hover/50 rounded-md px-2 py-1 -ml-2 transition-colors"
+        >
           <Avatar
             src={conversation.contact.profile_pic_url}
             name={contactName}
             seed={conversation.contact.whatsapp_id}
             size={40}
           />
-          <div className="min-w-0">
+          <div className="min-w-0 text-left">
             <p className="font-medium text-wa-textPrimary truncate">{contactName}</p>
             {subtitle && (
               <p className="text-xs text-wa-textSecondary">{subtitle}</p>
             )}
           </div>
-        </div>
+        </button>
         <div className="flex items-center gap-2 text-wa-textSecondary">
           <button className="p-2 hover:bg-wa-hover rounded-full" aria-label="Ligar">
             <Phone className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setPanelOpen((o) => !o)}
+            className="p-2 hover:bg-wa-hover rounded-full"
+            aria-label={panelOpen ? "Fechar painel" : "Abrir painel"}
+            title={panelOpen ? "Fechar painel" : "Abrir painel"}
+          >
+            {panelOpen ? (
+              <PanelRightClose className="h-4 w-4" />
+            ) : (
+              <PanelRightOpen className="h-4 w-4" />
+            )}
           </button>
           <button className="p-2 hover:bg-wa-hover rounded-full" aria-label="Mais opções">
             <MoreVertical className="h-4 w-4" />
@@ -177,6 +203,10 @@ export function ChatWindow({
       </div>
 
       <ComposeBar conversationId={conversation.id} />
+      </div>
+      {panelOpen && panelData && (
+        <ContactPanel data={panelData} onClose={() => setPanelOpen(false)} />
+      )}
     </div>
   );
 }
