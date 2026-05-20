@@ -129,16 +129,36 @@ export const evolution = {
 
   /**
    * Envia mensagem de texto pra um JID (individual ou grupo).
-   * Retorna a key com id da mensagem na Evolution.
+   * Opcionalmente cita outra mensagem (reply quoted).
    */
-  async sendText(remoteJid: string, text: string): Promise<EvolutionSendTextResponse> {
+  async sendText(
+    remoteJid: string,
+    text: string,
+    quoted?: {
+      id: string;
+      remoteJid: string;
+      fromMe: boolean;
+      content: string;
+    }
+  ): Promise<EvolutionSendTextResponse> {
     const { instanceName } = getConfig();
+    const body: Record<string, unknown> = {
+      number: jidToNumber(remoteJid),
+      text,
+    };
+    if (quoted) {
+      body.quoted = {
+        key: {
+          id: quoted.id,
+          remoteJid: quoted.remoteJid,
+          fromMe: quoted.fromMe,
+        },
+        message: { conversation: quoted.content },
+      };
+    }
     return evoFetch(`/message/sendText/${instanceName}`, {
       method: "POST",
-      body: JSON.stringify({
-        number: jidToNumber(remoteJid),
-        text,
-      }),
+      body: JSON.stringify(body),
     });
   },
 
