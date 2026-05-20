@@ -178,6 +178,7 @@ export type Database = {
           last_message_at: string | null;
           last_message_from_me: boolean | null;
           assigned_to: string | null;
+          auto_replied_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -194,6 +195,7 @@ export type Database = {
           last_message_at?: string | null;
           last_message_from_me?: boolean | null;
           assigned_to?: string | null;
+          auto_replied_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -210,6 +212,7 @@ export type Database = {
           last_message_at?: string | null;
           last_message_from_me?: boolean | null;
           assigned_to?: string | null;
+          auto_replied_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };

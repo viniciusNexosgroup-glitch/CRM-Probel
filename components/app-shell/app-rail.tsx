@@ -14,6 +14,7 @@ import {
   Zap,
   LayoutDashboard,
   Library,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/settings/quick-replies", label: "Respostas", icon: Zap },
   { href: "/settings/media-library", label: "Mídias", icon: Library },
+  { href: "/settings/business-hours", label: "Horário", icon: Clock },
   { href: "/settings/whatsapp", label: "WhatsApp", icon: Settings },
 ];
 

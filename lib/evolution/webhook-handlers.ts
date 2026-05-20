@@ -6,6 +6,13 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import type { Json, MessageType } from "@/types/database";
 import { mapEvolutionStateToDb } from "@/lib/evolution/client";
+import {
+  isWithinBusinessHours,
+  DEFAULT_BUSINESS_HOURS,
+  type BusinessHoursConfig,
+  type AutoReplyConfig,
+} from "@/lib/business-hours";
+import { resolveTemplate } from "@/lib/format/template";
 import type {
   MessagesUpsertData,
   MessagesUpdateData,
@@ -339,6 +346,104 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
       last_message_from_me: data.key.fromMe,
     })
     .eq("id", conversationId);
+
+  // Auto-resposta fora do horário comercial (apenas pra mensagens recebidas, não-grupo)
+  if (!data.key.fromMe && !isGroupJid(data.key.remoteJid)) {
+    await maybeSendAutoReply(instanceName, conversationId, data.key.remoteJid, data.pushName ?? null);
+  }
+}
+
+async function maybeSendAutoReply(
+  instanceName: string,
+  conversationId: string,
+  remoteJid: string,
+  pushName: string | null
+) {
+  try {
+    const supabase = createServiceClient();
+
+    // Busca configs
+    const { data: settingsRows } = await supabase
+      .from("settings")
+      .select("key, value")
+      .in("key", ["business_hours", "auto_reply_outside_hours"]);
+
+    const map = new Map(settingsRows?.map((r) => [r.key, r.value]) ?? []);
+    const hoursConfig = map.get("business_hours") as Partial<BusinessHoursConfig> | undefined;
+    const replyConfig = map.get("auto_reply_outside_hours") as Partial<AutoReplyConfig> | undefined;
+
+    if (!hoursConfig?.enabled || !replyConfig?.enabled) return;
+    if (!replyConfig.message?.trim()) return;
+
+    const merged: BusinessHoursConfig = { ...DEFAULT_BUSINESS_HOURS, ...hoursConfig };
+    if (isWithinBusinessHours(merged)) return; // dentro do horário, não responde
+
+    // Anti-spam: só auto-responde se não respondeu nas últimas 12h
+    const { data: conv } = await supabase
+      .from("conversations")
+      .select("auto_replied_at, contact_id")
+      .eq("id", conversationId)
+      .single();
+    if (conv?.auto_replied_at) {
+      const lastReply = new Date(conv.auto_replied_at).getTime();
+      if (Date.now() - lastReply < 12 * 60 * 60 * 1000) return;
+    }
+
+    // Busca o contato pra resolver variáveis
+    const { data: contact } = conv?.contact_id
+      ? await supabase
+          .from("contacts")
+          .select("name, push_name, phone")
+          .eq("id", conv.contact_id)
+          .single()
+      : { data: null };
+
+    const resolvedMessage = resolveTemplate(replyConfig.message, {
+      contactName: contact?.name ?? null,
+      pushName: contact?.push_name ?? pushName,
+      phone: contact?.phone ?? null,
+    });
+
+    // Envia via Evolution
+    const { evolution } = await import("@/lib/evolution/client");
+    const sent = await evolution.sendText(remoteJid, resolvedMessage);
+
+    // Registra a auto-resposta na conversa + insere a msg no histórico
+    const now = new Date().toISOString();
+    await supabase
+      .from("conversations")
+      .update({
+        auto_replied_at: now,
+        last_message_text: resolvedMessage,
+        last_message_at: now,
+        last_message_from_me: true,
+      })
+      .eq("id", conversationId);
+
+    const { data: convFull } = await supabase
+      .from("conversations")
+      .select("instance_id")
+      .eq("id", conversationId)
+      .single();
+
+    if (convFull) {
+      await supabase.from("messages").insert({
+        conversation_id: conversationId,
+        instance_id: convFull.instance_id,
+        evolution_message_id: sent.key.id,
+        remote_jid: remoteJid,
+        from_me: true,
+        message_type: "text",
+        content: resolvedMessage,
+        status: "sent",
+        timestamp: now,
+      });
+    }
+
+    console.log(`[auto-reply] enviado pra ${remoteJid}`);
+  } catch (e) {
+    console.warn("[auto-reply] falhou:", e instanceof Error ? e.message : e);
+  }
 }
 
 export async function handleMessagesUpdate(instanceName: string, data: MessagesUpdateData) {
