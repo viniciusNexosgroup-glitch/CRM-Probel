@@ -68,6 +68,27 @@ function MediaPlaceholder({
     );
   }
 
+  // Áudio com URL estável: player nativo
+  if (type === "audio" && mediaUrl && isStableUrl(mediaUrl)) {
+    return (
+      <div className="min-w-[220px] py-1">
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+        <audio
+          src={mediaUrl}
+          controls
+          preload="metadata"
+          className="w-full h-8"
+          style={{ filter: "invert(0.85)" }}
+        />
+        {duration && (
+          <p className="text-[10px] opacity-60 mt-0.5">
+            🎵 {duration}s
+          </p>
+        )}
+      </div>
+    );
+  }
+
   // Documento com URL estável: link de download
   if (type === "document" && mediaUrl && isStableUrl(mediaUrl)) {
     return (
