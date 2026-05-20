@@ -3,12 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
+import { EXTERNAL_PREFIX } from "./lib";
 
 type FileType = Database["public"]["Tables"]["media_library"]["Row"]["file_type"];
 type Result<T = void> = { ok: true; data?: T } | { ok: false; error: string };
-
-/** Marker em file_path pra identificar mídia hospedada externamente (sem upload no Supabase Storage) */
-export const EXTERNAL_PREFIX = "external://";
 
 export type CreateMediaPayload = {
   title: string;
@@ -20,28 +18,6 @@ export type CreateMediaPayload = {
   mimetype: string | null;
   file_size: number | null;
 };
-
-/**
- * Detecta URL do Google Drive e converte pra formato de download direto.
- * - https://drive.google.com/file/d/FILEID/view?...
- *   → https://drive.google.com/uc?export=download&id=FILEID
- * - https://drive.google.com/open?id=FILEID
- *   → https://drive.google.com/uc?export=download&id=FILEID
- */
-export function normalizeExternalUrl(url: string): string {
-  const driveMatch =
-    url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/) ||
-    url.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/) ||
-    url.match(/drive\.google\.com\/uc\?id=([a-zA-Z0-9_-]+)/);
-  if (driveMatch) {
-    return `https://drive.google.com/uc?export=download&id=${driveMatch[1]}`;
-  }
-  // Dropbox compartilhamento: ?dl=0 → ?dl=1 (direct download)
-  if (url.includes("dropbox.com") && url.includes("dl=0")) {
-    return url.replace("dl=0", "dl=1");
-  }
-  return url;
-}
 
 export async function createMediaAction(payload: CreateMediaPayload): Promise<Result> {
   if (!payload.title.trim()) return { ok: false, error: "Título é obrigatório" };
