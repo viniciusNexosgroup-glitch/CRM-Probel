@@ -121,9 +121,13 @@ export default async function ChatPage({
     selectedId ? getConversationById(selectedId) : Promise.resolve(null),
   ]);
 
-  const [messages, panelData] = selected
-    ? await Promise.all([getMessages(selected.id), getContactPanelData(selected.contact.id)])
-    : [[], null];
+  const [messages, panelData, quickRepliesRes] = selected
+    ? await Promise.all([
+        getMessages(selected.id),
+        getContactPanelData(selected.contact.id),
+        supabase.from("quick_replies").select("*").order("shortcut", { ascending: true }),
+      ])
+    : [[], null, null];
 
   return (
     <div className="h-full flex bg-wa-bg overflow-hidden">
@@ -133,6 +137,7 @@ export default async function ChatPage({
           conversation={selected}
           initialMessages={messages}
           panelData={panelData}
+          quickReplies={quickRepliesRes?.data ?? []}
         />
       ) : (
         <EmptyState />

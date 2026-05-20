@@ -13,15 +13,20 @@ import { isSameDay } from "@/lib/format/date";
 import { formatPhone } from "@/lib/format/avatar";
 import { markAsReadAction } from "../actions";
 import type { ConversationWithContact, ContactPanelData, MessageRow } from "../types";
+import type { Database } from "@/types/database";
+
+type QuickReplyRow = Database["public"]["Tables"]["quick_replies"]["Row"];
 
 export function ChatWindow({
   conversation,
   initialMessages,
   panelData,
+  quickReplies = [],
 }: {
   conversation: ConversationWithContact;
   initialMessages: MessageRow[];
   panelData: ContactPanelData | null;
+  quickReplies?: QuickReplyRow[];
 }) {
   const router = useRouter();
   const [messages, setMessages] = useState<MessageRow[]>(initialMessages);
@@ -202,7 +207,15 @@ export function ChatWindow({
         )}
       </div>
 
-      <ComposeBar conversationId={conversation.id} />
+      <ComposeBar
+        conversationId={conversation.id}
+        quickReplies={quickReplies}
+        templateCtx={{
+          contactName: conversation.contact.name,
+          pushName: conversation.contact.push_name,
+          phone: conversation.contact.phone,
+        }}
+      />
       </div>
       {panelOpen && panelData && (
         <ContactPanel data={panelData} onClose={() => setPanelOpen(false)} />
