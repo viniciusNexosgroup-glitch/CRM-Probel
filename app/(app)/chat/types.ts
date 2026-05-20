@@ -8,9 +8,17 @@ export type TagRow = Database["public"]["Tables"]["tags"]["Row"];
 export type TaskRow = Database["public"]["Tables"]["tasks"]["Row"];
 export type PipelineStageRow = Database["public"]["Tables"]["pipeline_stages"]["Row"];
 
-/** Conversa com dados do contato embutidos pro inbox */
+/** Conversa com dados do contato + tags do lead (pro inbox e filtros) */
 export type ConversationWithContact = ConversationRow & {
-  contact: Pick<ContactRow, "id" | "name" | "push_name" | "phone" | "profile_pic_url" | "is_group" | "whatsapp_id">;
+  contact: Pick<
+    ContactRow,
+    "id" | "name" | "push_name" | "phone" | "profile_pic_url" | "is_group" | "is_favorite" | "whatsapp_id"
+  > & {
+    leads: {
+      id: string;
+      lead_tags: { tag: TagRow }[];
+    }[];
+  };
 };
 
 /** Dados do painel direito */

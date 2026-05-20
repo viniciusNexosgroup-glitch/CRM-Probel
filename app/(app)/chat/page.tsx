@@ -21,7 +21,11 @@ async function getConversations(): Promise<ConversationWithContact[]> {
       `
       *,
       contact:contacts!conversations_contact_id_fkey (
-        id, name, push_name, phone, profile_pic_url, is_group, whatsapp_id
+        id, name, push_name, phone, profile_pic_url, is_group, is_favorite, whatsapp_id,
+        leads:leads_contact_id_fkey (
+          id,
+          lead_tags ( tag:tags(*) )
+        )
       )
     `
     )
@@ -35,6 +39,12 @@ async function getConversations(): Promise<ConversationWithContact[]> {
   return (data ?? []) as unknown as ConversationWithContact[];
 }
 
+async function getAllTags() {
+  const supabase = await createClient();
+  const { data } = await supabase.from("tags").select("*").order("name", { ascending: true });
+  return data ?? [];
+}
+
 async function getConversationById(id: string): Promise<ConversationWithContact | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -43,7 +53,11 @@ async function getConversationById(id: string): Promise<ConversationWithContact 
       `
       *,
       contact:contacts!conversations_contact_id_fkey (
-        id, name, push_name, phone, profile_pic_url, is_group, whatsapp_id
+        id, name, push_name, phone, profile_pic_url, is_group, is_favorite, whatsapp_id,
+        leads:leads_contact_id_fkey (
+          id,
+          lead_tags ( tag:tags(*) )
+        )
       )
     `
     )
@@ -116,9 +130,10 @@ export default async function ChatPage({
 
   const { c: selectedId } = await searchParams;
 
-  const [conversations, selected] = await Promise.all([
+  const [conversations, selected, allTags] = await Promise.all([
     getConversations(),
     selectedId ? getConversationById(selectedId) : Promise.resolve(null),
+    getAllTags(),
   ]);
 
   const [messages, panelData, quickRepliesRes] = selected
@@ -131,7 +146,7 @@ export default async function ChatPage({
 
   return (
     <div className="h-full flex bg-wa-bg overflow-hidden">
-      <ConversationList initial={conversations} selectedId={selected?.id} />
+      <ConversationList initial={conversations} selectedId={selected?.id} allTags={allTags} />
       {selected ? (
         <ChatWindow
           conversation={selected}
