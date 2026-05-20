@@ -210,11 +210,12 @@ export function ConversationList({
         </div>
         <button
           onClick={() => setNewConvOpen(true)}
-          className="p-2 rounded-full hover:bg-wa-hover text-wa-textSecondary hover:text-primary transition-colors"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-xs font-medium"
           title="Iniciar nova conversa"
           aria-label="Nova conversa"
         >
           <MessageSquarePlus className="h-4 w-4" />
+          Nova
         </button>
       </header>
 
