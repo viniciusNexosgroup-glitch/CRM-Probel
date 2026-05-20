@@ -22,9 +22,9 @@ function displayName(c: ConversationWithContact["contact"]): string {
 }
 
 function getConversationTags(c: ConversationWithContact): TagRow[] {
-  const lead = c.contact.leads?.[0];
+  const lead = c.contact.leads;
   if (!lead) return [];
-  return lead.lead_tags.map((lt) => lt.tag);
+  return lead.lead_tags?.map((lt) => lt.tag) ?? [];
 }
 
 type QuickFilter = "all" | "unread" | "favorites" | "groups";
