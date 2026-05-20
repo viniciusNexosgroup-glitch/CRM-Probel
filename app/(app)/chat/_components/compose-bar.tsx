@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { sendTextMessageAction } from "../actions";
 import { QuickReplyPicker } from "./quick-reply-picker";
-import { MediaPicker } from "./media-picker";
+import { MediaPopup } from "./media-popup";
 import { resolveTemplate, type TemplateContext } from "@/lib/format/template";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/types/database";
@@ -174,6 +174,14 @@ export function ComposeBar({
           />
         </div>
       )}
+      {mediaPickerOpen && (
+        <MediaPopup
+          conversationId={conversationId}
+          medias={medias}
+          categories={mediaCategories}
+          onClose={() => setMediaPickerOpen(false)}
+        />
+      )}
       <div className="flex items-center gap-2">
         <button
           className="p-2 text-wa-textSecondary cursor-not-allowed opacity-50"
@@ -184,13 +192,15 @@ export function ComposeBar({
           <Smile className="h-5 w-5" />
         </button>
         <button
-          onClick={() => setMediaPickerOpen(true)}
+          data-media-trigger
+          onClick={() => setMediaPickerOpen((o) => !o)}
           disabled={medias.length === 0}
           className={cn(
             "p-2 rounded transition-colors",
-            medias.length === 0
-              ? "text-wa-textSecondary opacity-50 cursor-not-allowed"
-              : "text-wa-textSecondary hover:bg-wa-hover hover:text-primary"
+            mediaPickerOpen
+              ? "bg-primary/20 text-primary"
+              : "text-wa-textSecondary hover:bg-wa-hover hover:text-primary",
+            medias.length === 0 && "opacity-50 cursor-not-allowed"
           )}
           aria-label="Enviar mídia"
           title={
@@ -250,13 +260,6 @@ export function ComposeBar({
         </Button>
       </div>
 
-      <MediaPicker
-        open={mediaPickerOpen}
-        onClose={() => setMediaPickerOpen(false)}
-        conversationId={conversationId}
-        medias={medias}
-        categories={mediaCategories}
-      />
     </footer>
   );
 }
