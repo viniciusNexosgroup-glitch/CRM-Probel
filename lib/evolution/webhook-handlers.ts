@@ -350,11 +350,32 @@ export async function handleMessagesUpdate(instanceName: string, data: MessagesU
     .single();
   if (!instance) return;
 
-  await supabase
+  const newStatus = mapStatus(data.status);
+
+  // Atualiza status da mensagem e busca a conversa pra eventual recount de unread
+  const { data: updated } = await supabase
     .from("messages")
-    .update({ status: mapStatus(data.status) })
+    .update({ status: newStatus })
     .eq("instance_id", instance.id)
-    .eq("evolution_message_id", data.keyId);
+    .eq("evolution_message_id", data.keyId)
+    .select("conversation_id, from_me")
+    .maybeSingle();
+
+  // Se essa mensagem é RECEBIDA (from_me=false) e virou 'read' → loja leu
+  // (no celular ou outro device). Recomputa unread_count da conversa.
+  if (updated && !updated.from_me && newStatus === "read") {
+    const { count } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("conversation_id", updated.conversation_id)
+      .eq("from_me", false)
+      .neq("status", "read");
+
+    await supabase
+      .from("conversations")
+      .update({ unread_count: count ?? 0 })
+      .eq("id", updated.conversation_id);
+  }
 }
 
 /**
