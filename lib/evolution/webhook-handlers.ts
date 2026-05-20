@@ -357,6 +357,58 @@ export async function handleMessagesUpdate(instanceName: string, data: MessagesU
     .eq("evolution_message_id", data.keyId);
 }
 
+/**
+ * Quando o usuário lê uma conversa no celular (ou via outro device),
+ * o WhatsApp/Evolution dispara `chats.update` com unreadCount: 0.
+ * Sincronizamos o nosso banco pra refletir no CRM também (sumir o badge).
+ */
+type ChatUpdateData = {
+  remoteJid?: string;
+  unreadCount?: number;
+  unreadMessages?: number;
+  pinned?: boolean | string | null;
+  muteEndTime?: number | string | null;
+  archived?: boolean;
+};
+
+export async function handleChatsUpdate(
+  instanceName: string,
+  data: ChatUpdateData | ChatUpdateData[]
+) {
+  const supabase = createServiceClient();
+  const { data: instance } = await supabase
+    .from("whatsapp_instances")
+    .select("id")
+    .eq("instance_name", instanceName)
+    .single();
+  if (!instance) return;
+
+  const list = Array.isArray(data) ? data : [data];
+
+  for (const chat of list) {
+    if (!chat.remoteJid) continue;
+
+    const updates: { unread_count?: number; is_archived?: boolean } = {};
+
+    // Algumas versões da Evolution mandam unreadCount, outras unreadMessages
+    const unread = chat.unreadCount ?? chat.unreadMessages;
+    if (typeof unread === "number") {
+      updates.unread_count = Math.max(0, unread);
+    }
+    if (typeof chat.archived === "boolean") {
+      updates.is_archived = chat.archived;
+    }
+
+    if (Object.keys(updates).length === 0) continue;
+
+    await supabase
+      .from("conversations")
+      .update(updates)
+      .eq("instance_id", instance.id)
+      .eq("remote_jid", chat.remoteJid);
+  }
+}
+
 export async function handleConnectionUpdate(instanceName: string, data: ConnectionUpdateData) {
   const supabase = createServiceClient();
   const status = mapEvolutionStateToDb(data.state);
