@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Search, MessageSquare, ChevronDown, Tag as TagIcon, X, Pin, Star, Archive } from "lucide-react";
@@ -8,8 +8,10 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Avatar } from "./avatar";
+import { NotificationBanner } from "./notification-banner";
 import { formatRelativeTime } from "@/lib/format/date";
 import { formatPhone } from "@/lib/format/avatar";
+import { showNotification, playNotificationSound } from "@/lib/notifications";
 import type { ConversationWithContact, TagRow } from "../types";
 
 function displayName(c: ConversationWithContact["contact"]): string {
@@ -92,9 +94,54 @@ export function ConversationList({
     };
   }, [router]);
 
+  // Snapshot do estado anterior pra detectar mensagens novas (notificações)
+  const lastSeenRef = useRef<Map<string, string> | null>(null);
+
   useEffect(() => {
     setConversations(initial);
-  }, [initial]);
+
+    // Inicializa snapshot na primeira execução (sem disparar notificações)
+    if (lastSeenRef.current === null) {
+      lastSeenRef.current = new Map(
+        initial.map((c) => [c.id, c.last_message_at ?? ""])
+      );
+      return;
+    }
+
+    const snapshot = lastSeenRef.current;
+    const currentConvId = searchParams.get("c");
+
+    for (const conv of initial) {
+      const prevTime = snapshot.get(conv.id) ?? "";
+      const newTime = conv.last_message_at ?? "";
+
+      // Conversa nova OU mensagem nova
+      if (newTime && newTime > prevTime) {
+        // Só notifica se for mensagem RECEBIDA (não enviada pela loja)
+        if (conv.last_message_from_me === false) {
+          // Não notifica se a conversa está aberta agora E a janela está focada
+          const isCurrentlyOpen = currentConvId === conv.id && document.hasFocus();
+          if (!isCurrentlyOpen) {
+            const contactName =
+              conv.contact.name?.trim() ||
+              conv.contact.push_name?.trim() ||
+              (conv.contact.phone ? formatPhone(conv.contact.phone) : "Cliente");
+
+            showNotification(`💬 ${contactName}`, {
+              body: conv.last_message_text ?? "Nova mensagem",
+              icon: conv.contact.profile_pic_url ?? undefined,
+              tag: `conv-${conv.id}`,
+              onClick: () => router.push(`/chat?c=${conv.id}`),
+            });
+            playNotificationSound();
+          }
+        }
+        snapshot.set(conv.id, newTime);
+      } else if (!snapshot.has(conv.id)) {
+        snapshot.set(conv.id, newTime);
+      }
+    }
+  }, [initial, router, searchParams]);
 
   // Fecha dropdown ao clicar fora
   useEffect(() => {
@@ -160,6 +207,8 @@ export function ConversationList({
           <h1 className="font-semibold text-wa-textPrimary">Conversas</h1>
         </div>
       </header>
+
+      <NotificationBanner />
 
       {/* Busca */}
       <div className="px-3 py-2 bg-wa-bg shrink-0 space-y-2">
