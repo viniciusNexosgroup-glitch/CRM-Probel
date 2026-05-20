@@ -6,8 +6,57 @@ import { evolution, EvolutionError } from "@/lib/evolution/client";
 
 type Result<T = void> = { ok: true; data?: T } | { ok: false; error: string };
 
+/**
+ * Marca conversa como lida no CRM E no WhatsApp do celular.
+ *
+ * Fluxo:
+ *   1. Lê a conversa (precisa do remote_jid e unread_count)
+ *   2. Se tem mensagens não lidas, busca últimas 50 recebidas com id da Evolution
+ *   3. Chama Evolution markAsRead → dispara o read receipt (visto) no celular
+ *   4. Zera unread_count localmente
+ *
+ * Falha na Evolution não bloqueia o local (best-effort).
+ */
 export async function markAsReadAction(conversationId: string) {
   const supabase = await createClient();
+
+  const { data: conv } = await supabase
+    .from("conversations")
+    .select("id, remote_jid, unread_count")
+    .eq("id", conversationId)
+    .single();
+  if (!conv) return { ok: false, error: "Conversa não encontrada" };
+
+  if (conv.unread_count > 0) {
+    const { data: msgs } = await supabase
+      .from("messages")
+      .select("evolution_message_id, remote_jid")
+      .eq("conversation_id", conversationId)
+      .eq("from_me", false)
+      .not("evolution_message_id", "is", null)
+      .order("timestamp", { ascending: false })
+      .limit(50);
+
+    const keys = (msgs ?? [])
+      .filter((m) => m.evolution_message_id)
+      .map((m) => ({
+        remoteJid: m.remote_jid,
+        fromMe: false,
+        id: m.evolution_message_id as string,
+      }));
+
+    if (keys.length > 0) {
+      try {
+        await evolution.markAsRead(keys);
+      } catch (e) {
+        console.warn(
+          "[markAsRead] Evolution falhou (continuando local):",
+          e instanceof Error ? e.message : e
+        );
+      }
+    }
+  }
+
   const { error } = await supabase
     .from("conversations")
     .update({ unread_count: 0 })
