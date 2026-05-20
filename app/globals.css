@@ -59,6 +59,12 @@
   }
 }
 
+/* Dark theme pras opções nativas do <select> (Chrome/Edge/Firefox respeitam isso) */
+.dark select option {
+  background-color: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+}
+
 /* Scrollbar estilo WhatsApp Web */
 .wa-scroll::-webkit-scrollbar {
   width: 6px;

@@ -70,7 +70,7 @@ export function LeadSummary({
         <Select
           value={lead.stage_id ?? ""}
           onChange={(e) => onStageChange(e.target.value)}
-          className="h-8 text-sm"
+          className="h-9"
         >
           {stages.map((s) => (
             <option key={s.id} value={s.id}>
@@ -99,7 +99,7 @@ export function LeadSummary({
         <Select
           value={lead.source ?? ""}
           onChange={(e) => onSourceChange(e.target.value)}
-          className="h-8 text-sm"
+          className="h-9"
         >
           <option value="">—</option>
           {SOURCES.map((s) => (
@@ -121,7 +121,7 @@ export function LeadSummary({
           onChange={(e) => setValue(e.target.value)}
           onBlur={onValueBlur}
           placeholder="0,00"
-          className="h-8 text-sm"
+          className="h-9 text-sm"
         />
       </div>
     </div>
