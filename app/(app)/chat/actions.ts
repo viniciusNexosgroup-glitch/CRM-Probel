@@ -236,12 +236,19 @@ export async function deleteTaskAction(taskId: string): Promise<Result> {
 // ============================================================
 
 import type { EvolutionMediaType } from "@/lib/evolution/types";
+import { defaultMimeType, suggestedFileName, EXTERNAL_PREFIX } from "@/app/(app)/settings/media-library/lib";
 
 /** Mapeia file_type do banco pro mediatype da Evolution */
 function evolutionMediaType(fileType: string): EvolutionMediaType {
   if (fileType === "image") return "image";
   if (fileType === "video") return "video";
   return "document";
+}
+
+/** Extrai filename "humano" de uma path do Supabase Storage (remove timestamp+uuid). */
+function cleanSupabaseFileName(path: string): string {
+  const tail = path.split("/").pop() ?? path;
+  return tail.replace(/^\d{10,}-[a-f0-9]{4,}-/, "");
 }
 
 export async function sendMediaFromLibraryAction(
@@ -281,14 +288,23 @@ export async function sendMediaFromLibraryAction(
   const mediatype = evolutionMediaType(media.file_type);
   const captionText = (caption ?? media.title)?.slice(0, 1024) || undefined;
 
+  // Mimetype: usa o salvo, senão default pelo file_type
+  const mimetype = media.mimetype ?? defaultMimeType(media.file_type);
+
+  // FileName: pra Supabase upload usa o nome original; pra URL externa, gera com extensão
+  const isExternal = media.file_path.startsWith(EXTERNAL_PREFIX);
+  const fileName = isExternal
+    ? suggestedFileName(media.title, media.file_type)
+    : cleanSupabaseFileName(media.file_path);
+
   let sent;
   try {
     sent = await evolution.sendMedia(conv.remote_jid, {
       mediatype,
       media: media.file_url,
-      mimetype: media.mimetype ?? undefined,
+      mimetype,
       caption: captionText,
-      fileName: media.file_path.split("/").pop(),
+      fileName,
     });
   } catch (e) {
     if (e instanceof EvolutionError) return { ok: false, error: e.message };
