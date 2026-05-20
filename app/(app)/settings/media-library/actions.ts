@@ -51,6 +51,32 @@ export async function createMediaAction(payload: CreateMediaPayload): Promise<Re
   return { ok: true };
 }
 
+export type UpdateMediaPayload = {
+  title?: string;
+  description?: string | null;
+  category_id?: string | null;
+  file_type?: FileType;
+};
+
+export async function updateMediaAction(
+  mediaId: string,
+  payload: UpdateMediaPayload
+): Promise<Result> {
+  const supabase = await createClient();
+  const updates: Record<string, unknown> = {};
+  if (payload.title !== undefined) updates.title = payload.title.trim();
+  if (payload.description !== undefined)
+    updates.description = payload.description?.trim() || null;
+  if (payload.category_id !== undefined) updates.category_id = payload.category_id;
+  if (payload.file_type !== undefined) updates.file_type = payload.file_type;
+
+  const { error } = await supabase.from("media_library").update(updates).eq("id", mediaId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/settings/media-library");
+  revalidatePath("/chat");
+  return { ok: true };
+}
+
 export async function deleteMediaAction(mediaId: string): Promise<Result> {
   const supabase = await createClient();
 
