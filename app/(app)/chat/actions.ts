@@ -327,6 +327,147 @@ export async function deleteTaskAction(taskId: string): Promise<Result> {
 }
 
 // ============================================================
+// Iniciar nova conversa (mandar pra um numero que ainda nao existe)
+// ============================================================
+
+function normalizeBrazilianPhone(input: string): string | null {
+  let digits = input.replace(/\D/g, "");
+  // Remove zero a esquerda
+  digits = digits.replace(/^0+/, "");
+  // Se não começou com 55, adiciona
+  if (!digits.startsWith("55")) {
+    if (digits.length === 10 || digits.length === 11) {
+      digits = "55" + digits;
+    } else {
+      return null;
+    }
+  }
+  // Após 55: DDD (2) + número (8 fixo OU 9 celular). Total: 12 ou 13
+  if (digits.length !== 12 && digits.length !== 13) return null;
+  return digits;
+}
+
+export async function startConversationAction(
+  rawPhone: string,
+  message: string
+): Promise<Result<{ conversationId: string }>> {
+  const phone = normalizeBrazilianPhone(rawPhone);
+  if (!phone) {
+    return {
+      ok: false,
+      error: "Telefone inválido. Use formato (DDD) 9 XXXX-XXXX",
+    };
+  }
+  const text = message.trim();
+  if (!text) return { ok: false, error: "Mensagem vazia" };
+  if (text.length > 4096) return { ok: false, error: "Mensagem muito longa" };
+
+  const remoteJid = `${phone}@s.whatsapp.net`;
+
+  // Envia via Evolution
+  let sent;
+  try {
+    sent = await evolution.sendText(remoteJid, text);
+  } catch (e) {
+    if (e instanceof EvolutionError) {
+      if (e.status === 400 || e.status === 404) {
+        return { ok: false, error: "Número não existe no WhatsApp ou não é válido." };
+      }
+      return { ok: false, error: e.message };
+    }
+    return { ok: false, error: (e as Error).message };
+  }
+
+  // Cria contato + conversa + mensagem idempotentes (o webhook MESSAGES_UPSERT
+  // vai upsert depois também, mas fazendo aqui já temos algo pra navegar)
+  const service = createServiceClient();
+  const { data: instance } = await service
+    .from("whatsapp_instances")
+    .select("id")
+    .eq("instance_name", process.env.EVOLUTION_INSTANCE_NAME ?? "")
+    .single();
+  if (!instance) return { ok: false, error: "Instância não encontrada no banco" };
+
+  const { data: contact, error: contactErr } = await service
+    .from("contacts")
+    .upsert(
+      {
+        instance_id: instance.id,
+        whatsapp_id: remoteJid,
+        phone,
+        is_group: false,
+      },
+      { onConflict: "instance_id,whatsapp_id" }
+    )
+    .select("id")
+    .single();
+  if (contactErr || !contact) {
+    return { ok: false, error: contactErr?.message ?? "Falha ao criar contato" };
+  }
+
+  const now = new Date().toISOString();
+  const { data: conv, error: convErr } = await service
+    .from("conversations")
+    .upsert(
+      {
+        instance_id: instance.id,
+        contact_id: contact.id,
+        remote_jid: remoteJid,
+        last_message_text: text,
+        last_message_at: now,
+        last_message_from_me: true,
+      },
+      { onConflict: "instance_id,remote_jid" }
+    )
+    .select("id")
+    .single();
+  if (convErr || !conv) {
+    return { ok: false, error: convErr?.message ?? "Falha ao criar conversa" };
+  }
+
+  await service.from("messages").insert({
+    conversation_id: conv.id,
+    instance_id: instance.id,
+    evolution_message_id: sent.key.id,
+    remote_jid: remoteJid,
+    from_me: true,
+    message_type: "text",
+    content: text,
+    status: "sent",
+    timestamp: now,
+  });
+
+  // Cria lead automaticamente pra essa conversa também
+  const { data: existingLead } = await service
+    .from("leads")
+    .select("id")
+    .eq("contact_id", contact.id)
+    .maybeSingle();
+  if (!existingLead) {
+    const { data: stage } = await service
+      .from("pipeline_stages")
+      .select("id")
+      .order("position", { ascending: true })
+      .limit(1)
+      .single();
+    if (stage) {
+      await service.from("leads").insert({
+        contact_id: contact.id,
+        conversation_id: conv.id,
+        stage_id: stage.id,
+        phone,
+        source: "outbound", // inicializada por nós
+        status: "open",
+        last_contact_at: now,
+      });
+    }
+  }
+
+  revalidatePath("/chat");
+  return { ok: true, data: { conversationId: conv.id } };
+}
+
+// ============================================================
 // Media library send (Etapa 13)
 // ============================================================
 

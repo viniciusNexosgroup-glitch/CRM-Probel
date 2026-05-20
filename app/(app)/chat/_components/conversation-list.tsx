@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { Search, MessageSquare, ChevronDown, Tag as TagIcon, X, Pin, Star, Archive } from "lucide-react";
+import { Search, MessageSquare, ChevronDown, Tag as TagIcon, X, Pin, Star, Archive, MessageSquarePlus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Avatar } from "./avatar";
 import { NotificationBanner } from "./notification-banner";
+import { NewConversationDialog } from "./new-conversation-dialog";
 import { formatRelativeTime } from "@/lib/format/date";
 import { formatPhone } from "@/lib/format/avatar";
 import { showNotification, playNotificationSound } from "@/lib/notifications";
@@ -56,6 +57,7 @@ export function ConversationList({
   const [filter, setFilter] = useState<QuickFilter>("all");
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
+  const [newConvOpen, setNewConvOpen] = useState(false);
   const [, startTransition] = useTransition();
 
   // Realtime + polling (mantém comportamento atual)
@@ -201,14 +203,23 @@ export function ConversationList({
 
   return (
     <aside className="w-full md:w-[400px] shrink-0 bg-wa-panel border-r border-wa-border flex flex-col">
-      <header className="h-16 bg-wa-header flex items-center px-4 shrink-0">
+      <header className="h-16 bg-wa-header flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-2">
           <MessageSquare className="h-5 w-5 text-primary" />
           <h1 className="font-semibold text-wa-textPrimary">Conversas</h1>
         </div>
+        <button
+          onClick={() => setNewConvOpen(true)}
+          className="p-2 rounded-full hover:bg-wa-hover text-wa-textSecondary hover:text-primary transition-colors"
+          title="Iniciar nova conversa"
+          aria-label="Nova conversa"
+        >
+          <MessageSquarePlus className="h-4 w-4" />
+        </button>
       </header>
 
       <NotificationBanner />
+      <NewConversationDialog open={newConvOpen} onClose={() => setNewConvOpen(false)} />
 
       {/* Busca */}
       <div className="px-3 py-2 bg-wa-bg shrink-0 space-y-2">
