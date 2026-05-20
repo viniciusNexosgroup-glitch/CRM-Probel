@@ -8,7 +8,10 @@ export type TagRow = Database["public"]["Tables"]["tags"]["Row"];
 export type TaskRow = Database["public"]["Tables"]["tasks"]["Row"];
 export type PipelineStageRow = Database["public"]["Tables"]["pipeline_stages"]["Row"];
 
-/** Conversa com dados do contato + tags do lead (pro inbox e filtros) */
+/**
+ * Conversa com dados do contato + tags do lead (pro inbox e filtros).
+ * `leads` vem como objeto único (não array) por causa do unique(contact_id) na tabela leads.
+ */
 export type ConversationWithContact = ConversationRow & {
   contact: Pick<
     ContactRow,
@@ -17,7 +20,7 @@ export type ConversationWithContact = ConversationRow & {
     leads: {
       id: string;
       lead_tags: { tag: TagRow }[];
-    }[];
+    } | null;
   };
 };
 
