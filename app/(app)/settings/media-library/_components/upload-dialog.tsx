@@ -20,7 +20,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-import { createMediaAction, EXTERNAL_PREFIX, normalizeExternalUrl } from "../actions";
+import { createMediaAction } from "../actions";
+import { EXTERNAL_PREFIX, normalizeExternalUrl } from "../lib";
 import type { Database } from "@/types/database";
 
 type Category = Database["public"]["Tables"]["media_categories"]["Row"];
