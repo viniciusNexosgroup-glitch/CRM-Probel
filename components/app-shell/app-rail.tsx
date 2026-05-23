@@ -15,8 +15,6 @@ import {
   Library,
   Clock,
   Users,
-  PanelLeftClose,
-  PanelLeftOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -46,9 +44,8 @@ export function AppRail() {
   const [logoutPending, setLogoutPending] = useState(false);
   const [userName, setUserName] = useState<string>("");
   const [userEmail, setUserEmail] = useState<string>("");
-  const [collapsed, setCollapsed] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const isCompact = collapsed && !hovered;
+  const isCompact = !hovered;
 
   useEffect(() => {
     const supabase = createClient();
@@ -60,21 +57,9 @@ export function AppRail() {
     });
   }, []);
 
-  useEffect(() => {
-    setCollapsed(localStorage.getItem("app-rail-collapsed") === "true");
-  }, []);
-
   function isActive(item: NavItem) {
     if (item.exact) return pathname === item.href;
     return pathname.startsWith(item.href);
-  }
-
-  function toggleCollapsed() {
-    setCollapsed((current) => {
-      const next = !current;
-      localStorage.setItem("app-rail-collapsed", String(next));
-      return next;
-    });
   }
 
   async function onLogout() {
@@ -116,28 +101,6 @@ export function AppRail() {
             {"Colch\u00f5es Probel"}
           </p>
         </div>
-      </div>
-
-      <div className="p-2 border-b border-wa-border">
-        <button
-          type="button"
-          onClick={toggleCollapsed}
-          className={cn(
-            "w-full flex items-center rounded-md text-wa-textSecondary hover:bg-wa-hover hover:text-wa-textPrimary transition-colors",
-            isCompact ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2"
-          )}
-          aria-label={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
-          title={isCompact ? "Expandir menu" : "Recolher menu"}
-        >
-          {collapsed ? (
-            <PanelLeftOpen className="h-4 w-4 shrink-0" />
-          ) : (
-            <PanelLeftClose className="h-4 w-4 shrink-0" />
-          )}
-          <span className={cn("text-sm", isCompact && "hidden")}>
-            {collapsed ? "Expandir" : "Recolher"}
-          </span>
-        </button>
       </div>
 
       <div className="flex-1 flex flex-col gap-0.5 p-2 overflow-y-auto wa-scroll">
