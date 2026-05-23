@@ -36,7 +36,9 @@ import type {
   ContactPanelData,
   MessageRow,
   AssigneeProfile,
+  InternalNoteWithAuthor,
 } from "../types";
+import { InternalNoteBubble } from "./internal-note-bubble";
 import type { Database } from "@/types/database";
 
 type QuickReplyRow = Database["public"]["Tables"]["quick_replies"]["Row"];
