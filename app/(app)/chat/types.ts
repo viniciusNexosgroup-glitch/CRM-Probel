@@ -7,6 +7,9 @@ export type LeadRow = Database["public"]["Tables"]["leads"]["Row"];
 export type TagRow = Database["public"]["Tables"]["tags"]["Row"];
 export type TaskRow = Database["public"]["Tables"]["tasks"]["Row"];
 export type PipelineStageRow = Database["public"]["Tables"]["pipeline_stages"]["Row"];
+export type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
+
+export type AssigneeProfile = Pick<ProfileRow, "id" | "full_name" | "email" | "avatar_url">;
 
 /**
  * Conversa com dados do contato + tags do lead (pro inbox e filtros).
@@ -22,6 +25,7 @@ export type ConversationWithContact = ConversationRow & {
       lead_tags: { tag: TagRow }[];
     } | null;
   };
+  assigned_user: AssigneeProfile | null;
 };
 
 /** Dados do painel direito */

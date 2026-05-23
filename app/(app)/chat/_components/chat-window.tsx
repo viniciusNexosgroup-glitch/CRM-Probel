@@ -31,7 +31,12 @@ import {
   togglePinnedAction,
   toggleArchivedAction,
 } from "../actions";
-import type { ConversationWithContact, ContactPanelData, MessageRow } from "../types";
+import type {
+  ConversationWithContact,
+  ContactPanelData,
+  MessageRow,
+  AssigneeProfile,
+} from "../types";
 import type { Database } from "@/types/database";
 
 type QuickReplyRow = Database["public"]["Tables"]["quick_replies"]["Row"];
@@ -149,9 +154,13 @@ export function ChatWindow({
   quickReplies = [],
   medias = [],
   mediaCategories = [],
+  allProfiles = [],
+  currentUserId,
 }: {
   conversation: ConversationWithContact;
   initialMessages: MessageRow[];
+  allProfiles?: AssigneeProfile[];
+  currentUserId?: string;
   panelData: ContactPanelData | null;
   quickReplies?: QuickReplyRow[];
   medias?: MediaRow[];
@@ -292,7 +301,12 @@ export function ChatWindow({
           </div>
         </button>
         <div className="flex-1 min-w-0 flex justify-start">
-          <ChatHeaderActions panelData={panelData} />
+          <ChatHeaderActions
+            panelData={panelData}
+            conversation={conversation}
+            allProfiles={allProfiles}
+            currentUserId={currentUserId}
+          />
         </div>
         <div className="flex items-center gap-1 text-wa-textSecondary shrink-0">
           <FavoritePinArchive conversation={conversation} />

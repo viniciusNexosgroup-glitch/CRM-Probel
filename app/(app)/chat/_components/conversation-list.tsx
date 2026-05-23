@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { Search, MessageSquare, ChevronDown, Tag as TagIcon, X, Pin, Star, Archive, MessageSquarePlus } from "lucide-react";
+import { Search, MessageSquare, ChevronDown, Tag as TagIcon, X, Pin, Star, Archive, MessageSquarePlus, UserCircle2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { Avatar } from "./avatar";
 import { NotificationBanner } from "./notification-banner";
 import { NewConversationDialog } from "./new-conversation-dialog";
 import { formatRelativeTime } from "@/lib/format/date";
-import { formatPhone } from "@/lib/format/avatar";
+import { formatPhone, getInitials } from "@/lib/format/avatar";
 import { showNotification, playNotificationSound } from "@/lib/notifications";
 import type { ConversationWithContact, TagRow } from "../types";
 
@@ -30,10 +30,11 @@ function getConversationTags(c: ConversationWithContact): TagRow[] {
   return lead.lead_tags?.map((lt) => lt.tag) ?? [];
 }
 
-type QuickFilter = "all" | "unread" | "favorites" | "groups" | "archived";
+type QuickFilter = "all" | "mine" | "unread" | "favorites" | "groups" | "archived";
 
 const QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
   { value: "all", label: "Tudo" },
+  { value: "mine", label: "Minhas" },
   { value: "unread", label: "Não lidas" },
   { value: "favorites", label: "Favoritas" },
   { value: "groups", label: "Grupos" },
@@ -44,10 +45,12 @@ export function ConversationList({
   initial,
   selectedId,
   allTags,
+  currentUserId,
 }: {
   initial: ConversationWithContact[];
   selectedId?: string;
   allTags: TagRow[];
+  currentUserId?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -165,6 +168,7 @@ export function ConversationList({
         if (c.is_archived) return false;
       }
 
+      if (filter === "mine" && c.assigned_user?.id !== currentUserId) return false;
       if (filter === "unread" && c.unread_count <= 0) return false;
       if (filter === "favorites" && !c.contact.is_favorite) return false;
       if (filter === "groups" && !c.contact.is_group) return false;
@@ -191,7 +195,7 @@ export function ConversationList({
       const tb = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
       return tb - ta;
     });
-  }, [conversations, query, filter, selectedTagId]);
+  }, [conversations, query, filter, selectedTagId, currentUserId]);
 
   function hrefForConversation(id: string) {
     const sp = new URLSearchParams(searchParams.toString());
@@ -378,8 +382,22 @@ export function ConversationList({
                           </span>
                         )}
                       </div>
-                      {tags.length > 0 && (
+                      {(tags.length > 0 || c.assigned_user) && (
                         <div className="flex items-center gap-1 mt-1 flex-wrap">
+                          {c.assigned_user && (
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1 text-[10px] px-1.5 py-0 rounded-full",
+                                c.assigned_user.id === currentUserId
+                                  ? "bg-primary/20 text-primary"
+                                  : "bg-wa-active text-wa-textSecondary"
+                              )}
+                              title={`Atendente: ${c.assigned_user.full_name ?? c.assigned_user.email ?? ""}`}
+                            >
+                              <UserCircle2 className="h-2.5 w-2.5" />
+                              {getInitials(c.assigned_user.full_name ?? c.assigned_user.email ?? "?").slice(0, 2)}
+                            </span>
+                          )}
                           {tags.slice(0, 3).map((t) => (
                             <span
                               key={t.id}

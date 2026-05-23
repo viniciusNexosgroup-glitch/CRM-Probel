@@ -3,15 +3,21 @@
 import { useState, useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown, Plus, X, Tag as TagIcon, Loader2 } from "lucide-react";
+import { ChevronDown, Plus, X, Tag as TagIcon, Loader2, UserCircle2, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   addTagToLeadAction,
   removeTagFromLeadAction,
   createTagAction,
   updateLeadFieldsAction,
+  assignConversationAction,
 } from "../actions";
-import type { ContactPanelData } from "../types";
+import { getInitials } from "@/lib/format/avatar";
+import type {
+  ContactPanelData,
+  ConversationWithContact,
+  AssigneeProfile,
+} from "../types";
 
 const NEW_TAG_COLORS = ["#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"];
 
@@ -233,11 +239,139 @@ function TagPills({
   );
 }
 
-export function ChatHeaderActions({ panelData }: { panelData: ContactPanelData | null }) {
+function AssigneePill({
+  conversation,
+  allProfiles,
+  currentUserId,
+}: {
+  conversation: ConversationWithContact;
+  allProfiles: AssigneeProfile[];
+  currentUserId?: string;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [, startTransition] = useTransition();
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  function pick(userId: string | null) {
+    setOpen(false);
+    startTransition(async () => {
+      const res = await assignConversationAction(conversation.id, userId);
+      if (res.ok) {
+        const target = userId
+          ? allProfiles.find((p) => p.id === userId)
+          : null;
+        toast.success(
+          userId
+            ? `Atribuído a ${target?.full_name ?? target?.email ?? "usuário"}`
+            : "Atribuição removida"
+        );
+        router.refresh();
+      } else {
+        toast.error("Falha", { description: res.error });
+      }
+    });
+  }
+
+  const current = conversation.assigned_user;
+  const label = current
+    ? current.full_name ?? current.email ?? "Atendente"
+    : "Sem atendente";
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-wa-border bg-wa-bg/40 text-[11px] hover:border-primary/40 transition-colors"
+      >
+        {current ? (
+          <span className="w-4 h-4 rounded-full bg-primary/20 text-primary text-[9px] font-bold flex items-center justify-center shrink-0">
+            {getInitials(current.full_name ?? current.email ?? "?").slice(0, 2)}
+          </span>
+        ) : (
+          <UserCircle2 className="h-3.5 w-3.5 text-wa-textSecondary" />
+        )}
+        <span className="text-wa-textPrimary font-medium truncate max-w-[120px]">{label}</span>
+        <ChevronDown className="h-3 w-3 text-wa-textSecondary" />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1 min-w-56 bg-wa-panel border border-wa-border rounded-lg shadow-lg z-50 py-1">
+          <button
+            onClick={() => pick(currentUserId ?? null)}
+            disabled={!currentUserId}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-wa-hover text-left text-primary disabled:opacity-40"
+          >
+            <User className="h-3.5 w-3.5" />
+            Atribuir a mim
+          </button>
+          <div className="border-t border-wa-border my-1" />
+          {allProfiles.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => pick(p.id)}
+              className={cn(
+                "w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-wa-hover text-left",
+                p.id === current?.id && "bg-wa-active"
+              )}
+            >
+              <span className="w-5 h-5 rounded-full bg-primary/20 text-primary text-[9px] font-bold flex items-center justify-center shrink-0">
+                {getInitials(p.full_name ?? p.email ?? "?").slice(0, 2)}
+              </span>
+              <span className="text-wa-textPrimary truncate">
+                {p.full_name ?? p.email}
+              </span>
+            </button>
+          ))}
+          {current && (
+            <>
+              <div className="border-t border-wa-border my-1" />
+              <button
+                onClick={() => pick(null)}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-wa-hover text-left text-red-400"
+              >
+                <X className="h-3.5 w-3.5" />
+                Remover atribuição
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function ChatHeaderActions({
+  panelData,
+  conversation,
+  allProfiles = [],
+  currentUserId,
+}: {
+  panelData: ContactPanelData | null;
+  conversation?: ConversationWithContact;
+  allProfiles?: AssigneeProfile[];
+  currentUserId?: string;
+}) {
   if (!panelData) return null;
   return (
     <div className="flex items-center gap-2 min-w-0 flex-wrap">
       <StagePill panelData={panelData} />
+      {conversation && (
+        <AssigneePill
+          conversation={conversation}
+          allProfiles={allProfiles}
+          currentUserId={currentUserId}
+        />
+      )}
       <TagPills panelData={panelData} />
     </div>
   );

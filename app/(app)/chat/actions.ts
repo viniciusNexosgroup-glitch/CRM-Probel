@@ -350,6 +350,29 @@ export async function toggleArchivedAction(
   return { ok: true };
 }
 
+export async function assignConversationAction(
+  conversationId: string,
+  userId: string | null
+): Promise<Result> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("conversations")
+    .update({ assigned_to: userId })
+    .eq("id", conversationId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/chat");
+  return { ok: true };
+}
+
+export async function assignToMeAction(conversationId: string): Promise<Result> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Não autenticado" };
+  return assignConversationAction(conversationId, user.id);
+}
+
 export async function deleteTaskAction(taskId: string): Promise<Result> {
   const supabase = await createClient();
   const { error } = await supabase.from("tasks").delete().eq("id", taskId);

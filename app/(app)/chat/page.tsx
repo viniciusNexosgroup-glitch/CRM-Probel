@@ -7,6 +7,7 @@ import type {
   ConversationWithContact,
   ContactPanelData,
   MessageRow,
+  AssigneeProfile,
 } from "./types";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,9 @@ async function getConversations(): Promise<ConversationWithContact[]> {
           id,
           lead_tags ( tag:tags(*) )
         )
+      ),
+      assigned_user:profiles!conversations_assigned_to_fkey (
+        id, full_name, email, avatar_url
       )
     `
     )
@@ -45,6 +49,15 @@ async function getAllTags() {
   return data ?? [];
 }
 
+async function getAllProfiles(): Promise<AssigneeProfile[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, full_name, email, avatar_url")
+    .order("full_name", { ascending: true });
+  return (data ?? []) as AssigneeProfile[];
+}
+
 async function getConversationById(id: string): Promise<ConversationWithContact | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -58,6 +71,9 @@ async function getConversationById(id: string): Promise<ConversationWithContact 
           id,
           lead_tags ( tag:tags(*) )
         )
+      ),
+      assigned_user:profiles!conversations_assigned_to_fkey (
+        id, full_name, email, avatar_url
       )
     `
     )
@@ -130,10 +146,11 @@ export default async function ChatPage({
 
   const { c: selectedId } = await searchParams;
 
-  const [conversations, selected, allTags] = await Promise.all([
+  const [conversations, selected, allTags, allProfiles] = await Promise.all([
     getConversations(),
     selectedId ? getConversationById(selectedId) : Promise.resolve(null),
     getAllTags(),
+    getAllProfiles(),
   ]);
 
   const [messages, panelData, quickRepliesRes, mediasRes, mediaCatsRes] = selected
@@ -148,7 +165,12 @@ export default async function ChatPage({
 
   return (
     <div className="h-full flex bg-wa-bg overflow-hidden">
-      <ConversationList initial={conversations} selectedId={selected?.id} allTags={allTags} />
+      <ConversationList
+        initial={conversations}
+        selectedId={selected?.id}
+        allTags={allTags}
+        currentUserId={user.id}
+      />
       {selected ? (
         <ChatWindow
           conversation={selected}
@@ -157,6 +179,8 @@ export default async function ChatPage({
           quickReplies={quickRepliesRes?.data ?? []}
           medias={mediasRes?.data ?? []}
           mediaCategories={mediaCatsRes?.data ?? []}
+          allProfiles={allProfiles}
+          currentUserId={user.id}
         />
       ) : (
         <EmptyState />
