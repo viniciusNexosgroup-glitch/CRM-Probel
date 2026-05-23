@@ -2,10 +2,10 @@
 
 import { useState, useTransition, useRef, useEffect, KeyboardEvent } from "react";
 import { toast } from "sonner";
-import { Smile, Paperclip, SendHorizonal, Loader2, Zap, Reply, X, Mic } from "lucide-react";
+import { Smile, Paperclip, SendHorizonal, Loader2, Zap, Reply, X, Mic, StickyNote } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { sendTextMessageAction } from "../actions";
+import { sendTextMessageAction, createInternalNoteAction } from "../actions";
 import { QuickReplyPicker } from "./quick-reply-picker";
 import { MediaPopup } from "./media-popup";
 import { AudioRecorder } from "./audio-recorder";
@@ -51,6 +51,7 @@ export function ComposeBar({
   const [manualOpen, setManualOpen] = useState(false);
   const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
   const [recordingAudio, setRecordingAudio] = useState(false);
+  const [internalMode, setInternalMode] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const zapButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -83,13 +84,20 @@ export function ComposeBar({
     if (!value || pending) return;
     setText("");
     setManualOpen(false);
+    const wasInternal = internalMode;
     const replyToCapture = replyingTo?.id ?? null;
     onCancelReply?.();
     startTransition(async () => {
-      const res = await sendTextMessageAction(conversationId, value, replyToCapture);
+      const res = wasInternal
+        ? await createInternalNoteAction(conversationId, value)
+        : await sendTextMessageAction(conversationId, value, replyToCapture);
       if (!res.ok) {
-        toast.error("Falha ao enviar", { description: res.error });
+        toast.error(wasInternal ? "Falha ao salvar nota" : "Falha ao enviar", {
+          description: res.error,
+        });
         setText(value);
+      } else if (wasInternal) {
+        toast.success("Nota interna salva");
       }
       requestAnimationFrame(() => inputRef.current?.focus());
     });
@@ -281,18 +289,36 @@ export function ComposeBar({
         >
           <Zap className="h-5 w-5" />
         </button>
+        <button
+          onClick={() => setInternalMode((v) => !v)}
+          className={cn(
+            "p-2 rounded transition-colors",
+            internalMode
+              ? "bg-amber-500/20 text-amber-400"
+              : "text-wa-textSecondary hover:bg-wa-hover hover:text-amber-400"
+          )}
+          title={internalMode ? "Voltar pra mensagem normal" : "Nota interna (não vai pro cliente)"}
+          aria-label="Alternar nota interna"
+        >
+          <StickyNote className="h-5 w-5" />
+        </button>
         <Input
           ref={inputRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder={
-            quickReplies.length > 0
-              ? "Digite uma mensagem ou / para usar uma resposta rápida…"
-              : "Digite uma mensagem"
+            internalMode
+              ? "Nota interna (só atendentes veem)…"
+              : quickReplies.length > 0
+                ? "Digite uma mensagem ou / para usar uma resposta rápida…"
+                : "Digite uma mensagem"
           }
           disabled={pending}
-          className="bg-wa-panel border-0 text-sm h-10"
+          className={cn(
+            "border-0 text-sm h-10",
+            internalMode ? "bg-amber-500/10 text-amber-100 placeholder:text-amber-300/60" : "bg-wa-panel"
+          )}
           autoFocus
         />
         {text.trim() ? (

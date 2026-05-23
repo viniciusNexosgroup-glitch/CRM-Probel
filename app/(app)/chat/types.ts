@@ -11,6 +11,11 @@ export type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 
 export type AssigneeProfile = Pick<ProfileRow, "id" | "full_name" | "email" | "avatar_url">;
 
+export type InternalNoteRow = Database["public"]["Tables"]["internal_notes"]["Row"];
+export type InternalNoteWithAuthor = InternalNoteRow & {
+  author: AssigneeProfile | null;
+};
+
 /**
  * Conversa com dados do contato + tags do lead (pro inbox e filtros).
  * `leads` vem como objeto único (não array) por causa do unique(contact_id) na tabela leads.

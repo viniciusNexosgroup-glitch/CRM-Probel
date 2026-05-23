@@ -133,6 +133,16 @@ async function getMessages(conversationId: string): Promise<MessageRow[]> {
   return (data ?? []) as MessageRow[];
 }
 
+async function getInternalNotes(conversationId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("internal_notes")
+    .select("*, author:profiles!internal_notes_author_id_fkey(id, full_name, email, avatar_url)")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true });
+  return (data ?? []) as unknown as import("./types").InternalNoteWithAuthor[];
+}
+
 export default async function ChatPage({
   searchParams,
 }: {
@@ -153,15 +163,16 @@ export default async function ChatPage({
     getAllProfiles(),
   ]);
 
-  const [messages, panelData, quickRepliesRes, mediasRes, mediaCatsRes] = selected
+  const [messages, panelData, quickRepliesRes, mediasRes, mediaCatsRes, internalNotes] = selected
     ? await Promise.all([
         getMessages(selected.id),
         getContactPanelData(selected.contact.id),
         supabase.from("quick_replies").select("*").order("shortcut", { ascending: true }),
         supabase.from("media_library").select("*").order("created_at", { ascending: false }),
         supabase.from("media_categories").select("*").order("position", { ascending: true }),
+        getInternalNotes(selected.id),
       ])
-    : [[], null, null, null, null];
+    : [[], null, null, null, null, []];
 
   return (
     <div className="h-full flex bg-wa-bg overflow-hidden">
@@ -175,6 +186,7 @@ export default async function ChatPage({
         <ChatWindow
           conversation={selected}
           initialMessages={messages}
+          internalNotes={internalNotes ?? []}
           panelData={panelData}
           quickReplies={quickRepliesRes?.data ?? []}
           medias={mediasRes?.data ?? []}

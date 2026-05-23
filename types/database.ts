@@ -566,6 +566,30 @@ export type Database = {
         Update: { key?: string; value?: Json; updated_by?: string | null; updated_at?: string };
         Relationships: [];
       };
+      internal_notes: {
+        Row: {
+          id: string;
+          conversation_id: string;
+          author_id: string | null;
+          content: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          conversation_id: string;
+          author_id?: string | null;
+          content: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          conversation_id?: string;
+          author_id?: string | null;
+          content?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       automations: {
         Row: {
           id: string;

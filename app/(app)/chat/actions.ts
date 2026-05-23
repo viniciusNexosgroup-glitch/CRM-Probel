@@ -382,6 +382,42 @@ export async function deleteTaskAction(taskId: string): Promise<Result> {
 }
 
 // ============================================================
+// Internal notes (notas privadas entre atendentes)
+// ============================================================
+
+export async function createInternalNoteAction(
+  conversationId: string,
+  content: string
+): Promise<Result> {
+  const text = content.trim();
+  if (!text) return { ok: false, error: "Nota vazia" };
+  if (text.length > 4096) return { ok: false, error: "Nota muito longa" };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Não autenticado" };
+
+  const { error } = await supabase.from("internal_notes").insert({
+    conversation_id: conversationId,
+    author_id: user.id,
+    content: text,
+  });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/chat");
+  return { ok: true };
+}
+
+export async function deleteInternalNoteAction(noteId: string): Promise<Result> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("internal_notes").delete().eq("id", noteId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/chat");
+  return { ok: true };
+}
+
+// ============================================================
 // Iniciar nova conversa (mandar pra um numero que ainda nao existe)
 // ============================================================
 

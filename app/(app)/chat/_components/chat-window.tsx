@@ -150,6 +150,7 @@ function FavoritePinArchive({
 export function ChatWindow({
   conversation,
   initialMessages,
+  internalNotes = [],
   panelData,
   quickReplies = [],
   medias = [],
@@ -159,6 +160,7 @@ export function ChatWindow({
 }: {
   conversation: ConversationWithContact;
   initialMessages: MessageRow[];
+  internalNotes?: InternalNoteWithAuthor[];
   allProfiles?: AssigneeProfile[];
   currentUserId?: string;
   panelData: ContactPanelData | null;
@@ -333,22 +335,45 @@ export function ChatWindow({
         ref={scrollRef}
         className="flex-1 overflow-y-auto wa-scroll px-4 md:px-12 py-4 space-y-1"
       >
-        {messages.length === 0 ? (
+        {messages.length === 0 && internalNotes.length === 0 ? (
           <div className="h-full flex items-center justify-center text-wa-textSecondary text-sm">
             Nenhuma mensagem ainda nesta conversa.
           </div>
         ) : (
           (() => {
+            // Merge messages + internal notes ordenados por timestamp
             const map = new Map(messages.map((m) => [m.id, m]));
-            return messages.map((m, i) => {
-              const prev = messages[i - 1];
+            type Item =
+              | { kind: "msg"; ts: string; id: string; data: MessageRow }
+              | { kind: "note"; ts: string; id: string; data: InternalNoteWithAuthor };
+            const items: Item[] = [
+              ...messages.map((m) => ({ kind: "msg" as const, ts: m.timestamp, id: m.id, data: m })),
+              ...internalNotes.map((n) => ({
+                kind: "note" as const,
+                ts: n.created_at,
+                id: `note-${n.id}`,
+                data: n,
+              })),
+            ].sort((a, b) => a.ts.localeCompare(b.ts));
+
+            return items.map((item, i) => {
+              const prev = items[i - 1];
               const showDateSep =
-                !prev || !isSameDay(new Date(m.timestamp), new Date(prev.timestamp));
-              const quoted = m.reply_to_id ? map.get(m.reply_to_id) ?? null : null;
+                !prev || !isSameDay(new Date(item.ts), new Date(prev.ts));
+              if (item.kind === "msg") {
+                const m = item.data;
+                const quoted = m.reply_to_id ? map.get(m.reply_to_id) ?? null : null;
+                return (
+                  <div key={item.id}>
+                    {showDateSep && <DateSeparator date={item.ts} />}
+                    <MessageBubble msg={m} quotedMessage={quoted} onReply={setReplyingTo} />
+                  </div>
+                );
+              }
               return (
-                <div key={m.id}>
-                  {showDateSep && <DateSeparator date={m.timestamp} />}
-                  <MessageBubble msg={m} quotedMessage={quoted} onReply={setReplyingTo} />
+                <div key={item.id}>
+                  {showDateSep && <DateSeparator date={item.ts} />}
+                  <InternalNoteBubble note={item.data} currentUserId={currentUserId} />
                 </div>
               );
             });
