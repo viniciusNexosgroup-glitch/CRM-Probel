@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   MessageSquare,
   KanbanSquare,
@@ -16,6 +15,8 @@ import {
   Library,
   Clock,
   Users,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -33,8 +34,8 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/leads", label: "Funil", icon: KanbanSquare },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/settings/quick-replies", label: "Respostas", icon: Zap },
-  { href: "/settings/media-library", label: "Mídias", icon: Library },
-  { href: "/settings/business-hours", label: "Horário", icon: Clock },
+  { href: "/settings/media-library", label: "M\u00eddias", icon: Library },
+  { href: "/settings/business-hours", label: "Hor\u00e1rio", icon: Clock },
   { href: "/settings/team", label: "Equipe", icon: Users },
   { href: "/settings/whatsapp", label: "WhatsApp", icon: Settings },
 ];
@@ -45,6 +46,9 @@ export function AppRail() {
   const [logoutPending, setLogoutPending] = useState(false);
   const [userName, setUserName] = useState<string>("");
   const [userEmail, setUserEmail] = useState<string>("");
+  const [collapsed, setCollapsed] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const isCompact = collapsed && !hovered;
 
   useEffect(() => {
     const supabase = createClient();
@@ -56,9 +60,21 @@ export function AppRail() {
     });
   }, []);
 
+  useEffect(() => {
+    setCollapsed(localStorage.getItem("app-rail-collapsed") === "true");
+  }, []);
+
   function isActive(item: NavItem) {
     if (item.exact) return pathname === item.href;
     return pathname.startsWith(item.href);
+  }
+
+  function toggleCollapsed() {
+    setCollapsed((current) => {
+      const next = !current;
+      localStorage.setItem("app-rail-collapsed", String(next));
+      return next;
+    });
   }
 
   async function onLogout() {
@@ -76,23 +92,61 @@ export function AppRail() {
   }
 
   return (
-    <nav className="w-56 shrink-0 bg-wa-header border-r border-wa-border flex flex-col">
-      {/* Logo + nome */}
-      <div className="h-16 px-4 flex items-center gap-3 border-b border-wa-border">
+    <nav
+      className={cn(
+        "shrink-0 bg-wa-header border-r border-wa-border flex flex-col transition-[width] duration-200 ease-out",
+        isCompact ? "w-16" : "w-56"
+      )}
+      aria-label="Navega\u00e7\u00e3o principal"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <div
+        className={cn(
+          "h-16 flex items-center gap-3 border-b border-wa-border",
+          isCompact ? "justify-center px-2" : "px-4"
+        )}
+      >
         <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
           <MessageSquare className="h-5 w-5 text-primary" />
         </div>
-        <div className="min-w-0">
+        <div className={cn("min-w-0", isCompact && "hidden")}>
           <p className="font-semibold text-wa-textPrimary text-sm">CRM Probel</p>
           <p className="text-[10px] text-wa-textSecondary truncate">
-            Colchões Probel
+            {"Colch\u00f5es Probel"}
           </p>
         </div>
       </div>
 
-      {/* Navegação */}
+      <div className="p-2 border-b border-wa-border">
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          className={cn(
+            "w-full flex items-center rounded-md text-wa-textSecondary hover:bg-wa-hover hover:text-wa-textPrimary transition-colors",
+            isCompact ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2"
+          )}
+          aria-label={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
+          title={isCompact ? "Expandir menu" : "Recolher menu"}
+        >
+          {collapsed ? (
+            <PanelLeftOpen className="h-4 w-4 shrink-0" />
+          ) : (
+            <PanelLeftClose className="h-4 w-4 shrink-0" />
+          )}
+          <span className={cn("text-sm", isCompact && "hidden")}>
+            {collapsed ? "Expandir" : "Recolher"}
+          </span>
+        </button>
+      </div>
+
       <div className="flex-1 flex flex-col gap-0.5 p-2 overflow-y-auto wa-scroll">
-        <p className="text-[10px] uppercase tracking-wider text-wa-textTertiary px-3 py-2">
+        <p
+          className={cn(
+            "text-[10px] uppercase tracking-wider text-wa-textTertiary px-3 py-2",
+            isCompact && "sr-only"
+          )}
+        >
           Menu
         </p>
         {NAV_ITEMS.map((item) => {
@@ -102,32 +156,40 @@ export function AppRail() {
             <Link
               key={item.href}
               href={item.href}
+              title={isCompact ? item.label : undefined}
               className={cn(
-                "relative flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors",
+                "relative flex items-center rounded-md text-sm transition-colors",
+                isCompact ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5",
                 active
                   ? "bg-primary/15 text-primary font-medium"
                   : "text-wa-textSecondary hover:bg-wa-hover hover:text-wa-textPrimary"
               )}
+              aria-label={isCompact ? item.label : undefined}
             >
               {active && (
                 <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-7 rounded-r-full bg-primary" />
               )}
               <Icon className="h-4 w-4 shrink-0" />
-              <span>{item.label}</span>
+              <span className={cn(isCompact && "hidden")}>{item.label}</span>
             </Link>
           );
         })}
       </div>
 
-      {/* User + Logout */}
       <div className="border-t border-wa-border p-2">
-        <div className="flex items-center gap-2.5 px-3 py-2 rounded-md bg-wa-bg/40">
+        <div
+          className={cn(
+            "flex items-center rounded-md bg-wa-bg/40",
+            isCompact ? "justify-center px-2 py-2" : "gap-2.5 px-3 py-2"
+          )}
+          title={isCompact ? userName || userEmail || "Usu\u00e1rio" : undefined}
+        >
           <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
             <User className="h-4 w-4 text-primary" />
           </div>
-          <div className="min-w-0 flex-1">
+          <div className={cn("min-w-0 flex-1", isCompact && "hidden")}>
             <p className="text-xs font-medium text-wa-textPrimary truncate">
-              {userName || "Usuário"}
+              {userName || "Usu\u00e1rio"}
             </p>
             <p className="text-[10px] text-wa-textSecondary truncate">{userEmail}</p>
           </div>
@@ -135,14 +197,19 @@ export function AppRail() {
         <button
           onClick={onLogout}
           disabled={logoutPending}
-          className="mt-1 w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-wa-textSecondary hover:bg-wa-hover hover:text-red-400 transition-colors disabled:opacity-50"
+          className={cn(
+            "mt-1 w-full flex items-center rounded-md text-sm text-wa-textSecondary hover:bg-wa-hover hover:text-red-400 transition-colors disabled:opacity-50",
+            isCompact ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2"
+          )}
+          aria-label="Sair"
+          title={isCompact ? "Sair" : undefined}
         >
           {logoutPending ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <LogOut className="h-4 w-4" />
           )}
-          <span>Sair</span>
+          <span className={cn(isCompact && "hidden")}>Sair</span>
         </button>
       </div>
     </nav>
