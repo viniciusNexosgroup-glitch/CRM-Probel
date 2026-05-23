@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar } from "./avatar";
 import { NotificationBanner } from "./notification-banner";
 import { NewConversationDialog } from "./new-conversation-dialog";
+import { GlobalSearchDialog } from "./global-search-dialog";
 import { formatRelativeTime } from "@/lib/format/date";
 import { formatPhone, getInitials } from "@/lib/format/avatar";
 import { showNotification, playNotificationSound } from "@/lib/notifications";
@@ -61,6 +62,19 @@ export function ConversationList({
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const [newConvOpen, setNewConvOpen] = useState(false);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+
+  // Atalho Ctrl/Cmd + K abre busca global
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setGlobalSearchOpen(true);
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
   const [, startTransition] = useTransition();
 
   // Realtime + polling (mantém comportamento atual)
@@ -225,6 +239,7 @@ export function ConversationList({
 
       <NotificationBanner />
       <NewConversationDialog open={newConvOpen} onClose={() => setNewConvOpen(false)} />
+      <GlobalSearchDialog open={globalSearchOpen} onClose={() => setGlobalSearchOpen(false)} />
 
       {/* Busca */}
       <div className="px-3 py-2 bg-wa-bg shrink-0 space-y-2">
@@ -234,8 +249,17 @@ export function ConversationList({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Pesquisar conversa"
-            className="pl-9 h-9 bg-wa-panel border-0 text-sm"
+            className="pl-9 pr-20 h-9 bg-wa-panel border-0 text-sm"
           />
+          <button
+            onClick={() => setGlobalSearchOpen(true)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 text-[10px] text-wa-textSecondary hover:text-primary border border-wa-border rounded px-1.5 py-0.5"
+            title="Buscar em todas as mensagens (Ctrl+K)"
+          >
+            <Search className="h-3 w-3" />
+            Tudo
+            <kbd className="font-mono text-[9px] opacity-60">Ctrl+K</kbd>
+          </button>
         </div>
 
         {/* Filtros rápidos */}

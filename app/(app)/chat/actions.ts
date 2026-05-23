@@ -418,6 +418,100 @@ export async function deleteInternalNoteAction(noteId: string): Promise<Result> 
 }
 
 // ============================================================
+// Pesquisa global em mensagens + notas
+// ============================================================
+
+export type SearchHit = {
+  kind: "message" | "note";
+  id: string;
+  conversationId: string;
+  content: string;
+  timestamp: string;
+  fromMe: boolean;
+  contact: {
+    id: string;
+    name: string | null;
+    push_name: string | null;
+    phone: string | null;
+    profile_pic_url: string | null;
+    whatsapp_id: string;
+  } | null;
+};
+
+export async function searchMessagesAction(
+  query: string
+): Promise<{ ok: true; data: SearchHit[] } | { ok: false; error: string }> {
+  const q = query.trim();
+  if (q.length < 2) return { ok: true, data: [] };
+  if (q.length > 200) return { ok: false, error: "Busca muito longa" };
+
+  const supabase = await createClient();
+
+  const escaped = q.replace(/[%_]/g, (c) => `\\${c}`);
+
+  const [msgsRes, notesRes] = await Promise.all([
+    supabase
+      .from("messages")
+      .select("id, content, conversation_id, from_me, timestamp")
+      .ilike("content", `%${escaped}%`)
+      .not("content", "is", null)
+      .order("timestamp", { ascending: false })
+      .limit(50),
+    supabase
+      .from("internal_notes")
+      .select("id, content, conversation_id, created_at")
+      .ilike("content", `%${escaped}%`)
+      .order("created_at", { ascending: false })
+      .limit(50),
+  ]);
+
+  const convIds = new Set<string>();
+  (msgsRes.data ?? []).forEach((m) => convIds.add(m.conversation_id));
+  (notesRes.data ?? []).forEach((n) => convIds.add(n.conversation_id));
+  if (convIds.size === 0) return { ok: true, data: [] };
+
+  const { data: convs } = await supabase
+    .from("conversations")
+    .select(
+      `id, contact:contacts!conversations_contact_id_fkey (id, name, push_name, phone, profile_pic_url, whatsapp_id)`
+    )
+    .in("id", Array.from(convIds));
+
+  const convMap = new Map<string, SearchHit["contact"]>();
+  for (const c of convs ?? []) {
+    convMap.set(c.id, (c.contact as unknown as SearchHit["contact"]) ?? null);
+  }
+
+  const hits: SearchHit[] = [];
+  for (const m of msgsRes.data ?? []) {
+    if (!m.content) continue;
+    hits.push({
+      kind: "message",
+      id: m.id,
+      conversationId: m.conversation_id,
+      content: m.content,
+      timestamp: m.timestamp,
+      fromMe: m.from_me,
+      contact: convMap.get(m.conversation_id) ?? null,
+    });
+  }
+  for (const n of notesRes.data ?? []) {
+    hits.push({
+      kind: "note",
+      id: n.id,
+      conversationId: n.conversation_id,
+      content: n.content,
+      timestamp: n.created_at,
+      fromMe: false,
+      contact: convMap.get(n.conversation_id) ?? null,
+    });
+  }
+
+  hits.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  return { ok: true, data: hits.slice(0, 60) };
+}
+
+// ============================================================
 // Iniciar nova conversa (mandar pra um numero que ainda nao existe)
 // ============================================================
 
