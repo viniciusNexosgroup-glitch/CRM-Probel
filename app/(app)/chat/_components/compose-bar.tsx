@@ -9,6 +9,7 @@ import { sendTextMessageAction, createInternalNoteAction } from "../actions";
 import { QuickReplyPicker } from "./quick-reply-picker";
 import { MediaPopup } from "./media-popup";
 import { AudioRecorder } from "./audio-recorder";
+import { EmojiPickerPopup } from "./emoji-picker-popup";
 import { resolveTemplate, type TemplateContext } from "@/lib/format/template";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/types/database";
@@ -52,8 +53,26 @@ export function ComposeBar({
   const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
   const [recordingAudio, setRecordingAudio] = useState(false);
   const [internalMode, setInternalMode] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const zapButtonRef = useRef<HTMLButtonElement>(null);
+
+  function insertAtCursor(snippet: string) {
+    const el = inputRef.current;
+    if (!el) {
+      setText((t) => t + snippet);
+      return;
+    }
+    const start = el.selectionStart ?? text.length;
+    const end = el.selectionEnd ?? text.length;
+    const next = text.slice(0, start) + snippet + text.slice(end);
+    setText(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + snippet.length;
+      el.setSelectionRange(pos, pos);
+    });
+  }
 
   // Picker abre por "/" no input OU por click no botão de raio
   const slashMatch = /^\/(\S*)$/.exec(text);
@@ -241,11 +260,23 @@ export function ComposeBar({
         />
       )}
       <div className="flex items-center gap-2">
+        {emojiOpen && (
+          <EmojiPickerPopup
+            onSelect={(emoji) => insertAtCursor(emoji)}
+            onClose={() => setEmojiOpen(false)}
+          />
+        )}
         <button
-          className="p-2 text-wa-textSecondary cursor-not-allowed opacity-50"
-          disabled
-          aria-label="Emoji (em breve)"
-          title="Em breve"
+          data-emoji-trigger
+          onClick={() => setEmojiOpen((o) => !o)}
+          className={cn(
+            "p-2 rounded transition-colors",
+            emojiOpen
+              ? "bg-primary/20 text-primary"
+              : "text-wa-textSecondary hover:bg-wa-hover hover:text-primary"
+          )}
+          title="Emoji"
+          aria-label="Emoji"
         >
           <Smile className="h-5 w-5" />
         </button>
