@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useRef, useEffect, KeyboardEvent } from "react";
 import { toast } from "sonner";
-import { Smile, Paperclip, SendHorizonal, Loader2, Zap, Reply, X, Mic, StickyNote } from "lucide-react";
+import { Smile, Paperclip, SendHorizonal, Loader2, Zap, Reply, X, Mic, StickyNote, Calendar } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { sendTextMessageAction, createInternalNoteAction } from "../actions";
@@ -10,6 +10,7 @@ import { QuickReplyPicker } from "./quick-reply-picker";
 import { MediaPopup } from "./media-popup";
 import { AudioRecorder } from "./audio-recorder";
 import { EmojiPickerPopup } from "./emoji-picker-popup";
+import { ScheduleDialog } from "./schedule-dialog";
 import { resolveTemplate, type TemplateContext } from "@/lib/format/template";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/types/database";
@@ -54,6 +55,7 @@ export function ComposeBar({
   const [recordingAudio, setRecordingAudio] = useState(false);
   const [internalMode, setInternalMode] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const zapButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -251,6 +253,12 @@ export function ComposeBar({
           />
         </div>
       )}
+      <ScheduleDialog
+        conversationId={conversationId}
+        open={scheduleOpen}
+        onClose={() => setScheduleOpen(false)}
+        initialText={text}
+      />
       {mediaPickerOpen && (
         <MediaPopup
           conversationId={conversationId}
@@ -353,19 +361,31 @@ export function ComposeBar({
           autoFocus
         />
         {text.trim() ? (
-          <Button
-            onClick={onSend}
-            disabled={pending}
-            size="icon"
-            variant="ghost"
-            aria-label="Enviar"
-          >
-            {pending ? (
-              <Loader2 className="animate-spin h-5 w-5" />
-            ) : (
-              <SendHorizonal className="h-5 w-5 text-wa-textSecondary" />
+          <>
+            {!internalMode && (
+              <button
+                onClick={() => setScheduleOpen(true)}
+                className="p-2 rounded text-wa-textSecondary hover:bg-wa-hover hover:text-amber-400 transition-colors"
+                title="Agendar envio"
+                aria-label="Agendar"
+              >
+                <Calendar className="h-5 w-5" />
+              </button>
             )}
-          </Button>
+            <Button
+              onClick={onSend}
+              disabled={pending}
+              size="icon"
+              variant="ghost"
+              aria-label="Enviar"
+            >
+              {pending ? (
+                <Loader2 className="animate-spin h-5 w-5" />
+              ) : (
+                <SendHorizonal className="h-5 w-5 text-wa-textSecondary" />
+              )}
+            </Button>
+          </>
         ) : (
           <button
             onClick={() => setRecordingAudio(true)}

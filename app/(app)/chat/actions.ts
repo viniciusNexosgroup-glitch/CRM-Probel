@@ -418,6 +418,61 @@ export async function deleteInternalNoteAction(noteId: string): Promise<Result> 
 }
 
 // ============================================================
+// Mensagens programadas
+// ============================================================
+
+export async function scheduleMessageAction(
+  conversationId: string,
+  content: string,
+  scheduledFor: string
+): Promise<Result> {
+  const text = content.trim();
+  if (!text) return { ok: false, error: "Mensagem vazia" };
+  if (text.length > 4096) return { ok: false, error: "Mensagem muito longa" };
+
+  const scheduledDate = new Date(scheduledFor);
+  if (isNaN(scheduledDate.getTime())) return { ok: false, error: "Data inválida" };
+  if (scheduledDate.getTime() < Date.now() - 60_000)
+    return { ok: false, error: "Data tem que ser no futuro" };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Não autenticado" };
+
+  const { data: conv } = await supabase
+    .from("conversations")
+    .select("id, instance_id")
+    .eq("id", conversationId)
+    .single();
+  if (!conv) return { ok: false, error: "Conversa não encontrada" };
+
+  const { error } = await supabase.from("scheduled_messages").insert({
+    conversation_id: conv.id,
+    instance_id: conv.instance_id,
+    content: text,
+    scheduled_for: scheduledDate.toISOString(),
+    created_by: user.id,
+  });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/chat");
+  return { ok: true };
+}
+
+export async function cancelScheduledMessageAction(id: string): Promise<Result> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("scheduled_messages")
+    .update({ status: "cancelled" })
+    .eq("id", id)
+    .eq("status", "pending");
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/chat");
+  return { ok: true };
+}
+
+// ============================================================
 // Encaminhar mensagem (forward)
 // ============================================================
 

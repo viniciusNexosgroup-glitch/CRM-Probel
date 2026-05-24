@@ -396,6 +396,7 @@ export function ChatWindow({
         )}
       </div>
 
+      <ScheduledMessagesBar conversationId={conversation.id} />
       <ComposeBar
         conversationId={conversation.id}
         quickReplies={quickReplies}
