@@ -75,9 +75,22 @@ begin
   end if;
 end $$;
 
-alter publication supabase_realtime add table public.messages;
-alter publication supabase_realtime add table public.conversations;
-alter publication supabase_realtime add table public.contacts;
-alter publication supabase_realtime add table public.whatsapp_instances;
-alter publication supabase_realtime add table public.leads;
-alter publication supabase_realtime add table public.tasks;
+do $$
+declare
+  t text;
+begin
+  for t in
+    select unnest(array[
+      'messages','conversations','contacts','whatsapp_instances','leads','tasks'
+    ])
+  loop
+    if not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = t
+    ) then
+      execute format('alter publication supabase_realtime add table public.%I;', t);
+    end if;
+  end loop;
+end $$;
