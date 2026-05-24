@@ -238,7 +238,6 @@ export function ConversationList({
         </button>
       </header>
 
-      <OverdueTasksBanner currentUserId={currentUserId} />
       <NotificationBanner />
       <NewConversationDialog open={newConvOpen} onClose={() => setNewConvOpen(false)} />
       <GlobalSearchDialog open={globalSearchOpen} onClose={() => setGlobalSearchOpen(false)} />

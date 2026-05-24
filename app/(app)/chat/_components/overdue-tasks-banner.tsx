@@ -89,7 +89,7 @@ export function OverdueTasksBanner({ currentUserId }: { currentUserId?: string }
   if (dismissed || tasks.length === 0) return null;
 
   return (
-    <div className="bg-amber-500/15 border-t border-b border-amber-500/30 shrink-0">
+    <div className="bg-amber-500/15 border-b border-amber-500/40 shrink-0">
       <button
         onClick={() => setExpanded((e) => !e)}
         className="w-full px-4 py-2 flex items-center justify-between hover:bg-amber-500/20 transition-colors"
