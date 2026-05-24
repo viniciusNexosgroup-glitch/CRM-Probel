@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AppRail } from "@/components/app-shell/app-rail";
 import { TaskReminderManager } from "./_components/task-reminder-manager";
+import { OverdueTasksBanner } from "./chat/_components/overdue-tasks-banner";
 
 export default async function AppLayout({
   children,
@@ -16,9 +17,12 @@ export default async function AppLayout({
   if (!user) redirect("/login");
 
   return (
-    <div className="h-screen flex bg-wa-bg overflow-hidden">
-      <AppRail />
-      <div className="flex-1 min-w-0 overflow-hidden">{children}</div>
+    <div className="h-screen flex flex-col bg-wa-bg overflow-hidden">
+      <OverdueTasksBanner currentUserId={user.id} />
+      <div className="flex-1 flex min-w-0 overflow-hidden">
+        <AppRail />
+        <div className="flex-1 min-w-0 overflow-hidden">{children}</div>
+      </div>
       <TaskReminderManager />
     </div>
   );
