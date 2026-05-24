@@ -144,6 +144,8 @@ export type Database = {
           is_favorite?: boolean;
           last_contact_at?: string | null;
           notes?: string | null;
+          presence_status?: string | null;
+          presence_updated_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -161,6 +163,8 @@ export type Database = {
           is_favorite?: boolean;
           last_contact_at?: string | null;
           notes?: string | null;
+          presence_status?: string | null;
+          presence_updated_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
