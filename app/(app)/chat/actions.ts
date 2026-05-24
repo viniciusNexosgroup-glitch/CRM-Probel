@@ -418,6 +418,120 @@ export async function deleteInternalNoteAction(noteId: string): Promise<Result> 
 }
 
 // ============================================================
+// Encaminhar mensagem (forward)
+// ============================================================
+
+export async function forwardMessageAction(
+  messageId: string,
+  targetConversationIds: string[]
+): Promise<{ ok: true; data: { sent: number; failed: number } } | { ok: false; error: string }> {
+  if (targetConversationIds.length === 0) {
+    return { ok: false, error: "Selecione ao menos uma conversa" };
+  }
+
+  const supabase = await createClient();
+  const { data: msg, error: msgErr } = await supabase
+    .from("messages")
+    .select("*")
+    .eq("id", messageId)
+    .single();
+  if (msgErr || !msg) return { ok: false, error: "Mensagem não encontrada" };
+
+  const { data: targets } = await supabase
+    .from("conversations")
+    .select("id, instance_id, remote_jid")
+    .in("id", targetConversationIds);
+
+  if (!targets || targets.length === 0) {
+    return { ok: false, error: "Nenhuma conversa válida selecionada" };
+  }
+
+  const service = createServiceClient();
+  let sent = 0;
+  let failed = 0;
+
+  for (const target of targets) {
+    try {
+      let evolutionMessageId: string;
+
+      if (msg.message_type === "text") {
+        const r = await evolution.sendText(target.remote_jid, msg.content ?? "");
+        evolutionMessageId = r.key.id;
+      } else if (msg.message_type === "audio" && msg.media_url) {
+        const r = await evolution.sendAudio(target.remote_jid, msg.media_url);
+        evolutionMessageId = r.key.id;
+      } else if (msg.media_url) {
+        const mediatype =
+          msg.message_type === "image"
+            ? "image"
+            : msg.message_type === "video"
+              ? "video"
+              : "document";
+        const r = await evolution.sendMedia(target.remote_jid, {
+          mediatype,
+          media: msg.media_url,
+          mimetype: msg.media_mimetype ?? undefined,
+          caption: msg.media_caption ?? msg.content ?? undefined,
+          fileName: msg.media_filename ?? undefined,
+        });
+        evolutionMessageId = r.key.id;
+      } else {
+        failed++;
+        continue;
+      }
+
+      const now = new Date().toISOString();
+      const preview =
+        msg.content ??
+        msg.media_caption ??
+        (msg.message_type === "image"
+          ? "📷 Imagem"
+          : msg.message_type === "video"
+            ? "🎥 Vídeo"
+            : msg.message_type === "audio"
+              ? "🎵 Áudio"
+              : "📄 Documento");
+
+      await service.from("messages").insert({
+        conversation_id: target.id,
+        instance_id: target.instance_id,
+        evolution_message_id: evolutionMessageId,
+        remote_jid: target.remote_jid,
+        from_me: true,
+        message_type: msg.message_type,
+        content: msg.content,
+        media_url: msg.media_url,
+        media_mimetype: msg.media_mimetype,
+        media_filename: msg.media_filename,
+        media_size: msg.media_size,
+        media_caption: msg.media_caption,
+        duration: msg.duration,
+        status: "sent",
+        timestamp: now,
+      });
+
+      await service
+        .from("conversations")
+        .update({
+          last_message_text: preview,
+          last_message_at: now,
+          last_message_from_me: true,
+          unread_count: 0,
+        })
+        .eq("id", target.id);
+
+      sent++;
+    } catch (e) {
+      console.warn("[forward] falha pra conversa", target.id, e);
+      failed++;
+    }
+  }
+
+  revalidatePath("/chat");
+  return { ok: true, data: { sent, failed } };
+}
+
+// ============================================================
 // Pesquisa global em mensagens + notas
 // ============================================================
 

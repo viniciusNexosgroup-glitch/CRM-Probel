@@ -24,6 +24,7 @@ import { ContactPanel } from "./contact-panel";
 import { ChatHeaderActions } from "./chat-header-actions";
 import { isSameDay } from "@/lib/format/date";
 import { formatPhone } from "@/lib/format/avatar";
+import { formatPresence } from "@/lib/format/presence";
 import { cn } from "@/lib/utils";
 import {
   markAsReadAction,
@@ -279,8 +280,13 @@ export function ChatWindow({
     conversation.contact.name?.trim() || conversation.contact.push_name?.trim();
   const formattedPhone = conversation.contact.phone ? formatPhone(conversation.contact.phone) : "";
   const contactName = realName || formattedPhone || "Sem nome";
-  // Só mostra a linha de telefone embaixo se for diferente do nome (evita duplicação)
-  const subtitle = realName ? formattedPhone : "";
+  // Subtitle: prioriza "digitando…" / "online" se ativo, senão telefone (se diferente do nome)
+  const presence = formatPresence(
+    conversation.contact.presence_status,
+    conversation.contact.presence_updated_at
+  );
+  const subtitle = presence ?? (realName ? formattedPhone : "");
+  const isPresenceLive = !!presence;
 
   return (
     <div className="flex-1 flex min-w-0 h-full">
@@ -300,7 +306,14 @@ export function ChatWindow({
           <div className="min-w-0 text-left">
             <p className="font-medium text-wa-textPrimary truncate">{contactName}</p>
             {subtitle && (
-              <p className="text-xs text-wa-textSecondary">{subtitle}</p>
+              <p
+                className={cn(
+                  "text-xs truncate",
+                  isPresenceLive ? "text-primary font-medium" : "text-wa-textSecondary"
+                )}
+              >
+                {subtitle}
+              </p>
             )}
           </div>
         </button>

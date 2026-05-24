@@ -14,6 +14,7 @@ import {
   handleConnectionUpdate,
   handleContactsUpsert,
   handleChatsUpdate,
+  handlePresenceUpdate,
 } from "@/lib/evolution/webhook-handlers";
 import type { WebhookPayload } from "@/lib/evolution/webhook-types";
 
@@ -67,6 +68,9 @@ export async function POST(
       case "chats.update":
       case "chats.upsert":
         await handleChatsUpdate(instance, payload.data as never);
+        break;
+      case "presence.update":
+        await handlePresenceUpdate(instance, payload.data as never);
         break;
       default:
         // ignora silenciosamente eventos que ainda não processamos

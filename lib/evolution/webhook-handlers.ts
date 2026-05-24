@@ -556,6 +556,45 @@ export async function handleChatsUpdate(
   }
 }
 
+/**
+ * Atualiza presença do contato (digitando, online, gravando).
+ * Evolution manda `presence.update` quando o contato muda estado.
+ * Salva o status + timestamp; UI usa TTL pra mostrar / esconder.
+ */
+type PresenceUpdateData = {
+  id: string; // remoteJid
+  presences: {
+    [jid: string]: {
+      lastKnownPresence?: string;
+    };
+  };
+};
+
+export async function handlePresenceUpdate(
+  instanceName: string,
+  data: PresenceUpdateData
+) {
+  const supabase = createServiceClient();
+  const { data: instance } = await supabase
+    .from("whatsapp_instances")
+    .select("id")
+    .eq("instance_name", instanceName)
+    .single();
+  if (!instance) return;
+
+  const now = new Date().toISOString();
+  const entries = Object.entries(data.presences ?? {});
+  for (const [jid, info] of entries) {
+    const status = info?.lastKnownPresence ?? null;
+    if (!status) continue;
+    await supabase
+      .from("contacts")
+      .update({ presence_status: status, presence_updated_at: now })
+      .eq("instance_id", instance.id)
+      .eq("whatsapp_id", jid);
+  }
+}
+
 export async function handleConnectionUpdate(instanceName: string, data: ConnectionUpdateData) {
   const supabase = createServiceClient();
   const status = mapEvolutionStateToDb(data.state);

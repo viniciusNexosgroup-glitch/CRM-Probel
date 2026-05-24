@@ -23,7 +23,16 @@ export type InternalNoteWithAuthor = InternalNoteRow & {
 export type ConversationWithContact = ConversationRow & {
   contact: Pick<
     ContactRow,
-    "id" | "name" | "push_name" | "phone" | "profile_pic_url" | "is_group" | "is_favorite" | "whatsapp_id"
+    | "id"
+    | "name"
+    | "push_name"
+    | "phone"
+    | "profile_pic_url"
+    | "is_group"
+    | "is_favorite"
+    | "whatsapp_id"
+    | "presence_status"
+    | "presence_updated_at"
   > & {
     leads: {
       id: string;

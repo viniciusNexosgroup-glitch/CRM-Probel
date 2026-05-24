@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CheckCheck, Clock, AlertTriangle, FileText, Mic, Image as ImageIcon, Video, Reply } from "lucide-react";
+import { Check, CheckCheck, Clock, AlertTriangle, FileText, Mic, Image as ImageIcon, Video, Reply, Forward } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTime } from "@/lib/format/date";
 import type { MessageRow } from "../types";
@@ -175,10 +175,12 @@ export function MessageBubble({
   msg,
   quotedMessage,
   onReply,
+  onForward,
 }: {
   msg: MessageRow;
   quotedMessage?: MessageRow | null;
   onReply?: (msg: MessageRow) => void;
+  onForward?: (msg: MessageRow) => void;
 }) {
   const fromMe = msg.from_me;
   const isMedia = msg.message_type !== "text" && msg.message_type !== "reaction";
@@ -191,15 +193,29 @@ export function MessageBubble({
       )}
     >
       {/* Botão de reply à esquerda em msgs from_me, à direita em recebidas */}
-      {!fromMe && onReply && (
-        <button
-          onClick={() => onReply(msg)}
-          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-full bg-wa-panel hover:bg-wa-hover text-wa-textSecondary transition-opacity"
-          title="Responder"
-          aria-label="Responder"
-        >
-          <Reply className="h-3.5 w-3.5" />
-        </button>
+      {!fromMe && (onReply || onForward) && (
+        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+          {onReply && (
+            <button
+              onClick={() => onReply(msg)}
+              className="p-1.5 rounded-full bg-wa-panel hover:bg-wa-hover text-wa-textSecondary"
+              title="Responder"
+              aria-label="Responder"
+            >
+              <Reply className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {onForward && (
+            <button
+              onClick={() => onForward(msg)}
+              className="p-1.5 rounded-full bg-wa-panel hover:bg-wa-hover text-wa-textSecondary"
+              title="Encaminhar"
+              aria-label="Encaminhar"
+            >
+              <Forward className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       )}
       <div
         className={cn(
@@ -245,15 +261,29 @@ export function MessageBubble({
           {fromMe && <StatusIcon status={msg.status} />}
         </div>
       </div>
-      {fromMe && onReply && (
-        <button
-          onClick={() => onReply(msg)}
-          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-full bg-wa-panel hover:bg-wa-hover text-wa-textSecondary transition-opacity order-3"
-          title="Responder"
-          aria-label="Responder"
-        >
-          <Reply className="h-3.5 w-3.5" />
-        </button>
+      {fromMe && (onReply || onForward) && (
+        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 order-3 transition-opacity">
+          {onReply && (
+            <button
+              onClick={() => onReply(msg)}
+              className="p-1.5 rounded-full bg-wa-panel hover:bg-wa-hover text-wa-textSecondary"
+              title="Responder"
+              aria-label="Responder"
+            >
+              <Reply className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {onForward && (
+            <button
+              onClick={() => onForward(msg)}
+              className="p-1.5 rounded-full bg-wa-panel hover:bg-wa-hover text-wa-textSecondary"
+              title="Encaminhar"
+              aria-label="Encaminhar"
+            >
+              <Forward className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
