@@ -572,6 +572,48 @@ export type Database = {
         Update: { key?: string; value?: Json; updated_by?: string | null; updated_at?: string };
         Relationships: [];
       };
+      scheduled_messages: {
+        Row: {
+          id: string;
+          conversation_id: string;
+          instance_id: string;
+          content: string;
+          scheduled_for: string;
+          status: "pending" | "sent" | "failed" | "cancelled";
+          sent_at: string | null;
+          error_message: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          conversation_id: string;
+          instance_id: string;
+          content: string;
+          scheduled_for: string;
+          status?: "pending" | "sent" | "failed" | "cancelled";
+          sent_at?: string | null;
+          error_message?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          conversation_id?: string;
+          instance_id?: string;
+          content?: string;
+          scheduled_for?: string;
+          status?: "pending" | "sent" | "failed" | "cancelled";
+          sent_at?: string | null;
+          error_message?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       internal_notes: {
         Row: {
           id: string;

@@ -5,6 +5,10 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { salesbotDb } from "@/lib/salesbot/db";
 import type { SalesbotEdge, SalesbotFlowStatus, SalesbotNode } from "@/lib/salesbot/types";
+import {
+  validateSalesbotEdgesForSave,
+  validateSalesbotGraph,
+} from "@/lib/salesbot/validation";
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
 
@@ -35,6 +39,12 @@ export async function createSalesbotFlowAction(formData: FormData) {
     .single();
 
   if (error || !data) return;
+  await db.from("salesbot_triggers").insert({
+    flow_id: data.id,
+    type: "new_message",
+    config: {},
+    is_active: true,
+  });
   revalidatePath("/salesbot");
   redirect(`/salesbot/${data.id}`);
 }
@@ -49,6 +59,30 @@ export async function updateSalesbotFlowStatusAction(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Nao autenticado" };
+
+  if (status === "active") {
+    const [nodesRes, edgesRes, triggersRes] = await Promise.all([
+      db.from("salesbot_nodes").select("node_key, type, label").eq("flow_id", flowId),
+      db
+        .from("salesbot_edges")
+        .select("source_node_key, target_node_key")
+        .eq("flow_id", flowId),
+      db.from("salesbot_triggers").select("is_active").eq("flow_id", flowId),
+    ]);
+
+    if (nodesRes.error) return { ok: false, error: nodesRes.error.message };
+    if (edgesRes.error) return { ok: false, error: edgesRes.error.message };
+    if (triggersRes.error) return { ok: false, error: triggersRes.error.message };
+
+    const validation = validateSalesbotGraph(
+      nodesRes.data ?? [],
+      edgesRes.data ?? [],
+      triggersRes.data ?? []
+    );
+    if (!validation.ok) {
+      return { ok: false, error: validation.errors.join(" ") };
+    }
+  }
 
   const update: Record<string, string> = {
     status,
@@ -101,6 +135,9 @@ export async function saveSalesbotGraphAction(
     label: edge.label,
     condition: edge.condition ?? {},
   }));
+
+  const validation = validateSalesbotEdgesForSave(normalizedNodes, normalizedEdges);
+  if (!validation.ok) return { ok: false, error: validation.errors.join(" ") };
 
   const { error: clearEdgesError } = await db.from("salesbot_edges").delete().eq("flow_id", flowId);
   if (clearEdgesError) return { ok: false, error: clearEdgesError.message };

@@ -22,6 +22,7 @@ import { DateSeparator } from "./date-separator";
 import { ComposeBar } from "./compose-bar";
 import { ContactPanel } from "./contact-panel";
 import { ChatHeaderActions } from "./chat-header-actions";
+import { ScheduledMessagesBar } from "./scheduled-messages-bar";
 import { isSameDay } from "@/lib/format/date";
 import { formatPhone } from "@/lib/format/avatar";
 import { formatPresence } from "@/lib/format/presence";
