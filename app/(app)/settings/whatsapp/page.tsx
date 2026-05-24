@@ -1,6 +1,5 @@
-import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, MessageSquare, Phone, Users, Clock } from "lucide-react";
+import { MessageSquare, Phone, Users, Clock } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -74,19 +73,17 @@ export default async function WhatsAppSettingsPage() {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
   return (
-    <div className="min-h-screen container max-w-3xl py-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <Link
-          href="/chat"
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" /> Voltar
-        </Link>
+    <div className="h-full bg-wa-bg flex flex-col overflow-hidden">
+      <header className="h-14 bg-wa-header flex items-center justify-between px-4 border-b border-wa-border shrink-0">
+        <h1 className="font-medium text-wa-textPrimary flex items-center gap-2">
+          <Phone className="h-4 w-4 text-primary" />
+          Conexão WhatsApp
+        </h1>
         <SyncButton />
-      </div>
-
+      </header>
+      <div className="flex-1 overflow-y-auto wa-scroll">
+        <div className="container max-w-3xl py-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Conexão WhatsApp</h1>
         <p className="text-sm text-muted-foreground">
           Status e dados da instância <code>{process.env.EVOLUTION_INSTANCE_NAME}</code> na Evolution API.
         </p>
@@ -175,6 +172,8 @@ export default async function WhatsAppSettingsPage() {
           <WebhookCard currentWebhookUrl={currentWebhookUrl} expectedAppUrl={appUrl} />
         </>
       )}
+        </div>
+      </div>
     </div>
   );
 }
