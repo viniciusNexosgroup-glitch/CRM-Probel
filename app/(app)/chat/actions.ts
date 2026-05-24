@@ -399,10 +399,29 @@ export async function createInternalNoteAction(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Não autenticado" };
 
+  // Detecta menções tipo @nome ou @email_prefixo
+  const mentions = Array.from(text.matchAll(/@([\w._-]+)/g)).map((m) => m[1].toLowerCase());
+  let mentionedUserIds: string[] = [];
+  if (mentions.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, full_name, email");
+    const matched = new Set<string>();
+    for (const p of profiles ?? []) {
+      const firstName = (p.full_name?.split(/\s+/)[0] ?? "").toLowerCase();
+      const emailPrefix = (p.email?.split("@")[0] ?? "").toLowerCase();
+      if (mentions.includes(firstName) || mentions.includes(emailPrefix)) {
+        matched.add(p.id);
+      }
+    }
+    mentionedUserIds = Array.from(matched);
+  }
+
   const { error } = await supabase.from("internal_notes").insert({
     conversation_id: conversationId,
     author_id: user.id,
     content: text,
+    mentioned_user_ids: mentionedUserIds,
   });
   if (error) return { ok: false, error: error.message };
   revalidatePath("/chat");

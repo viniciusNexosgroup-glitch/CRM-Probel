@@ -68,7 +68,20 @@ export function InternalNoteBubble({
             </button>
           )}
         </div>
-        <p className={cn("text-sm whitespace-pre-wrap break-words text-amber-100")}>{note.content}</p>
+        <p className={cn("text-sm whitespace-pre-wrap break-words text-amber-100")}>
+          {note.content.split(/(@[\w._-]+)/g).map((part, i) =>
+            part.startsWith("@") ? (
+              <span
+                key={i}
+                className="text-primary font-medium bg-primary/15 px-1 rounded"
+              >
+                {part}
+              </span>
+            ) : (
+              <span key={i}>{part}</span>
+            )
+          )}
+        </p>
         <span className="text-[10px] text-amber-300/60 mt-1 block">
           {formatTime(note.created_at)}
         </span>
