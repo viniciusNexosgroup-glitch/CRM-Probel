@@ -10,6 +10,8 @@ import {
   CalendarDays,
   Target,
   ExternalLink,
+  Clock,
+  Award,
 } from "lucide-react";
 import { getDashboardData, formatBRL, SOURCE_LABELS } from "./_lib/metrics";
 import { KpiCard } from "./_components/kpi-card";
@@ -30,7 +32,15 @@ function displayLeadName(
 
 export default async function DashboardPage() {
   const data = await getDashboardData();
-  const { kpis, funnel, bySource, topLeads, recentLeads } = data;
+  const { kpis, funnel, bySource, topLeads, recentLeads, attendantRanking } = data;
+
+  const avgRespLabel = (() => {
+    if (kpis.avgResponseMinutes == null) return "—";
+    const m = kpis.avgResponseMinutes;
+    if (m < 60) return `${m} min`;
+    const h = Math.floor(m / 60);
+    return `${h}h ${m % 60}m`;
+  })();
 
   const maxFunnelCount = Math.max(1, ...funnel.map((f) => f.count));
   const maxSourceCount = Math.max(1, ...bySource.map((s) => s.count));
@@ -81,6 +91,19 @@ export default async function DashboardPage() {
               label="Em aberto"
               value={formatBRL(kpis.estimatedValueOpen)}
               helper="Valor estimado em pipeline"
+            />
+            <KpiCard
+              icon={<Clock className="h-4 w-4" />}
+              label="Tempo médio resposta"
+              value={avgRespLabel}
+              helper="Últimos 30 dias"
+              accent={
+                kpis.avgResponseMinutes != null && kpis.avgResponseMinutes <= 10
+                  ? "success"
+                  : kpis.avgResponseMinutes != null && kpis.avgResponseMinutes <= 60
+                    ? "warning"
+                    : "default"
+              }
             />
             <KpiCard
               icon={<Inbox className="h-4 w-4" />}
@@ -210,6 +233,58 @@ export default async function DashboardPage() {
                 </ul>
               )}
             </div>
+          </section>
+
+          {/* Ranking de atendentes */}
+          <section className="bg-wa-panel border border-wa-border rounded-lg p-4">
+            <h2 className="text-sm font-medium text-wa-textPrimary mb-3 flex items-center gap-2">
+              <Award className="h-4 w-4 text-amber-400" />
+              Ranking de atendentes
+            </h2>
+            {attendantRanking.length === 0 ? (
+              <p className="text-xs text-wa-textTertiary">
+                Nenhuma conversa atribuída a atendente ainda. Vá em uma conversa → pill &ldquo;Sem atendente&rdquo; → atribua.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-xs uppercase text-wa-textSecondary">
+                    <tr className="border-b border-wa-border">
+                      <th className="text-left py-2 px-1 font-medium">#</th>
+                      <th className="text-left py-2 px-1 font-medium">Atendente</th>
+                      <th className="text-right py-2 px-1 font-medium">Conversas</th>
+                      <th className="text-right py-2 px-1 font-medium">Abertos</th>
+                      <th className="text-right py-2 px-1 font-medium">Ganhos</th>
+                      <th className="text-right py-2 px-1 font-medium">Perdidos</th>
+                      <th className="text-right py-2 px-1 font-medium">Fechado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attendantRanking.map((r, i) => (
+                      <tr key={r.profile.id} className="border-b border-wa-border/40 last:border-b-0">
+                        <td className="py-2 px-1 text-wa-textTertiary">{i + 1}</td>
+                        <td className="py-2 px-1 text-wa-textPrimary">
+                          {r.profile.full_name ?? r.profile.email}
+                        </td>
+                        <td className="py-2 px-1 text-right tabular-nums">{r.conversations}</td>
+                        <td className="py-2 px-1 text-right tabular-nums text-blue-400">
+                          {r.leadsOpen}
+                        </td>
+                        <td className="py-2 px-1 text-right tabular-nums text-emerald-400">
+                          {r.leadsWon}
+                        </td>
+                        <td className="py-2 px-1 text-right tabular-nums text-red-400">
+                          {r.leadsLost}
+                        </td>
+                        <td className="py-2 px-1 text-right tabular-nums text-emerald-400 font-medium">
+                          {formatBRL(r.closedValue)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
 
           {/* Leads recentes */}

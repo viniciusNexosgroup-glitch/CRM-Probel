@@ -28,6 +28,24 @@ export type MessageType =
   | "unknown";
 export type MessageStatus = "pending" | "sent" | "delivered" | "read" | "failed";
 export type LeadStatus = "open" | "won" | "lost";
+export type SalesbotFlowStatus = "draft" | "active" | "paused" | "archived";
+export type SalesbotChannel = "whatsapp" | "instagram" | "facebook" | "webchat" | "multi";
+export type SalesbotExecutionStatus =
+  | "queued"
+  | "running"
+  | "waiting"
+  | "completed"
+  | "failed"
+  | "cancelled";
+export type SalesbotTriggerType =
+  | "new_conversation"
+  | "new_message"
+  | "lead_created"
+  | "stage_changed"
+  | "no_response"
+  | "keyword_detected"
+  | "instagram_comment"
+  | "outside_business_hours";
 
 export type Database = {
   public: {
@@ -674,9 +692,342 @@ export type Database = {
         };
         Relationships: [];
       };
+      salesbot_flows: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          channel: SalesbotChannel;
+          status: SalesbotFlowStatus;
+          created_by: string | null;
+          updated_by: string | null;
+          last_published_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          description?: string | null;
+          channel?: SalesbotChannel;
+          status?: SalesbotFlowStatus;
+          created_by?: string | null;
+          updated_by?: string | null;
+          last_published_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          description?: string | null;
+          channel?: SalesbotChannel;
+          status?: SalesbotFlowStatus;
+          created_by?: string | null;
+          updated_by?: string | null;
+          last_published_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      salesbot_nodes: {
+        Row: {
+          id: string;
+          flow_id: string;
+          node_key: string;
+          type: string;
+          label: string;
+          position_x: number;
+          position_y: number;
+          config: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          flow_id: string;
+          node_key: string;
+          type: string;
+          label: string;
+          position_x?: number;
+          position_y?: number;
+          config?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          flow_id?: string;
+          node_key?: string;
+          type?: string;
+          label?: string;
+          position_x?: number;
+          position_y?: number;
+          config?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      salesbot_edges: {
+        Row: {
+          id: string;
+          flow_id: string;
+          edge_key: string;
+          source_node_key: string;
+          target_node_key: string;
+          label: string | null;
+          condition: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          flow_id: string;
+          edge_key: string;
+          source_node_key: string;
+          target_node_key: string;
+          label?: string | null;
+          condition?: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          flow_id?: string;
+          edge_key?: string;
+          source_node_key?: string;
+          target_node_key?: string;
+          label?: string | null;
+          condition?: Json;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      salesbot_triggers: {
+        Row: {
+          id: string;
+          flow_id: string;
+          type: SalesbotTriggerType;
+          config: Json;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          flow_id: string;
+          type: SalesbotTriggerType;
+          config?: Json;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          flow_id?: string;
+          type?: SalesbotTriggerType;
+          config?: Json;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      salesbot_executions: {
+        Row: {
+          id: string;
+          flow_id: string | null;
+          trigger_id: string | null;
+          conversation_id: string | null;
+          lead_id: string | null;
+          contact_id: string | null;
+          current_node_key: string | null;
+          status: SalesbotExecutionStatus;
+          variables: Json;
+          started_at: string;
+          finished_at: string | null;
+          error_message: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          flow_id?: string | null;
+          trigger_id?: string | null;
+          conversation_id?: string | null;
+          lead_id?: string | null;
+          contact_id?: string | null;
+          current_node_key?: string | null;
+          status?: SalesbotExecutionStatus;
+          variables?: Json;
+          started_at?: string;
+          finished_at?: string | null;
+          error_message?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          flow_id?: string | null;
+          trigger_id?: string | null;
+          conversation_id?: string | null;
+          lead_id?: string | null;
+          contact_id?: string | null;
+          current_node_key?: string | null;
+          status?: SalesbotExecutionStatus;
+          variables?: Json;
+          started_at?: string;
+          finished_at?: string | null;
+          error_message?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      salesbot_execution_logs: {
+        Row: {
+          id: string;
+          execution_id: string;
+          flow_id: string | null;
+          node_key: string | null;
+          level: "debug" | "info" | "warning" | "error";
+          message: string;
+          data: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          execution_id: string;
+          flow_id?: string | null;
+          node_key?: string | null;
+          level?: "debug" | "info" | "warning" | "error";
+          message: string;
+          data?: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          execution_id?: string;
+          flow_id?: string | null;
+          node_key?: string | null;
+          level?: "debug" | "info" | "warning" | "error";
+          message?: string;
+          data?: Json;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      salesbot_variables: {
+        Row: {
+          id: string;
+          flow_id: string;
+          key: string;
+          label: string;
+          value_type: "text" | "number" | "boolean" | "date" | "json";
+          default_value: Json | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          flow_id: string;
+          key: string;
+          label: string;
+          value_type?: "text" | "number" | "boolean" | "date" | "json";
+          default_value?: Json | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          flow_id?: string;
+          key?: string;
+          label?: string;
+          value_type?: "text" | "number" | "boolean" | "date" | "json";
+          default_value?: Json | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      salesbot_ai_settings: {
+        Row: {
+          id: string;
+          flow_id: string | null;
+          model: string;
+          system_prompt: string | null;
+          fallback_message: string | null;
+          handoff_on_uncertainty: boolean;
+          enabled: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          flow_id?: string | null;
+          model?: string;
+          system_prompt?: string | null;
+          fallback_message?: string | null;
+          handoff_on_uncertainty?: boolean;
+          enabled?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          flow_id?: string | null;
+          model?: string;
+          system_prompt?: string | null;
+          fallback_message?: string | null;
+          handoff_on_uncertainty?: boolean;
+          enabled?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      salesbot_knowledge_base: {
+        Row: {
+          id: string;
+          title: string;
+          content: string;
+          category: string | null;
+          is_active: boolean;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          content: string;
+          category?: string | null;
+          is_active?: boolean;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          title?: string;
+          content?: string;
+          category?: string | null;
+          is_active?: boolean;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
-    Functions: { [_ in never]: never };
+    Functions: {
+      save_salesbot_graph: {
+        Args: {
+          p_flow_id: string;
+          p_nodes: Json;
+          p_edges: Json;
+        };
+        Returns: undefined;
+      };
+    };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
   };

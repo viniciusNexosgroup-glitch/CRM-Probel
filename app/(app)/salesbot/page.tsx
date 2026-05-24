@@ -1,6 +1,5 @@
 import {
   Bot,
-  Plus,
   PlayCircle,
   Workflow,
   AlertTriangle,
@@ -10,11 +9,8 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { salesbotDb } from "@/lib/salesbot/db";
 import type { SalesbotFlow, SalesbotStats } from "@/lib/salesbot/types";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { createSalesbotFlowAction } from "./actions";
 import { FlowRow } from "./_components/flow-row";
+import { CreateFlowForm } from "./_components/create-flow-form";
 
 export const dynamic = "force-dynamic";
 
@@ -73,7 +69,7 @@ export default async function SalesbotPage() {
           <Bot className="h-4 w-4 text-primary" />
           SalesBot
         </h1>
-        <span className="text-xs text-wa-textSecondary">Automações comerciais</span>
+        <span className="text-xs text-wa-textSecondary">{"Automa\u00e7\u00f5es comerciais"}</span>
       </header>
 
       <div className="flex-1 overflow-y-auto wa-scroll">
@@ -82,7 +78,7 @@ export default async function SalesbotPage() {
             <section className="border border-amber-500/30 bg-amber-500/10 rounded-lg p-4 text-sm text-amber-200 flex items-start gap-3">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
               <div>
-                <p className="font-medium">Migration do SalesBot ainda não foi aplicada.</p>
+                <p className="font-medium">{"Migration do SalesBot ainda n\u00e3o foi aplicada."}</p>
                 <p className="text-amber-200/80">
                   Rode <span className="font-mono">npm.cmd run migrate</span> para criar as tabelas
                   <span className="font-mono"> salesbot_*</span> antes de salvar fluxos.
@@ -94,21 +90,21 @@ export default async function SalesbotPage() {
           <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="bg-wa-panel border border-wa-border rounded-lg p-4">
               <div className="flex items-center justify-between text-wa-textSecondary">
-                <span className="text-xs">Execuções</span>
+                <span className="text-xs">{"Execu\u00e7\u00f5es"}</span>
                 <BarChart3 className="h-4 w-4" />
               </div>
               <p className="text-2xl font-semibold text-wa-textPrimary mt-2">{stats.totalExecutions}</p>
             </div>
             <div className="bg-wa-panel border border-wa-border rounded-lg p-4">
               <div className="flex items-center justify-between text-wa-textSecondary">
-                <span className="text-xs">Concluídas</span>
+                <span className="text-xs">{"Conclu\u00eddas"}</span>
                 <PlayCircle className="h-4 w-4" />
               </div>
               <p className="text-2xl font-semibold text-emerald-400 mt-2">{stats.completedExecutions}</p>
             </div>
             <div className="bg-wa-panel border border-wa-border rounded-lg p-4">
               <div className="flex items-center justify-between text-wa-textSecondary">
-                <span className="text-xs">Transferências</span>
+                <span className="text-xs">{"Transfer\u00eancias"}</span>
                 <Users className="h-4 w-4" />
               </div>
               <p className="text-2xl font-semibold text-sky-400 mt-2">{stats.humanHandoffs}</p>
@@ -123,30 +119,7 @@ export default async function SalesbotPage() {
           </section>
 
           <section className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-4">
-            <form action={createSalesbotFlowAction} className="bg-wa-panel border border-wa-border rounded-lg p-4 space-y-3">
-              <div>
-                <h2 className="text-sm font-medium text-wa-textPrimary flex items-center gap-2">
-                  <Plus className="h-4 w-4 text-primary" />
-                  Novo fluxo
-                </h2>
-                <p className="text-xs text-wa-textSecondary mt-1">
-                  Comece com um rascunho e monte os blocos no editor.
-                </p>
-              </div>
-              <Input name="name" placeholder="Ex: Qualificação WhatsApp" disabled={migrationMissing} />
-              <Input name="description" placeholder="Descrição curta" disabled={migrationMissing} />
-              <Select name="channel" defaultValue="whatsapp" disabled={migrationMissing}>
-                <option value="whatsapp">WhatsApp</option>
-                <option value="instagram">Instagram Direct</option>
-                <option value="facebook">Facebook Messenger</option>
-                <option value="webchat">Webchat</option>
-                <option value="multi">Multi-canal</option>
-              </Select>
-              <Button type="submit" className="w-full" disabled={migrationMissing}>
-                <Plus className="h-4 w-4" />
-                Criar fluxo
-              </Button>
-            </form>
+            <CreateFlowForm disabled={migrationMissing} />
 
             <div className="bg-wa-panel border border-wa-border rounded-lg overflow-hidden">
               <div className="h-11 px-4 border-b border-wa-border flex items-center justify-between">

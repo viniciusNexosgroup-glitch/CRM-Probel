@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { salesbotDb } from "@/lib/salesbot/db";
-import type { SalesbotEdge, SalesbotFlowStatus, SalesbotNode } from "@/lib/salesbot/types";
+import { requireSalesbotAdmin } from "@/lib/salesbot/permissions";
+import type { SalesbotEdge, SalesbotFlowStatus, SalesbotNode, SalesbotTriggerType } from "@/lib/salesbot/types";
 import {
   validateSalesbotEdgesForSave,
   validateSalesbotGraph,
@@ -12,18 +12,16 @@ import {
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
 
-export async function createSalesbotFlowAction(formData: FormData) {
+export async function createSalesbotFlowAction(formData: FormData): Promise<ActionResult<{ id: string }>> {
   const supabase = await createClient();
   const db = salesbotDb(supabase);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return;
+  const permission = await requireSalesbotAdmin(supabase as any);
+  if (!permission.ok) return { ok: false, error: permission.error };
 
   const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const channel = String(formData.get("channel") ?? "whatsapp");
-  if (!name) return;
+  if (!name) return { ok: false, error: "Informe um nome para o fluxo." };
 
   const { data, error } = await db
     .from("salesbot_flows")
@@ -32,21 +30,23 @@ export async function createSalesbotFlowAction(formData: FormData) {
       description: description || null,
       channel,
       status: "draft",
-      created_by: user.id,
-      updated_by: user.id,
+      created_by: permission.userId,
+      updated_by: permission.userId,
     })
     .select("id")
     .single();
 
-  if (error || !data) return;
-  await db.from("salesbot_triggers").insert({
+  if (error || !data) return { ok: false, error: error?.message ?? "Falha ao criar fluxo." };
+  const { error: triggerError } = await db.from("salesbot_triggers").insert({
     flow_id: data.id,
     type: "new_message",
     config: {},
     is_active: true,
   });
+  if (triggerError) return { ok: false, error: triggerError.message };
+
   revalidatePath("/salesbot");
-  redirect(`/salesbot/${data.id}`);
+  return { ok: true, data: { id: data.id } };
 }
 
 export async function updateSalesbotFlowStatusAction(
@@ -55,10 +55,8 @@ export async function updateSalesbotFlowStatusAction(
 ): Promise<ActionResult> {
   const supabase = await createClient();
   const db = salesbotDb(supabase);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "Nao autenticado" };
+  const permission = await requireSalesbotAdmin(supabase as any);
+  if (!permission.ok) return { ok: false, error: permission.error };
 
   if (status === "active") {
     const [nodesRes, edgesRes, triggersRes] = await Promise.all([
@@ -86,7 +84,7 @@ export async function updateSalesbotFlowStatusAction(
 
   const update: Record<string, string> = {
     status,
-    updated_by: user.id,
+    updated_by: permission.userId,
   };
   if (status === "active") update.last_published_at = new Date().toISOString();
 
@@ -99,6 +97,8 @@ export async function updateSalesbotFlowStatusAction(
 
 export async function deleteSalesbotFlowAction(flowId: string): Promise<ActionResult> {
   const supabase = await createClient();
+  const permission = await requireSalesbotAdmin(supabase as any);
+  if (!permission.ok) return { ok: false, error: permission.error };
   const db = salesbotDb(supabase);
   const { error } = await db.from("salesbot_flows").delete().eq("id", flowId);
   if (error) return { ok: false, error: error.message };
@@ -113,10 +113,8 @@ export async function saveSalesbotGraphAction(
 ): Promise<ActionResult> {
   const supabase = await createClient();
   const db = salesbotDb(supabase);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "Nao autenticado" };
+  const permission = await requireSalesbotAdmin(supabase as any);
+  if (!permission.ok) return { ok: false, error: permission.error };
 
   const normalizedNodes = nodes.map((node) => ({
     flow_id: flowId,
@@ -139,22 +137,49 @@ export async function saveSalesbotGraphAction(
   const validation = validateSalesbotEdgesForSave(normalizedNodes, normalizedEdges);
   if (!validation.ok) return { ok: false, error: validation.errors.join(" ") };
 
-  const { error: clearEdgesError } = await db.from("salesbot_edges").delete().eq("flow_id", flowId);
-  if (clearEdgesError) return { ok: false, error: clearEdgesError.message };
+  const { error: saveError } = await db.rpc("save_salesbot_graph", {
+    p_flow_id: flowId,
+    p_nodes: normalizedNodes,
+    p_edges: normalizedEdges,
+  });
+  if (saveError) return { ok: false, error: saveError.message };
 
-  const { error: clearNodesError } = await db.from("salesbot_nodes").delete().eq("flow_id", flowId);
-  if (clearNodesError) return { ok: false, error: clearNodesError.message };
+  await db.from("salesbot_flows").update({ updated_by: permission.userId }).eq("id", flowId);
+  revalidatePath(`/salesbot/${flowId}`);
+  return { ok: true };
+}
 
-  if (normalizedNodes.length > 0) {
-    const { error } = await db.from("salesbot_nodes").insert(normalizedNodes);
-    if (error) return { ok: false, error: error.message };
+export async function updateSalesbotTriggersAction(
+  flowId: string,
+  triggers: Array<{
+    type: SalesbotTriggerType;
+    config?: Record<string, unknown>;
+    is_active?: boolean;
+  }>
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const db = salesbotDb(supabase);
+  const permission = await requireSalesbotAdmin(supabase as any);
+  if (!permission.ok) return { ok: false, error: permission.error };
+
+  const normalized = triggers
+    .filter((trigger) => trigger.type)
+    .map((trigger) => ({
+      flow_id: flowId,
+      type: trigger.type,
+      config: trigger.config ?? {},
+      is_active: trigger.is_active !== false,
+    }));
+
+  if (normalized.length === 0) {
+    return { ok: false, error: "Configure ao menos um gatilho." };
   }
-  if (normalizedEdges.length > 0) {
-    const { error } = await db.from("salesbot_edges").insert(normalizedEdges);
-    if (error) return { ok: false, error: error.message };
-  }
 
-  await db.from("salesbot_flows").update({ updated_by: user.id }).eq("id", flowId);
+  await db.from("salesbot_triggers").delete().eq("flow_id", flowId);
+  const { error } = await db.from("salesbot_triggers").insert(normalized);
+  if (error) return { ok: false, error: error.message };
+
+  await db.from("salesbot_flows").update({ updated_by: permission.userId }).eq("id", flowId);
   revalidatePath(`/salesbot/${flowId}`);
   return { ok: true };
 }

@@ -18,6 +18,7 @@ export type DashboardData = {
     closedValueThisMonth: number;
     openConversations: number;
     unreadConversations: number;
+    avgResponseMinutes: number | null;
   };
   funnel: {
     stage: StageRow;
@@ -27,6 +28,14 @@ export type DashboardData = {
   bySource: { source: string; count: number; estimatedValue: number }[];
   topLeads: (LeadRow & { contact: { name: string | null; push_name: string | null; phone: string | null } | null })[];
   recentLeads: (LeadRow & { contact: { name: string | null; push_name: string | null; phone: string | null } | null })[];
+  attendantRanking: {
+    profile: { id: string; full_name: string | null; email: string | null };
+    conversations: number;
+    leadsOpen: number;
+    leadsWon: number;
+    leadsLost: number;
+    closedValue: number;
+  }[];
 };
 
 function startOfDay() {
@@ -134,6 +143,89 @@ export async function getDashboardData(): Promise<DashboardData> {
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .slice(0, 8);
 
+  // ============================================================
+  // Tempo médio de resposta (últimos 30 dias)
+  // ============================================================
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: msgs } = await supabase
+    .from("messages")
+    .select("conversation_id, from_me, timestamp")
+    .gte("timestamp", thirtyDaysAgo)
+    .order("conversation_id", { ascending: true })
+    .order("timestamp", { ascending: true })
+    .limit(5000);
+
+  let totalDiffMs = 0;
+  let pairs = 0;
+  if (msgs && msgs.length > 0) {
+    const byConv = new Map<string, typeof msgs>();
+    for (const m of msgs) {
+      const list = byConv.get(m.conversation_id) ?? [];
+      list.push(m);
+      byConv.set(m.conversation_id, list);
+    }
+    for (const list of byConv.values()) {
+      let lastReceived: string | null = null;
+      for (const m of list) {
+        if (!m.from_me) {
+          if (lastReceived === null) lastReceived = m.timestamp;
+        } else if (lastReceived) {
+          totalDiffMs += new Date(m.timestamp).getTime() - new Date(lastReceived).getTime();
+          pairs += 1;
+          lastReceived = null;
+        }
+      }
+    }
+  }
+  const avgResponseMinutes = pairs > 0 ? Math.round(totalDiffMs / pairs / 60000) : null;
+
+  // ============================================================
+  // Ranking por atendente
+  // ============================================================
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, full_name, email");
+
+  const { data: assignedConvs } = await supabase
+    .from("conversations")
+    .select("assigned_to")
+    .not("assigned_to", "is", null);
+
+  const convsByUser = new Map<string, number>();
+  for (const c of assignedConvs ?? []) {
+    if (c.assigned_to) {
+      convsByUser.set(c.assigned_to, (convsByUser.get(c.assigned_to) ?? 0) + 1);
+    }
+  }
+
+  const leadsByUser = new Map<string, { open: number; won: number; lost: number; closedValue: number }>();
+  for (const l of leads) {
+    if (!l.assigned_to) continue;
+    const entry = leadsByUser.get(l.assigned_to) ?? { open: 0, won: 0, lost: 0, closedValue: 0 };
+    if (l.status === "open") entry.open++;
+    if (l.status === "won") {
+      entry.won++;
+      entry.closedValue += Number(l.closed_value ?? l.estimated_value ?? 0);
+    }
+    if (l.status === "lost") entry.lost++;
+    leadsByUser.set(l.assigned_to, entry);
+  }
+
+  const attendantRanking = (profiles ?? [])
+    .map((p) => {
+      const ls = leadsByUser.get(p.id) ?? { open: 0, won: 0, lost: 0, closedValue: 0 };
+      return {
+        profile: { id: p.id, full_name: p.full_name, email: p.email },
+        conversations: convsByUser.get(p.id) ?? 0,
+        leadsOpen: ls.open,
+        leadsWon: ls.won,
+        leadsLost: ls.lost,
+        closedValue: ls.closedValue,
+      };
+    })
+    .filter((r) => r.conversations > 0 || r.leadsOpen > 0 || r.leadsWon > 0 || r.leadsLost > 0)
+    .sort((a, b) => b.closedValue - a.closedValue || b.leadsWon - a.leadsWon);
+
   return {
     kpis: {
       leadsToday: todayLeadsRes.count ?? 0,
@@ -147,11 +239,13 @@ export async function getDashboardData(): Promise<DashboardData> {
       closedValueThisMonth,
       openConversations,
       unreadConversations,
+      avgResponseMinutes,
     },
     funnel,
     bySource,
     topLeads,
     recentLeads,
+    attendantRanking,
   };
 }
 

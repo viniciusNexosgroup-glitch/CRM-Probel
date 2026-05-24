@@ -49,11 +49,11 @@ export function validateSalesbotGraph(
 
   for (const edge of edges) {
     if (!nodeKeys.has(edge.source_node_key)) {
-      errors.push(`Conexão com origem inválida: ${edge.source_node_key}.`);
+      errors.push(`Conex\u00e3o com origem inv\u00e1lida: ${edge.source_node_key}.`);
       continue;
     }
     if (!nodeKeys.has(edge.target_node_key)) {
-      errors.push(`Conexão com destino inválido: ${edge.target_node_key}.`);
+      errors.push(`Conex\u00e3o com destino inv\u00e1lido: ${edge.target_node_key}.`);
       continue;
     }
     outgoing.get(edge.source_node_key)?.push(edge.target_node_key);
@@ -97,7 +97,7 @@ export function validateSalesbotEdgesForSave(
 
   for (const edge of edges) {
     if (!nodeKeys.has(edge.source_node_key) || !nodeKeys.has(edge.target_node_key)) {
-      errors.push("Há conexões apontando para blocos inexistentes.");
+      errors.push("H\u00e1 conex\u00f5es apontando para blocos inexistentes.");
       break;
     }
   }

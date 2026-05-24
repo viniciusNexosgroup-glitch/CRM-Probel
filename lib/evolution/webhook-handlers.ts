@@ -13,6 +13,7 @@ import {
   type AutoReplyConfig,
 } from "@/lib/business-hours";
 import { resolveTemplate } from "@/lib/format/template";
+import { runSalesbotForMessage } from "@/lib/salesbot/engine";
 import type {
   MessagesUpsertData,
   MessagesUpdateData,
@@ -211,7 +212,7 @@ async function getOrCreateConversation(
     .eq("instance_id", instanceId)
     .eq("remote_jid", remoteJid)
     .single();
-  if (existing) return existing.id;
+  if (existing) return { id: existing.id, created: false };
 
   const { data: created, error } = await supabase
     .from("conversations")
@@ -223,7 +224,7 @@ async function getOrCreateConversation(
     .select("id")
     .single();
   if (error || !created) throw new Error(`Falha ao criar conversa: ${error?.message}`);
-  return created.id;
+  return { id: created.id, created: true };
 }
 
 async function ensureLeadForContact(contactId: string, conversationId: string) {
@@ -233,7 +234,7 @@ async function ensureLeadForContact(contactId: string, conversationId: string) {
     .select("id")
     .eq("contact_id", contactId)
     .maybeSingle();
-  if (existing) return;
+  if (existing) return existing.id;
 
   // Pega o primeiro stage do pipeline (Novo Lead)
   const { data: stage } = await supabase
@@ -242,7 +243,7 @@ async function ensureLeadForContact(contactId: string, conversationId: string) {
     .order("position", { ascending: true })
     .limit(1)
     .single();
-  if (!stage) return;
+  if (!stage) return null;
 
   // Pega dados do contato pra preencher nome/phone do lead
   const { data: contact } = await supabase
@@ -251,18 +252,24 @@ async function ensureLeadForContact(contactId: string, conversationId: string) {
     .eq("id", contactId)
     .single();
   // Não cria lead pra grupos
-  if (contact?.is_group) return;
+  if (contact?.is_group) return null;
 
-  await supabase.from("leads").insert({
-    contact_id: contactId,
-    conversation_id: conversationId,
-    stage_id: stage.id,
-    name: contact?.name ?? contact?.push_name ?? null,
-    phone: contact?.phone ?? null,
-    source: "whatsapp",
-    status: "open",
-    last_contact_at: new Date().toISOString(),
-  });
+  const { data: created } = await supabase
+    .from("leads")
+    .insert({
+      contact_id: contactId,
+      conversation_id: conversationId,
+      stage_id: stage.id,
+      name: contact?.name ?? contact?.push_name ?? null,
+      phone: contact?.phone ?? null,
+      source: "whatsapp",
+      status: "open",
+      last_contact_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+
+  return created?.id ?? null;
 }
 
 export async function handleMessagesUpsert(instanceName: string, data: MessagesUpsertData) {
@@ -272,10 +279,11 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
     data.key.remoteJid,
     data.pushName ?? null
   );
-  const conversationId = await getOrCreateConversation(instanceId, contactId, data.key.remoteJid);
+  const conversation = await getOrCreateConversation(instanceId, contactId, data.key.remoteJid);
+  const conversationId = conversation.id;
 
   // Cria lead automaticamente em "Novo Lead" se ainda não houver
-  await ensureLeadForContact(contactId, conversationId);
+  const leadId = await ensureLeadForContact(contactId, conversationId);
 
   const extracted = extractMessageContent(data.message);
   const timestamp = new Date(data.messageTimestamp * 1000).toISOString();
@@ -358,7 +366,26 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
 
   // Auto-resposta fora do horário comercial (apenas pra mensagens recebidas, não-grupo)
   if (!data.key.fromMe && !isGroupJid(data.key.remoteJid)) {
-    await maybeSendAutoReply(instanceName, conversationId, data.key.remoteJid, data.pushName ?? null);
+    let salesbotHandled = false;
+    try {
+      const salesbotResult = await runSalesbotForMessage({
+        event: conversation.created ? "new_conversation" : "new_message",
+        instanceId,
+        conversationId,
+        contactId,
+        leadId,
+        remoteJid: data.key.remoteJid,
+        messageText: extracted.content,
+        evolutionMessageId: data.key.id,
+      });
+      salesbotHandled = salesbotResult.responseSent || salesbotResult.handoff;
+    } catch (e) {
+      console.warn("[salesbot] falhou:", e instanceof Error ? e.message : e);
+    }
+
+    if (!salesbotHandled) {
+      await maybeSendAutoReply(instanceName, conversationId, data.key.remoteJid, data.pushName ?? null);
+    }
   }
 }
 

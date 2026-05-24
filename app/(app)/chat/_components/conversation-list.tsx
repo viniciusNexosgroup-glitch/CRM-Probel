@@ -11,6 +11,7 @@ import { Avatar } from "./avatar";
 import { NotificationBanner } from "./notification-banner";
 import { NewConversationDialog } from "./new-conversation-dialog";
 import { GlobalSearchDialog } from "./global-search-dialog";
+import { OverdueTasksBanner } from "./overdue-tasks-banner";
 import { formatRelativeTime } from "@/lib/format/date";
 import { formatPhone, getInitials } from "@/lib/format/avatar";
 import { showNotification, playNotificationSound } from "@/lib/notifications";
@@ -237,6 +238,7 @@ export function ConversationList({
         </button>
       </header>
 
+      <OverdueTasksBanner currentUserId={currentUserId} />
       <NotificationBanner />
       <NewConversationDialog open={newConvOpen} onClose={() => setNewConvOpen(false)} />
       <GlobalSearchDialog open={globalSearchOpen} onClose={() => setGlobalSearchOpen(false)} />

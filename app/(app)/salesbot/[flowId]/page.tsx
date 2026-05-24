@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Bot } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { salesbotDb } from "@/lib/salesbot/db";
-import type { SalesbotEdge, SalesbotFlow, SalesbotNode } from "@/lib/salesbot/types";
+import type { SalesbotEdge, SalesbotFlow, SalesbotNode, SalesbotTrigger } from "@/lib/salesbot/types";
 import { SalesbotEditor } from "../_components/salesbot-editor";
 
 export const dynamic = "force-dynamic";
@@ -12,11 +12,12 @@ async function getFlowData(flowId: string) {
   const supabase = await createClient();
   const db = salesbotDb(supabase);
 
-  const [flowRes, nodesRes, edgesRes, stagesRes, tagsRes, profilesRes, mediaRes] =
+  const [flowRes, nodesRes, edgesRes, triggersRes, stagesRes, tagsRes, profilesRes, mediaRes] =
     await Promise.all([
       db.from("salesbot_flows").select("*").eq("id", flowId).single(),
       db.from("salesbot_nodes").select("*").eq("flow_id", flowId).order("created_at", { ascending: true }),
       db.from("salesbot_edges").select("*").eq("flow_id", flowId).order("created_at", { ascending: true }),
+      db.from("salesbot_triggers").select("*").eq("flow_id", flowId).order("created_at", { ascending: true }),
       supabase.from("pipeline_stages").select("id, name, color").order("position", { ascending: true }),
       supabase.from("tags").select("id, name, color").order("name", { ascending: true }),
       supabase.from("profiles").select("id, full_name, email").order("full_name", { ascending: true }),
@@ -33,6 +34,7 @@ async function getFlowData(flowId: string) {
     flow: flowRes.data as SalesbotFlow,
     nodes: (nodesRes.data ?? []) as SalesbotNode[],
     edges: (edgesRes.data ?? []) as SalesbotEdge[],
+    triggers: (triggersRes.data ?? []) as SalesbotTrigger[],
     stages: stagesRes.data ?? [],
     tags: tagsRes.data ?? [],
     profiles: profilesRes.data ?? [],
@@ -84,6 +86,7 @@ export default async function SalesbotFlowPage({
         flow={data.flow}
         initialNodes={data.nodes}
         initialEdges={data.edges}
+        initialTriggers={data.triggers}
         stages={data.stages}
         tags={data.tags}
         profiles={data.profiles}
