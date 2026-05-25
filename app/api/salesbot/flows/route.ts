@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
 
   await db.from("salesbot_triggers").insert({
     flow_id: data.id,
-    type: "new_message",
+    type: "lead_created",
     config: {},
     is_active: true,
   });

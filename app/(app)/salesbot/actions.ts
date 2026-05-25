@@ -39,7 +39,7 @@ export async function createSalesbotFlowAction(formData: FormData): Promise<Acti
   if (error || !data) return { ok: false, error: error?.message ?? "Falha ao criar fluxo." };
   const { error: triggerError } = await db.from("salesbot_triggers").insert({
     flow_id: data.id,
-    type: "new_message",
+    type: "lead_created",
     config: {},
     is_active: true,
   });

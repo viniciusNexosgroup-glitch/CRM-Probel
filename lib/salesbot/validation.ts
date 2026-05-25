@@ -62,8 +62,8 @@ export function validateSalesbotGraph(
 
   if (nodes.length > 1) {
     const startNodes = nodes.filter((node) => (incoming.get(node.node_key) ?? 0) === 0);
-    if (startNodes.length !== 1) {
-      errors.push("O fluxo deve ter exatamente um bloco inicial.");
+    if (startNodes.length === 0) {
+      errors.push("O fluxo deve ter ao menos um bloco inicial ligado ao gatilho.");
     }
 
     const disconnected = nodes.filter(

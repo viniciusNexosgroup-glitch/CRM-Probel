@@ -638,6 +638,7 @@ export type Database = {
           conversation_id: string;
           author_id: string | null;
           content: string;
+          mentioned_user_ids: string[] | null;
           created_at: string;
         };
         Insert: {
@@ -645,6 +646,7 @@ export type Database = {
           conversation_id: string;
           author_id?: string | null;
           content: string;
+          mentioned_user_ids?: string[] | null;
           created_at?: string;
         };
         Update: {
@@ -652,6 +654,7 @@ export type Database = {
           conversation_id?: string;
           author_id?: string | null;
           content?: string;
+          mentioned_user_ids?: string[] | null;
           created_at?: string;
         };
         Relationships: [];

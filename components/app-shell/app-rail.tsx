@@ -16,6 +16,7 @@ import {
   Clock,
   Users,
   Bot,
+  TrendingUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { href: "/chat", label: "Conversas", icon: MessageSquare },
   { href: "/leads", label: "Funil", icon: KanbanSquare },
+  { href: "/settings/pipeline", label: "Estágios", icon: TrendingUp },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/salesbot", label: "SalesBot", icon: Bot },
   { href: "/settings/quick-replies", label: "Respostas", icon: Zap },

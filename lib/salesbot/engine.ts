@@ -72,6 +72,39 @@ function normalizeMediaType(value: unknown): "image" | "video" | "document" {
   return "document";
 }
 
+function triggerMatches(trigger: SalesbotTrigger, context: SalesbotContext): boolean {
+  if (!trigger.is_active) return false;
+  if (trigger.type === context.event) return true;
+  if (trigger.type === "lead_created" && context.event === "new_conversation" && Boolean(context.leadId)) return true;
+
+  if (trigger.type === "keyword_detected" && context.event === "new_message") {
+    const config = asRecord(trigger.config);
+    return messageMatchesKeywords(context.messageText, config.keywords, config.match_mode);
+  }
+
+  return false;
+}
+
+function messageMatchesKeywords(
+  messageText: string | null,
+  keywordsText: unknown,
+  matchMode: unknown
+): boolean {
+  const keywords = textValue(keywordsText)
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  if (keywords.length === 0) return false;
+
+  const message = (messageText ?? "").trim().toLowerCase();
+  const mode = textValue(matchMode) || "contains";
+  return keywords.some((keyword) => {
+    if (mode === "equals") return message === keyword;
+    if (mode === "starts_with") return message.startsWith(keyword);
+    return message.includes(keyword);
+  });
+}
+
 async function logExecution(
   db: UntypedSupabase,
   executionId: string,
@@ -158,6 +191,37 @@ async function getLeadData(db: UntypedSupabase, leadId: string | null): Promise<
   if (!leadId) return {};
   const { data } = await db.from("leads").select("*").eq("id", leadId).maybeSingle();
   return asRecord(data);
+}
+
+async function resolveAutomaticAssignee(
+  db: UntypedSupabase,
+  config: Record<string, Json | undefined>
+): Promise<string | null> {
+  const { data: profiles, error } = await db
+    .from("profiles")
+    .select("id, role")
+    .in("role", ["user", "admin"]);
+  if (error || !profiles?.length) return null;
+
+  const candidateIds = (profiles as Array<{ id: string }>).map((profile) => profile.id);
+  const strategy = textValue(config.distribution_strategy) || "least_active";
+
+  const { data: leads } = await db
+    .from("leads")
+    .select("assigned_to, status")
+    .in("assigned_to", candidateIds);
+
+  const score = new Map<string, number>(candidateIds.map((id) => [id, 0]));
+  for (const lead of (leads ?? []) as Array<{ assigned_to?: string | null; status?: string | null }>) {
+    const assignedTo = lead.assigned_to;
+    if (!assignedTo || !score.has(assignedTo)) continue;
+
+    const status = lead.status;
+    if (strategy === "least_active" && status !== "open") continue;
+    score.set(assignedTo, (score.get(assignedTo) ?? 0) + 1);
+  }
+
+  return [...score.entries()].sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? null;
 }
 
 function evaluateCondition(
@@ -303,12 +367,7 @@ async function executeNode(
     }
 
     case "keyword": {
-      const keywords = textValue(config.keywords)
-        .split(",")
-        .map((item) => item.trim().toLowerCase())
-        .filter(Boolean);
-      const message = (context.messageText ?? "").toLowerCase();
-      const matched = keywords.some((keyword) => message.includes(keyword));
+      const matched = messageMatchesKeywords(context.messageText, config.keywords, config.match_mode);
       await logExecution(db, executionId, flowId, node.node_key, "info", matched ? "Palavra-chave detectada" : "Palavra-chave n\u00e3o detectada");
       return { branch: matched ? "yes" : "no", variables: { keyword_matched: matched } };
     }
@@ -347,13 +406,19 @@ async function executeNode(
     }
 
     case "assign_user": {
-      const userId = typeof config.user_id === "string" && config.user_id ? config.user_id : null;
+      const userId =
+        typeof config.user_id === "string" && config.user_id
+          ? config.user_id
+          : await resolveAutomaticAssignee(db, config);
       if (userId) {
         await db.from("conversations").update({ assigned_to: userId }).eq("id", context.conversationId);
         if (context.leadId) await db.from("leads").update({ assigned_to: userId }).eq("id", context.leadId);
       }
-      await logExecution(db, executionId, flowId, node.node_key, "info", "Respons\u00e1vel alterado");
-      return {};
+      await logExecution(db, executionId, flowId, node.node_key, userId ? "info" : "warning", userId ? "Respons\u00e1vel alterado" : "Nenhum vendedor dispon\u00edvel", {
+        assigned_to: userId,
+        strategy: config.distribution_strategy,
+      });
+      return { variables: { assigned_to: userId } };
     }
 
     case "create_task": {
@@ -469,8 +534,7 @@ async function getActiveFlows(db: UntypedSupabase, context: SalesbotContext): Pr
       .from("salesbot_triggers")
       .select("*")
       .in("flow_id", flowIds)
-      .eq("is_active", true)
-      .in("type", [context.event, "new_message"]),
+      .eq("is_active", true),
     db.from("salesbot_nodes").select("*").in("flow_id", flowIds),
     db.from("salesbot_edges").select("*").in("flow_id", flowIds),
   ]);
@@ -480,7 +544,7 @@ async function getActiveFlows(db: UntypedSupabase, context: SalesbotContext): Pr
   return (flows as SalesbotFlow[])
     .map((flow) => ({
       flow,
-      triggers: (triggersRes.data ?? []).filter((trigger: SalesbotTrigger) => trigger.flow_id === flow.id),
+      triggers: (triggersRes.data ?? []).filter((trigger: SalesbotTrigger) => trigger.flow_id === flow.id && triggerMatches(trigger, context)),
       nodes: (nodesRes.data ?? []).filter((node: SalesbotNode) => node.flow_id === flow.id),
       edges: (edgesRes.data ?? []).filter((edge: SalesbotEdge) => edge.flow_id === flow.id),
     }))
@@ -518,10 +582,10 @@ export async function runSalesbotForMessage(context: SalesbotContext): Promise<S
       continue;
     }
 
-    const startNode =
-      bundle.nodes.find((node) =>
-        !bundle.edges.some((edge) => edge.target_node_key === node.node_key)
-      ) ?? bundle.nodes[0];
+    const startNodes = bundle.nodes.filter((node) =>
+      !bundle.edges.some((edge) => edge.target_node_key === node.node_key)
+    );
+    const firstStartNode = startNodes[0] ?? bundle.nodes[0];
 
     const { data: execution, error: executionError } = await db
       .from("salesbot_executions")
@@ -531,7 +595,7 @@ export async function runSalesbotForMessage(context: SalesbotContext): Promise<S
         conversation_id: context.conversationId,
         lead_id: context.leadId,
         contact_id: context.contactId,
-        current_node_key: startNode.node_key,
+        current_node_key: firstStartNode.node_key,
         status: "running",
         variables: {
           event: context.event,
@@ -548,29 +612,36 @@ export async function runSalesbotForMessage(context: SalesbotContext): Promise<S
     }
 
     runResult.executed = true;
-    let currentKey: string | null = startNode.node_key;
+    let currentKey: string | null = firstStartNode.node_key;
     let steps = 0;
     let variables: Record<string, Json | undefined> = {};
     let finalStatus: "completed" | "waiting" = "completed";
+    const visited = new Set<string>();
 
     try {
-      while (currentKey && steps < MAX_STEPS) {
-        steps++;
-        const node = bundle.nodes.find((item) => item.node_key === currentKey);
-        if (!node) throw new Error(`Bloco n\u00e3o encontrado: ${currentKey}`);
+      for (const startNode of startNodes.length > 0 ? startNodes : [firstStartNode]) {
+        currentKey = startNode.node_key;
 
-        await db
-          .from("salesbot_executions")
-          .update({ current_node_key: node.node_key, variables: { ...variables } })
-          .eq("id", execution.id);
+        while (currentKey && steps < MAX_STEPS) {
+          if (visited.has(currentKey)) break;
+          visited.add(currentKey);
+          steps++;
+          const node = bundle.nodes.find((item) => item.node_key === currentKey);
+          if (!node) throw new Error(`Bloco n\u00e3o encontrado: ${currentKey}`);
 
-        const result = await executeNode(db, node, context, execution.id, bundle.flow.id);
-        variables = { ...variables, ...(result.variables ?? {}) };
-        runResult.responseSent = runResult.responseSent || Boolean(result.responseSent);
-        runResult.handoff = runResult.handoff || Boolean(result.handoff);
-        if (result.wait) finalStatus = "waiting";
-        if (result.stop) break;
-        currentKey = chooseNextNodeKey(node, bundle.edges, context, result);
+          await db
+            .from("salesbot_executions")
+            .update({ current_node_key: node.node_key, variables: { ...variables } })
+            .eq("id", execution.id);
+
+          const result = await executeNode(db, node, context, execution.id, bundle.flow.id);
+          variables = { ...variables, ...(result.variables ?? {}) };
+          runResult.responseSent = runResult.responseSent || Boolean(result.responseSent);
+          runResult.handoff = runResult.handoff || Boolean(result.handoff);
+          if (result.wait) finalStatus = "waiting";
+          if (result.stop) break;
+          currentKey = chooseNextNodeKey(node, bundle.edges, context, result);
+        }
       }
 
       if (steps >= MAX_STEPS) {

@@ -58,7 +58,7 @@ const NODE_TYPES: Array<{
   { type: "capture_response", label: "Capturar resposta", icon: Plus, tone: "text-cyan-400" },
   { type: "wait", label: "Esperar tempo", icon: Clock, tone: "text-amber-400" },
   { type: "condition", label: "Condi\u00e7\u00e3o IF/ELSE", icon: GitBranch, tone: "text-violet-400" },
-  { type: "keyword", label: "Palavra-chave", icon: Zap, tone: "text-yellow-400" },
+  { type: "keyword", label: "Mensagem espec\u00edfica", icon: Zap, tone: "text-yellow-400" },
   { type: "add_tag", label: "Adicionar tag", icon: Tag, tone: "text-pink-400" },
   { type: "remove_tag", label: "Remover tag", icon: Tag, tone: "text-red-400" },
   { type: "change_stage", label: "Alterar etapa", icon: GitBranch, tone: "text-blue-400" },
@@ -94,11 +94,11 @@ const DEFAULT_NODE_CONFIG: Record<SalesbotNodeType, Record<string, string>> = {
   capture_response: { field: "notes" },
   wait: { minutes: "5" },
   condition: { field: "interest", operator: "contains", value: "" },
-  keyword: { keywords: "pre\u00e7o, or\u00e7amento, entrega" },
+  keyword: { keywords: "pre\u00e7o, or\u00e7amento, entrega", match_mode: "contains" },
   add_tag: { tag_id: "" },
   remove_tag: { tag_id: "" },
   change_stage: { stage_id: "" },
-  assign_user: { user_id: "" },
+  assign_user: { user_id: "", distribution_strategy: "least_active" },
   create_task: { title: "Retornar contato", due_in_minutes: "60" },
   send_media: { media_id: "", caption: "" },
   handoff: { reason: "Solicitou atendimento humano" },
@@ -135,6 +135,7 @@ export function SalesbotEditor({
   flow,
   initialNodes,
   initialEdges,
+  initialTriggers,
   stages,
   tags,
   profiles,
@@ -145,6 +146,15 @@ export function SalesbotEditor({
     initialNodes.length > 0 ? initialNodes : [createNode("send_message", 410, 180)]
   );
   const [edges, setEdges] = useState<SalesbotEdge[]>(initialEdges);
+  const [triggers, setTriggers] = useState<Array<Pick<SalesbotTrigger, "type" | "config" | "is_active">>>(() =>
+    initialTriggers.length > 0
+      ? initialTriggers.map((trigger) => ({
+          type: trigger.type,
+          config: trigger.config ?? {},
+          is_active: trigger.is_active,
+        }))
+      : [{ type: "lead_created", config: {}, is_active: true }]
+  );
   const [selectedKey, setSelectedKey] = useState<string | null>(nodes[0]?.node_key ?? null);
   const [selectedEdgeKey, setSelectedEdgeKey] = useState<string | null>(null);
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
@@ -159,17 +169,24 @@ export function SalesbotEditor({
     () => nodes.find((node) => node.node_key === selectedKey) ?? null,
     [nodes, selectedKey]
   );
-  const startNode = useMemo(
+  const selectedEdge = useMemo(
+    () => edges.find((edge) => edge.edge_key === selectedEdgeKey) ?? null,
+    [edges, selectedEdgeKey]
+  );
+  const startNodes = useMemo(
     () =>
-      nodes.find((node) => !edges.some((edge) => edge.target_node_key === node.node_key)) ??
-      nodes[0] ??
-      null,
+      nodes.filter((node) => !edges.some((edge) => edge.target_node_key === node.node_key)),
     [edges, nodes]
   );
   const triggerPosition = useMemo(() => {
-    const y = startNode ? Number(startNode.position_y) : 180;
+    const y = startNodes.length > 0
+      ? Math.round(startNodes.reduce((sum, node) => sum + Number(node.position_y), 0) / startNodes.length)
+      : 180;
     return { x: 90, y };
-  }, [startNode]);
+  }, [startNodes]);
+  const activeTrigger = triggers.find((trigger) => trigger.is_active) ?? triggers[0];
+  const activeTriggerMeta = TRIGGER_TYPES.find((item) => item.type === activeTrigger?.type) ?? TRIGGER_TYPES[0];
+  const TriggerIcon = activeTriggerMeta.icon;
 
   function onDrop(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
@@ -235,6 +252,15 @@ export function SalesbotEditor({
     setSelectedEdgeKey(null);
   }
 
+  function updateSelectedEdge(updates: Partial<SalesbotEdge>) {
+    if (!selectedEdge) return;
+    setEdges((current) =>
+      current.map((edge) =>
+        edge.edge_key === selectedEdge.edge_key ? { ...edge, ...updates } : edge
+      )
+    );
+  }
+
   function toggleConnection(nodeKey: string) {
     if (!connectFrom) {
       setConnectFrom(nodeKey);
@@ -260,10 +286,40 @@ export function SalesbotEditor({
 
   function save() {
     startTransition(async () => {
-      const result = await saveSalesbotGraphAction(flow.id, nodes, edges);
-      if (result.ok) toast.success("Fluxo salvo");
-      else toast.error("Falha ao salvar", { description: result.error });
+      const graphResult = await saveSalesbotGraphAction(flow.id, nodes, edges);
+      if (!graphResult.ok) {
+        toast.error("Falha ao salvar", { description: graphResult.error });
+        return;
+      }
+
+      const triggerResult = await updateSalesbotTriggersAction(flow.id, triggers);
+      if (!triggerResult.ok) {
+        toast.error("Falha ao salvar gatilho", { description: triggerResult.error });
+        return;
+      }
+
+      toast.success("Fluxo salvo");
     });
+  }
+
+  function selectTrigger(type: SalesbotTriggerType) {
+    setSelectedKey(null);
+    setSelectedEdgeKey(null);
+    setTriggers([
+      {
+        type,
+        config: type === "keyword_detected" ? { keywords: "", match_mode: "contains" } : {},
+        is_active: true,
+      },
+    ]);
+  }
+
+  function updateTriggerConfig(key: string, value: string) {
+    setTriggers((current) =>
+      current.map((trigger, index) =>
+        index === 0 ? { ...trigger, config: { ...trigger.config, [key]: value } } : trigger
+      )
+    );
   }
 
   function setStatus(status: SalesbotFlow["status"]) {
@@ -305,6 +361,36 @@ export function SalesbotEditor({
   return (
     <div className="flex-1 min-h-0 grid grid-cols-[260px_1fr_320px] bg-wa-bg">
       <aside className="bg-wa-panel border-r border-wa-border flex flex-col min-h-0">
+        <div className="h-11 px-4 border-b border-wa-border flex items-center justify-between">
+          <span className="text-sm font-medium text-wa-textPrimary">Gatilhos</span>
+          <span className="text-xs text-wa-textSecondary">{TRIGGER_TYPES.length}</span>
+        </div>
+        <div className="border-b border-wa-border p-2 space-y-1 max-h-[38vh] overflow-y-auto wa-scroll shrink-0">
+          {TRIGGER_TYPES.map((item) => {
+            const Icon = item.icon;
+            const selected = activeTrigger?.type === item.type;
+            return (
+              <button
+                key={item.type}
+                type="button"
+                onClick={() => selectTrigger(item.type)}
+                className={cn(
+                  "w-full min-h-9 px-3 py-2 rounded-md flex items-start gap-2 text-left text-sm transition-colors",
+                  selected
+                    ? "bg-primary/15 text-primary"
+                    : "text-wa-textSecondary hover:bg-wa-hover hover:text-wa-textPrimary"
+                )}
+              >
+                <Icon className="h-4 w-4 mt-0.5 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block truncate">{item.label}</span>
+                  <span className="block text-[10px] text-wa-textSecondary leading-snug line-clamp-2">{item.description}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
         <div className="h-11 px-4 border-b border-wa-border flex items-center justify-between">
           <span className="text-sm font-medium text-wa-textPrimary">Blocos</span>
           <span className="text-xs text-wa-textSecondary">{NODE_TYPES.length}</span>
@@ -357,8 +443,9 @@ export function SalesbotEditor({
           className="relative flex-1 overflow-auto bg-[radial-gradient(circle_at_1px_1px,rgba(134,150,160,0.18)_1px,transparent_0)] [background-size:24px_24px]"
         >
           <svg className="absolute inset-0 w-[1800px] h-[1200px] pointer-events-none">
-            {startNode && (
+            {startNodes.map((startNode) => (
               <path
+                key={`trigger-${startNode.node_key}`}
                 d={`M ${triggerPosition.x + 180} ${triggerPosition.y + 42} C ${triggerPosition.x + 250} ${triggerPosition.y + 42}, ${Number(startNode.position_x) - 80} ${Number(startNode.position_y) + 42}, ${Number(startNode.position_x)} ${Number(startNode.position_y) + 42}`}
                 stroke="#00a884"
                 strokeWidth="2"
@@ -366,7 +453,7 @@ export function SalesbotEditor({
                 opacity="0.7"
                 strokeDasharray="6 6"
               />
-            )}
+            ))}
             {edges.map((edge) => {
               const source = nodes.find((node) => node.node_key === edge.source_node_key);
               const target = nodes.find((node) => node.node_key === edge.target_node_key);
@@ -402,12 +489,12 @@ export function SalesbotEditor({
               style={{ left: triggerPosition.x, top: triggerPosition.y }}
             >
               <div className="h-9 px-3 bg-wa-header border-b border-wa-border flex items-center gap-2">
-                <UserPlus className="h-4 w-4 shrink-0 text-primary" />
-                <span className="text-xs font-medium text-wa-textPrimary truncate">Novo lead</span>
+                <TriggerIcon className="h-4 w-4 shrink-0 text-primary" />
+                <span className="text-xs font-medium text-wa-textPrimary truncate">{activeTriggerMeta.label}</span>
               </div>
               <div className="p-3 space-y-2">
                 <p className="text-[11px] text-wa-textSecondary truncate">
-                  Gatilho inicial do fluxo
+                  {activeTriggerMeta.description}
                 </p>
                 <div className="h-7 w-full rounded-md bg-primary/10 text-[11px] text-primary flex items-center justify-center">
                   Entrada
@@ -536,6 +623,36 @@ export function SalesbotEditor({
               </label>
             )}
 
+            {selectedNode.type === "keyword" && (
+              <>
+                <label className="space-y-1 block">
+                  <span className="text-xs text-wa-textSecondary">Mensagem cont\u00e9m</span>
+                  <Textarea
+                    value={String(selectedNode.config.keywords ?? "")}
+                    onChange={(event) => updateSelectedConfig("keywords", event.target.value)}
+                    placeholder={"Ex: meta ads, google ads, campanha x"}
+                    rows={4}
+                  />
+                </label>
+                <label className="space-y-1 block">
+                  <span className="text-xs text-wa-textSecondary">Modo de busca</span>
+                  <Select
+                    value={String(selectedNode.config.match_mode ?? "contains")}
+                    onChange={(event) => updateSelectedConfig("match_mode", event.target.value)}
+                  >
+                    <option value="contains">{"Cont\u00e9m"}</option>
+                    <option value="equals">Igual exatamente</option>
+                    <option value="starts_with">{"Come\u00e7a com"}</option>
+                  </Select>
+                </label>
+                <div className="rounded-md border border-wa-border bg-wa-bg/50 px-3 py-2">
+                  <p className="text-xs text-wa-textSecondary">
+                    Use conex\u00f5es com r\u00f3tulo Sim e N\u00e3o para separar o caminho do fluxo.
+                  </p>
+                </div>
+              </>
+            )}
+
             {(selectedNode.type === "add_tag" || selectedNode.type === "remove_tag") && (
               <label className="space-y-1 block">
                 <span className="text-xs text-wa-textSecondary">Tag</span>
@@ -561,15 +678,29 @@ export function SalesbotEditor({
             )}
 
             {(selectedNode.type === "assign_user" || selectedNode.type === "notify_user") && (
-              <label className="space-y-1 block">
-                <span className="text-xs text-wa-textSecondary">Vendedor</span>
-                <Select value={String(selectedNode.config.user_id ?? "")} onChange={(event) => updateSelectedConfig("user_id", event.target.value)}>
-                  <option value="">{"Round robin / autom\u00e1tico"}</option>
-                  {profiles.map((profile) => (
-                    <option key={profile.id} value={profile.id}>{profile.full_name ?? profile.email}</option>
-                  ))}
-                </Select>
-              </label>
+              <div className="space-y-3">
+                <label className="space-y-1 block">
+                  <span className="text-xs text-wa-textSecondary">Vendedor</span>
+                  <Select value={String(selectedNode.config.user_id ?? "")} onChange={(event) => updateSelectedConfig("user_id", event.target.value)}>
+                    <option value="">Distribuir automaticamente</option>
+                    {profiles.map((profile) => (
+                      <option key={profile.id} value={profile.id}>{profile.full_name ?? profile.email}</option>
+                    ))}
+                  </Select>
+                </label>
+                {selectedNode.type === "assign_user" && !selectedNode.config.user_id && (
+                  <label className="space-y-1 block">
+                    <span className="text-xs text-wa-textSecondary">Regra de distribui\u00e7\u00e3o</span>
+                    <Select
+                      value={String(selectedNode.config.distribution_strategy ?? "least_active")}
+                      onChange={(event) => updateSelectedConfig("distribution_strategy", event.target.value)}
+                    >
+                      <option value="least_active">Menos leads ativos</option>
+                      <option value="round_robin">Distribui\u00e7\u00e3o por igual</option>
+                    </Select>
+                  </label>
+                )}
+              </div>
             )}
 
             {selectedNode.type === "send_media" && (
@@ -619,9 +750,20 @@ export function SalesbotEditor({
           <div className="p-4 space-y-4">
             <div className="rounded-md border border-wa-border bg-wa-bg/50 px-3 py-2">
               <p className="text-xs text-wa-textSecondary">
-                {"Conex\u00e3o selecionada. Remova se ela estiver ligando os blocos errados."}
+                Configure a sa\u00edda da conex\u00e3o. Para blocos de mensagem espec\u00edfica, use Sim ou N\u00e3o.
               </p>
             </div>
+            <label className="space-y-1 block">
+              <span className="text-xs text-wa-textSecondary">Sa\u00edda da conex\u00e3o</span>
+              <Select
+                value={selectedEdge?.label ?? ""}
+                onChange={(event) => updateSelectedEdge({ label: event.target.value || null })}
+              >
+                <option value="">Padr\u00e3o</option>
+                <option value="sim">Sim</option>
+                <option value="nao">N\u00e3o</option>
+              </Select>
+            </label>
             <Button
               type="button"
               variant="destructive"
@@ -633,8 +775,44 @@ export function SalesbotEditor({
             </Button>
           </div>
         ) : (
-          <div className="p-4 text-sm text-wa-textSecondary">
-            {"Selecione um bloco ou uma conex\u00e3o no canvas para editar."}
+          <div className="p-4 space-y-4">
+            <div className="rounded-md border border-wa-border bg-wa-bg/50 px-3 py-2">
+              <p className="text-xs text-wa-textSecondary">
+                Configure o gatilho inicial ou selecione um bloco/conex\u00e3o no canvas para editar.
+              </p>
+            </div>
+            <label className="space-y-1 block">
+              <span className="text-xs text-wa-textSecondary">Gatilho inicial</span>
+              <Select value={activeTrigger?.type ?? "lead_created"} onChange={(event) => selectTrigger(event.target.value as SalesbotTriggerType)}>
+                {TRIGGER_TYPES.map((trigger) => (
+                  <option key={trigger.type} value={trigger.type}>{trigger.label}</option>
+                ))}
+              </Select>
+            </label>
+            {activeTrigger?.type === "keyword_detected" && (
+              <>
+                <label className="space-y-1 block">
+                  <span className="text-xs text-wa-textSecondary">Palavras ou frases</span>
+                  <Textarea
+                    value={String(activeTrigger.config?.keywords ?? "")}
+                    onChange={(event) => updateTriggerConfig("keywords", event.target.value)}
+                    placeholder={"Ex: pre\u00e7o, or\u00e7amento, quero comprar"}
+                    rows={4}
+                  />
+                </label>
+                <label className="space-y-1 block">
+                  <span className="text-xs text-wa-textSecondary">Modo de busca</span>
+                  <Select
+                    value={String(activeTrigger.config?.match_mode ?? "contains")}
+                    onChange={(event) => updateTriggerConfig("match_mode", event.target.value)}
+                  >
+                    <option value="contains">{"Cont\u00e9m"}</option>
+                    <option value="equals">Igual exatamente</option>
+                    <option value="starts_with">{"Come\u00e7a com"}</option>
+                  </Select>
+                </label>
+              </>
+            )}
           </div>
         )}
       </aside>
