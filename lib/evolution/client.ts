@@ -121,9 +121,18 @@ export const evolution = {
 
   async setWebhook(config: EvolutionWebhookConfig): Promise<unknown> {
     const { instanceName } = getConfig();
+    // Evolution v2.3.7 espera `base64` e `byEvents` no SET (não `webhookBase64`/`webhookByEvents`).
     return evoFetch(`/webhook/set/${instanceName}`, {
       method: "POST",
-      body: JSON.stringify({ webhook: config }),
+      body: JSON.stringify({
+        webhook: {
+          enabled: config.enabled,
+          url: config.url,
+          byEvents: config.webhookByEvents ?? false,
+          base64: config.webhookBase64 ?? false,
+          events: config.events,
+        },
+      }),
     });
   },
 
