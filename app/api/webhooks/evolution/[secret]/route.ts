@@ -52,6 +52,23 @@ export async function POST(
 
   console.log(`[webhook] event=${event} instance=${instance}`);
 
+  // DEBUG: loga todo webhook recebido (event + tamanho + tipo de msg) — remover depois
+  try {
+    const { createServiceClient } = await import("@/lib/supabase/server");
+    const svc = createServiceClient();
+    const size = JSON.stringify(payload).length;
+    const msgType =
+      event === "messages.upsert"
+        ? Object.keys((payload.data as { message?: Record<string, unknown> })?.message ?? {}).join(",")
+        : null;
+    // webhook_log não está no schema tipado (tabela de debug temporária)
+    await (svc.from as unknown as (t: string) => { insert: (v: unknown) => Promise<unknown> })(
+      "webhook_log"
+    ).insert({ event, instance, body_size: size, note: msgType });
+  } catch {
+    /* não bloqueia */
+  }
+
   try {
     switch (event) {
       case "messages.upsert":
