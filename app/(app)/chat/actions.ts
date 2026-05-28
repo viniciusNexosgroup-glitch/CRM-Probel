@@ -520,6 +520,95 @@ export async function cancelScheduledMessageAction(id: string): Promise<Result> 
 }
 
 // ============================================================
+// Enviar mídia upada na hora (sem cadastrar na biblioteca)
+// ============================================================
+
+export async function sendUploadedMediaAction(
+  conversationId: string,
+  payload: {
+    fileUrl: string;
+    fileType: "image" | "video" | "audio" | "document";
+    mimetype: string;
+    fileName: string;
+    caption?: string;
+  }
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Não autenticado" };
+
+  const { data: conv } = await supabase
+    .from("conversations")
+    .select("id, instance_id, remote_jid")
+    .eq("id", conversationId)
+    .single();
+  if (!conv) return { ok: false, error: "Conversa não encontrada" };
+
+  const caption = payload.caption?.trim() || undefined;
+
+  let sent;
+  try {
+    if (payload.fileType === "audio") {
+      sent = await evolution.sendAudio(conv.remote_jid, payload.fileUrl);
+    } else {
+      sent = await evolution.sendMedia(conv.remote_jid, {
+        mediatype: payload.fileType === "image" ? "image" : payload.fileType === "video" ? "video" : "document",
+        media: payload.fileUrl,
+        mimetype: payload.mimetype,
+        caption,
+        fileName: payload.fileName,
+      });
+    }
+  } catch (e) {
+    if (e instanceof EvolutionError) return { ok: false, error: e.message };
+    return { ok: false, error: (e as Error).message };
+  }
+
+  const service = createServiceClient();
+  const now = new Date().toISOString();
+
+  await service.from("messages").insert({
+    conversation_id: conv.id,
+    instance_id: conv.instance_id,
+    evolution_message_id: sent.key.id,
+    remote_jid: conv.remote_jid,
+    from_me: true,
+    message_type: payload.fileType,
+    content: caption ?? null,
+    media_url: payload.fileUrl,
+    media_mimetype: payload.mimetype,
+    media_filename: payload.fileName,
+    media_caption: caption ?? null,
+    status: "sent",
+    timestamp: now,
+  });
+
+  const preview =
+    payload.fileType === "image"
+      ? "📷 Imagem"
+      : payload.fileType === "video"
+        ? "🎥 Vídeo"
+        : payload.fileType === "audio"
+          ? "🎵 Áudio"
+          : `📎 ${payload.fileName}`;
+
+  await service
+    .from("conversations")
+    .update({
+      last_message_text: caption ?? preview,
+      last_message_at: now,
+      last_message_from_me: true,
+      unread_count: 0,
+    })
+    .eq("id", conv.id);
+
+  revalidatePath("/chat");
+  return { ok: true };
+}
+
+// ============================================================
 // Encaminhar mensagem (forward)
 // ============================================================
 

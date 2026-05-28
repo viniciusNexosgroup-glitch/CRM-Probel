@@ -2,11 +2,21 @@
 
 import { useEffect, useMemo, useState, useTransition, useRef } from "react";
 import { toast } from "sonner";
-import { Search, Loader2, Library } from "lucide-react";
+import { Search, Loader2, Library, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 import { MediaThumb } from "@/components/media-thumb";
-import { sendMediaFromLibraryAction } from "../actions";
+import { sendMediaFromLibraryAction, sendUploadedMediaAction } from "../actions";
 import type { Database } from "@/types/database";
+
+const MAX_UPLOAD_MB = 50;
+
+function fileTypeFromMime(mime: string): "image" | "video" | "audio" | "document" {
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  if (mime.startsWith("audio/")) return "audio";
+  return "document";
+}
 
 type Media = Database["public"]["Tables"]["media_library"]["Row"];
 type Category = Database["public"]["Tables"]["media_categories"]["Row"];
@@ -29,8 +39,50 @@ export function MediaPopup({
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [, startTransition] = useTransition();
   const containerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function onUploadAndSend(file: File) {
+    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+      toast.error(`Arquivo muito grande (máx ${MAX_UPLOAD_MB}MB)`);
+      return;
+    }
+    setUploading(true);
+    const supabase = createClient();
+    const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const path = `adhoc/${Date.now()}-${crypto.randomUUID().slice(0, 8)}-${safe}`;
+
+    const { error: upErr } = await supabase.storage
+      .from("contact-media")
+      .upload(path, file, {
+        contentType: file.type || "application/octet-stream",
+        upsert: false,
+      });
+    if (upErr) {
+      toast.error("Falha no upload", { description: upErr.message });
+      setUploading(false);
+      return;
+    }
+
+    const { data: pub } = supabase.storage.from("contact-media").getPublicUrl(path);
+
+    const res = await sendUploadedMediaAction(conversationId, {
+      fileUrl: pub.publicUrl,
+      fileType: fileTypeFromMime(file.type),
+      mimetype: file.type || "application/octet-stream",
+      fileName: file.name,
+    });
+
+    setUploading(false);
+    if (!res.ok) {
+      toast.error("Falha ao enviar", { description: res.error });
+      return;
+    }
+    toast.success("Enviado!");
+    onClose();
+  }
 
   // Click fora fecha
   useEffect(() => {
@@ -99,6 +151,34 @@ export function MediaPopup({
             Click envia · Esc fecha
           </span>
         </div>
+
+        {/* Enviar do computador (sem cadastrar) */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          accept="image/*,video/*,audio/*,application/pdf"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onUploadAndSend(f);
+            e.target.value = "";
+          }}
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="w-full flex items-center justify-center gap-2 py-2 rounded-md border border-dashed border-primary/40 text-xs text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+        >
+          {uploading ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Enviando…
+            </>
+          ) : (
+            <>
+              <Upload className="h-3.5 w-3.5" /> Enviar arquivo do computador
+            </>
+          )}
+        </button>
 
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
