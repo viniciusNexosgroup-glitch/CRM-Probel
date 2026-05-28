@@ -163,6 +163,33 @@ export const evolution = {
   },
 
   /**
+   * Busca a mídia de uma mensagem recebida como base64.
+   * Usado pra baixar imagem/áudio/vídeo/doc que chegam e salvar no nosso Storage
+   * (a URL .enc do WhatsApp não é acessível diretamente).
+   */
+  async getBase64FromMedia(
+    messageId: string,
+    convertToMp4 = false
+  ): Promise<{ base64: string; mimetype: string } | null> {
+    const { instanceName } = getConfig();
+    try {
+      const res = await evoFetch<{ base64?: string; media?: string; mimetype?: string }>(
+        `/chat/getBase64FromMediaMessage/${instanceName}`,
+        {
+          method: "POST",
+          body: JSON.stringify({ message: { key: { id: messageId } }, convertToMp4 }),
+        }
+      );
+      const base64 = res.base64 ?? res.media;
+      if (!base64) return null;
+      return { base64, mimetype: res.mimetype ?? "application/octet-stream" };
+    } catch (e) {
+      console.warn("[getBase64FromMedia] falhou:", e instanceof Error ? e.message : e);
+      return null;
+    }
+  },
+
+  /**
    * Marca mensagens como lidas no WhatsApp (sincroniza o "visto" entre CRM e celular).
    * Recebe as keys das mensagens (remoteJid, fromMe, id) e dispara o read receipt.
    */

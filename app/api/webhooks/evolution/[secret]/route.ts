@@ -20,6 +20,8 @@ import type { WebhookPayload } from "@/lib/evolution/webhook-types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Mídia recebida é baixada + salva no Storage dentro do webhook — pode levar alguns segundos
+export const maxDuration = 60;
 
 export async function POST(
   request: NextRequest,

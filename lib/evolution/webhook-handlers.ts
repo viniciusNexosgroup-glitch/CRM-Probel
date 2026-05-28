@@ -272,6 +272,65 @@ async function ensureLeadForContact(contactId: string, conversationId: string) {
   return created?.id ?? null;
 }
 
+function extFromMime(mime: string | null): string {
+  if (!mime) return "bin";
+  const map: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "video/mp4": "mp4",
+    "video/webm": "webm",
+    "audio/ogg": "ogg",
+    "audio/mpeg": "mp3",
+    "audio/mp4": "m4a",
+    "application/pdf": "pdf",
+  };
+  if (map[mime]) return map[mime];
+  const sub = mime.split("/")[1]?.split(";")[0];
+  return sub || "bin";
+}
+
+/**
+ * Baixa mídia recebida da Evolution (base64) e salva no Supabase Storage,
+ * depois atualiza messages.media_url com a URL permanente.
+ */
+async function persistIncomingMedia(
+  instanceId: string,
+  evolutionMessageId: string,
+  type: string,
+  mimetypeHint: string | null
+) {
+  try {
+    const { evolution } = await import("@/lib/evolution/client");
+    const media = await evolution.getBase64FromMedia(evolutionMessageId);
+    if (!media?.base64) return;
+
+    const mimetype = media.mimetype || mimetypeHint || "application/octet-stream";
+    const ext = extFromMime(mimetype);
+    const buffer = Buffer.from(media.base64, "base64");
+    const path = `received/${instanceId}/${evolutionMessageId}.${ext}`;
+
+    const supabase = createServiceClient();
+    const { error: upErr } = await supabase.storage
+      .from("contact-media")
+      .upload(path, buffer, { contentType: mimetype, upsert: true });
+    if (upErr) {
+      console.warn("[persistIncomingMedia] upload falhou:", upErr.message);
+      return;
+    }
+
+    const { data: pub } = supabase.storage.from("contact-media").getPublicUrl(path);
+    await supabase
+      .from("messages")
+      .update({ media_url: pub.publicUrl, media_mimetype: mimetype })
+      .eq("instance_id", instanceId)
+      .eq("evolution_message_id", evolutionMessageId);
+  } catch (e) {
+    console.warn("[persistIncomingMedia] erro:", e instanceof Error ? e.message : e);
+  }
+}
+
 export async function handleMessagesUpsert(instanceName: string, data: MessagesUpsertData) {
   const instanceId = await getOrCreateInstance(instanceName);
   const contactId = await getOrCreateContact(
@@ -316,6 +375,13 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
   if (msgErr) {
     console.error("[webhook] Falha ao inserir mensagem:", msgErr);
     throw new Error(msgErr.message);
+  }
+
+  // Mídia recebida (não from_me): baixa da Evolution e salva no Storage
+  // (a URL .enc do WhatsApp não é acessível). Best-effort.
+  const MEDIA_TYPES = ["image", "video", "audio", "document", "sticker"];
+  if (!data.key.fromMe && MEDIA_TYPES.includes(extracted.type) && data.key.id) {
+    await persistIncomingMedia(instanceId, data.key.id, extracted.type, extracted.mediaMimetype);
   }
 
   // Atualiza preview + unread_count na conversa
