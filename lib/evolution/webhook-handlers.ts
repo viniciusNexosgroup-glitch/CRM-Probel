@@ -31,6 +31,61 @@ function isGroupJid(jid: string): boolean {
   return jid.endsWith("@g.us");
 }
 
+/**
+ * Converte valores numéricos do WhatsApp pra inteiro.
+ * O Baileys serializa campos grandes (fileLength, seconds) como objeto
+ * Long `{ low, high, unsigned }` em vez de número — Postgres rejeita isso.
+ * Aceita number, string numérica ou o objeto Long.
+ */
+function toInt(v: unknown): number | null {
+  if (v == null) return null;
+  if (typeof v === "number") return Number.isFinite(v) ? Math.trunc(v) : null;
+  if (typeof v === "string") {
+    const n = parseInt(v, 10);
+    return Number.isNaN(n) ? null : n;
+  }
+  if (typeof v === "object" && v !== null && "low" in v) {
+    const o = v as { low?: number; high?: number };
+    const low = (o.low ?? 0) >>> 0;
+    const high = o.high ?? 0;
+    return high * 4294967296 + low;
+  }
+  return null;
+}
+
+/**
+ * Remove campos pesados (base64 da mídia, thumbnails) do payload antes de
+ * guardar em raw_payload — senão cada imagem/vídeo recebido infla o banco.
+ * A mídia em si é baixada e salva no Storage separadamente.
+ */
+function sanitizeRawPayload(data: MessagesUpsertData): unknown {
+  try {
+    const clone = JSON.parse(JSON.stringify(data)) as {
+      message?: Record<string, unknown>;
+    };
+    const m = clone.message;
+    if (m) {
+      delete m.base64;
+      for (const k of [
+        "imageMessage",
+        "videoMessage",
+        "audioMessage",
+        "documentMessage",
+        "stickerMessage",
+      ]) {
+        const node = m[k] as Record<string, unknown> | undefined;
+        if (node) {
+          delete node.jpegThumbnail;
+          delete node.thumbnail;
+        }
+      }
+    }
+    return clone;
+  } catch {
+    return data;
+  }
+}
+
 function extractMessageContent(msg: WhatsAppMessageContent | null): {
   type: MessageType;
   content: string | null;
@@ -64,7 +119,7 @@ function extractMessageContent(msg: WhatsAppMessageContent | null): {
       content: msg.imageMessage.caption ?? null,
       mediaUrl: msg.imageMessage.url ?? null,
       mediaMimetype: msg.imageMessage.mimetype ?? null,
-      mediaSize: msg.imageMessage.fileLength ?? null,
+      mediaSize: toInt(msg.imageMessage.fileLength),
       mediaCaption: msg.imageMessage.caption ?? null,
     };
   }
@@ -75,9 +130,9 @@ function extractMessageContent(msg: WhatsAppMessageContent | null): {
       content: msg.videoMessage.caption ?? null,
       mediaUrl: msg.videoMessage.url ?? null,
       mediaMimetype: msg.videoMessage.mimetype ?? null,
-      mediaSize: msg.videoMessage.fileLength ?? null,
+      mediaSize: toInt(msg.videoMessage.fileLength),
       mediaCaption: msg.videoMessage.caption ?? null,
-      duration: msg.videoMessage.seconds ?? null,
+      duration: toInt(msg.videoMessage.seconds),
     };
   }
   if (msg.audioMessage) {
@@ -86,7 +141,7 @@ function extractMessageContent(msg: WhatsAppMessageContent | null): {
       type: "audio",
       mediaUrl: msg.audioMessage.url ?? null,
       mediaMimetype: msg.audioMessage.mimetype ?? null,
-      duration: msg.audioMessage.seconds ?? null,
+      duration: toInt(msg.audioMessage.seconds),
     };
   }
   if (msg.documentMessage) {
@@ -96,7 +151,7 @@ function extractMessageContent(msg: WhatsAppMessageContent | null): {
       mediaUrl: msg.documentMessage.url ?? null,
       mediaMimetype: msg.documentMessage.mimetype ?? null,
       mediaFilename: msg.documentMessage.fileName ?? msg.documentMessage.title ?? null,
-      mediaSize: msg.documentMessage.fileLength ?? null,
+      mediaSize: toInt(msg.documentMessage.fileLength),
     };
   }
   if (msg.stickerMessage) {
@@ -367,7 +422,7 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
       duration: extracted.duration,
       status: data.key.fromMe ? "sent" : "delivered",
       timestamp,
-      raw_payload: data as unknown as Json,
+      raw_payload: sanitizeRawPayload(data) as Json,
     },
     { onConflict: "instance_id,evolution_message_id" }
   );
