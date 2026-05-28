@@ -52,23 +52,6 @@ export async function POST(
 
   console.log(`[webhook] event=${event} instance=${instance}`);
 
-  // DEBUG: loga todo webhook recebido (event + tamanho + tipo de msg) — remover depois
-  try {
-    const { createServiceClient } = await import("@/lib/supabase/server");
-    const svc = createServiceClient();
-    const size = JSON.stringify(payload).length;
-    const msgType =
-      event === "messages.upsert"
-        ? Object.keys((payload.data as { message?: Record<string, unknown> })?.message ?? {}).join(",")
-        : null;
-    // webhook_log não está no schema tipado (tabela de debug temporária)
-    await (svc.from as unknown as (t: string) => { insert: (v: unknown) => Promise<unknown> })(
-      "webhook_log"
-    ).insert({ event, instance, body_size: size, note: msgType });
-  } catch {
-    /* não bloqueia */
-  }
-
   try {
     switch (event) {
       case "messages.upsert":
@@ -96,21 +79,9 @@ export async function POST(
         break;
     }
   } catch (err) {
-    const errMsg = (err as Error).message;
-    console.error(`[webhook] erro processando ${event}:`, errMsg);
-    // DEBUG: grava o erro no webhook_log pra diagnosticar — remover depois
-    try {
-      const { createServiceClient } = await import("@/lib/supabase/server");
-      const svc = createServiceClient();
-      await (svc.from as unknown as (t: string) => { insert: (v: unknown) => Promise<unknown> })(
-        "webhook_log"
-      ).insert({ event, instance, body_size: -1, note: `ERRO: ${errMsg}`.slice(0, 500) });
-    } catch {
-      /* ignora */
-    }
+    console.error(`[webhook] erro processando ${event}:`, (err as Error).message);
     // Retorna 200 mesmo em erro pra Evolution não ficar reenviando indefinidamente.
-    // Erros ficam no log pra debug.
-    return NextResponse.json({ ok: false, error: errMsg }, { status: 200 });
+    return NextResponse.json({ ok: false, error: (err as Error).message }, { status: 200 });
   }
 
   return NextResponse.json({ ok: true });

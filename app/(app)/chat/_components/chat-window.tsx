@@ -270,6 +270,25 @@ export function ChatWindow({
     };
   }, [conversation.id, initialMessages]);
 
+  // Ao abrir/trocar de conversa: ancora no final imediatamente (como o WhatsApp).
+  // Reancora após uns instantes porque imagens/vídeos carregam depois e mudam a altura.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const toBottom = () => {
+      el.scrollTop = el.scrollHeight;
+    };
+    toBottom();
+    const raf = requestAnimationFrame(toBottom);
+    const t1 = setTimeout(toBottom, 150);
+    const t2 = setTimeout(toBottom, 500);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [conversation.id]);
+
   // Auto-scroll para o final quando entram mensagens novas
   useEffect(() => {
     const el = scrollRef.current;
