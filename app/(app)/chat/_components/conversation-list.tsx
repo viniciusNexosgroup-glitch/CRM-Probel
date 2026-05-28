@@ -221,7 +221,13 @@ export function ConversationList({
   const selectedTag = selectedTagId ? allTags.find((t) => t.id === selectedTagId) : null;
 
   return (
-    <aside className="w-full md:w-[400px] shrink-0 bg-wa-panel border-r border-wa-border flex flex-col">
+    <aside
+      className={cn(
+        "w-full md:w-[400px] shrink-0 bg-wa-panel border-r border-wa-border flex-col",
+        // No mobile, esconde a lista quando há conversa aberta (mostra o chat)
+        selectedId ? "hidden md:flex" : "flex"
+      )}
+    >
       <header className="h-16 bg-wa-header flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-2">
           <MessageSquare className="h-5 w-5 text-primary" />

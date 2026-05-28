@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Phone,
   MoreVertical,
@@ -12,6 +13,7 @@ import {
   Archive,
   ArchiveRestore,
   Loader2,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTransition } from "react";
@@ -293,7 +295,15 @@ export function ChatWindow({
     <div className="flex-1 flex min-w-0 h-full">
       <div className="flex-1 flex flex-col bg-wa-bg min-w-0">
       {/* Header */}
-      <header className="h-16 bg-wa-header flex items-center justify-between gap-3 px-4 border-l border-wa-border shrink-0">
+      <header className="h-16 bg-wa-header flex items-center justify-between gap-2 px-4 border-l border-wa-border shrink-0">
+        {/* Botão voltar — só mobile */}
+        <Link
+          href="/chat"
+          className="md:hidden p-2 -ml-2 rounded-full hover:bg-wa-hover text-wa-textSecondary shrink-0"
+          aria-label="Voltar para conversas"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Link>
         <button
           onClick={() => setPanelOpen(true)}
           className="flex items-center gap-3 min-w-0 hover:bg-wa-hover/50 rounded-md px-2 py-1 -ml-2 transition-colors shrink-0"

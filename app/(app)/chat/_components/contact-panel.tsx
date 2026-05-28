@@ -50,7 +50,11 @@ export function ContactPanel({
     name || (contact.phone ? formatPhone(contact.phone) : "Sem nome");
 
   return (
-    <aside className="w-[340px] shrink-0 bg-wa-panel border-l border-wa-border flex flex-col h-full">
+    <aside
+      className="bg-wa-panel border-l border-wa-border flex flex-col h-full
+        w-full md:w-[340px] md:shrink-0
+        max-md:fixed max-md:inset-0 max-md:z-50"
+    >
       <header className="h-16 bg-wa-header flex items-center justify-between px-4 shrink-0">
         <span className="text-sm font-medium text-wa-textPrimary">Dados do contato</span>
         <button
