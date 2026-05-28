@@ -96,10 +96,21 @@ export async function POST(
         break;
     }
   } catch (err) {
-    console.error(`[webhook] erro processando ${event}:`, (err as Error).message);
+    const errMsg = (err as Error).message;
+    console.error(`[webhook] erro processando ${event}:`, errMsg);
+    // DEBUG: grava o erro no webhook_log pra diagnosticar — remover depois
+    try {
+      const { createServiceClient } = await import("@/lib/supabase/server");
+      const svc = createServiceClient();
+      await (svc.from as unknown as (t: string) => { insert: (v: unknown) => Promise<unknown> })(
+        "webhook_log"
+      ).insert({ event, instance, body_size: -1, note: `ERRO: ${errMsg}`.slice(0, 500) });
+    } catch {
+      /* ignora */
+    }
     // Retorna 200 mesmo em erro pra Evolution não ficar reenviando indefinidamente.
     // Erros ficam no log pra debug.
-    return NextResponse.json({ ok: false, error: (err as Error).message }, { status: 200 });
+    return NextResponse.json({ ok: false, error: errMsg }, { status: 200 });
   }
 
   return NextResponse.json({ ok: true });
