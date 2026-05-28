@@ -12,6 +12,7 @@ import { NotesEditor } from "./notes-editor";
 import { TagsEditor } from "./tags-editor";
 import { TasksSection } from "./tasks-section";
 import { LeadSummary } from "./lead-summary";
+import { LeadTimeline } from "./lead-timeline";
 import { updateContactNameAction } from "../actions";
 import type { ContactPanelData } from "../types";
 
@@ -23,7 +24,7 @@ export function ContactPanel({
   onClose: () => void;
 }) {
   const router = useRouter();
-  const { contact, lead, tasks, allTags, allStages } = data;
+  const { contact, lead, tasks, allTags, allStages, activity } = data;
 
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState(
@@ -124,6 +125,7 @@ export function ContactPanel({
             contactId={contact.id}
             tasks={tasks}
           />
+          {lead && <LeadTimeline activity={activity} />}
         </div>
       </div>
     </aside>

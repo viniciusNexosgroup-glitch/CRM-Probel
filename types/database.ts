@@ -632,6 +632,36 @@ export type Database = {
         };
         Relationships: [];
       };
+      lead_activity: {
+        Row: {
+          id: string;
+          lead_id: string;
+          type: "created" | "stage_changed" | "assigned" | "won" | "lost" | "value_changed" | "reopened";
+          description: string;
+          metadata: Json | null;
+          user_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          lead_id: string;
+          type: "created" | "stage_changed" | "assigned" | "won" | "lost" | "value_changed" | "reopened";
+          description: string;
+          metadata?: Json | null;
+          user_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          lead_id?: string;
+          type?: "created" | "stage_changed" | "assigned" | "won" | "lost" | "value_changed" | "reopened";
+          description?: string;
+          metadata?: Json | null;
+          user_id?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       internal_notes: {
         Row: {
           id: string;

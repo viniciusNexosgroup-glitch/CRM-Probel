@@ -2,18 +2,21 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { handleLeadStageTransition } from "@/lib/leads/activity";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
 export async function updateLeadStageAction(leadId: string, stageId: string): Promise<ActionResult> {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  // Busca o stage de destino pra ver se é ganho/perdido
-  const { data: stage } = await supabase
-    .from("pipeline_stages")
-    .select("is_won, is_lost")
-    .eq("id", stageId)
-    .single();
+  // Estado atual + stage de destino
+  const [{ data: current }, { data: stage }] = await Promise.all([
+    supabase.from("leads").select("stage_id, status").eq("id", leadId).single(),
+    supabase.from("pipeline_stages").select("name, is_won, is_lost").eq("id", stageId).single(),
+  ]);
 
   const status: "open" | "won" | "lost" = stage?.is_won
     ? "won"
@@ -27,7 +30,19 @@ export async function updateLeadStageAction(leadId: string, stageId: string): Pr
     .eq("id", leadId);
 
   if (error) return { ok: false, error: error.message };
+
+  await handleLeadStageTransition({
+    leadId,
+    oldStageId: current?.stage_id ?? null,
+    newStageId: stageId,
+    newStatus: status,
+    oldStatus: (current?.status as "open" | "won" | "lost") ?? "open",
+    newStageName: stage?.name ?? "estágio",
+    userId: user?.id,
+  });
+
   revalidatePath("/leads");
+  revalidatePath("/chat");
   return { ok: true };
 }
 

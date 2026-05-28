@@ -109,12 +109,22 @@ async function getContactPanelData(contactId: string): Promise<ContactPanelData 
     )
     .order("due_at", { ascending: true, nullsFirst: false });
 
+  const activityRes = lead
+    ? await supabase
+        .from("lead_activity")
+        .select(`*, user:profiles!lead_activity_user_id_fkey(full_name, email)`)
+        .eq("lead_id", lead.id)
+        .order("created_at", { ascending: false })
+        .limit(30)
+    : { data: [] };
+
   return {
     contact: contactRes.data,
     lead: lead as ContactPanelData["lead"],
     tasks: tasksRes.data ?? [],
     allTags: allTagsRes.data ?? [],
     allStages: allStagesRes.data ?? [],
+    activity: (activityRes.data ?? []) as unknown as ContactPanelData["activity"],
   };
 }
 

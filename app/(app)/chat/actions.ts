@@ -208,18 +208,46 @@ export async function updateLeadFieldsAction(
   fields: { stage_id?: string; source?: string | null; estimated_value?: number | null }
 ): Promise<Result> {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const update: typeof fields & { status?: "open" | "won" | "lost" } = { ...fields };
+
+  let current: { stage_id: string | null; status: string } | null = null;
+  let stageName = "estágio";
   if (fields.stage_id) {
-    const { data: stage } = await supabase
-      .from("pipeline_stages")
-      .select("is_won, is_lost")
-      .eq("id", fields.stage_id)
-      .single();
+    const [{ data: cur }, { data: stage }] = await Promise.all([
+      supabase.from("leads").select("stage_id, status").eq("id", leadId).single(),
+      supabase
+        .from("pipeline_stages")
+        .select("name, is_won, is_lost")
+        .eq("id", fields.stage_id)
+        .single(),
+    ]);
+    current = cur;
+    stageName = stage?.name ?? "estágio";
     update.status = stage?.is_won ? "won" : stage?.is_lost ? "lost" : "open";
   }
+
   const { error } = await supabase.from("leads").update(update).eq("id", leadId);
   if (error) return { ok: false, error: error.message };
+
+  if (fields.stage_id && update.status) {
+    const { handleLeadStageTransition } = await import("@/lib/leads/activity");
+    await handleLeadStageTransition({
+      leadId,
+      oldStageId: current?.stage_id ?? null,
+      newStageId: fields.stage_id,
+      newStatus: update.status,
+      oldStatus: (current?.status as "open" | "won" | "lost") ?? "open",
+      newStageName: stageName,
+      userId: user?.id,
+    });
+  }
+
   revalidatePath("/chat");
+  revalidatePath("/leads");
   return { ok: true };
 }
 

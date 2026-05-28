@@ -42,6 +42,10 @@ export type ConversationWithContact = ConversationRow & {
   assigned_user: AssigneeProfile | null;
 };
 
+export type LeadActivityRow = Database["public"]["Tables"]["lead_activity"]["Row"] & {
+  user: Pick<ProfileRow, "full_name" | "email"> | null;
+};
+
 /** Dados do painel direito */
 export type ContactPanelData = {
   contact: ContactRow;
@@ -49,4 +53,5 @@ export type ContactPanelData = {
   tasks: TaskRow[];
   allTags: TagRow[];
   allStages: PipelineStageRow[];
+  activity: LeadActivityRow[];
 };
