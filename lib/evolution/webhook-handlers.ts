@@ -481,8 +481,12 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
 
   // Mídia recebida (não from_me): baixa da Evolution e salva no Storage
   // (a URL .enc do WhatsApp não é acessível). Best-effort.
+  // Persiste mídia de mensagens recebidas E enviadas (do celular ou do CRM):
+  // a URL .enc do WhatsApp não toca, então baixamos e salvamos no Storage.
+  // Vale pra from_me também — áudio/foto que a loja manda pelo celular precisa
+  // ficar tocável no CRM (o eco do webhook traz só a .enc).
   const MEDIA_TYPES = ["image", "video", "audio", "document", "sticker"];
-  if (!data.key.fromMe && MEDIA_TYPES.includes(extracted.type) && data.key.id) {
+  if (MEDIA_TYPES.includes(extracted.type) && data.key.id) {
     // Roda em segundo plano (após a resposta) pra não travar o webhook enquanto
     // baixa mídias grandes — o after() mantém a função viva até concluir.
     const mediaId = data.key.id;
