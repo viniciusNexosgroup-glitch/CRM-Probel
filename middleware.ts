@@ -12,7 +12,8 @@ export const config = {
      * - _next/static, _next/image, favicon.ico
      * - public assets (svg, png, jpg, jpeg, gif, webp)
      * - /api/webhooks/* (webhooks da Evolution não passam por auth de sessão)
+     * - /api/cron/* (crons autenticam via Bearer CRON_SECRET, não por sessão)
      */
-    "/((?!_next/static|_next/image|favicon.ico|api/webhooks|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/webhooks|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
