@@ -80,37 +80,23 @@ Lista de funcionalidades **pendentes**. Tudo que já está em produção pode se
 - Preferências de notificação por navegador (/settings/notifications): som, desktop, antecedência do lembrete
 - Mensagem de boas-vindas do convite (mostrada ao definir senha)
 
+### Infra / Performance
+- Busca full-text (tsvector PT + GIN, prefixo, fallback ILIKE)
+- Paginação no chat (últimas 100 + "carregar mais", poll mescla sem perder histórico)
+- Backup diário do CRM em JSON no Storage (retenção 30 dias)
+- Realtime com replica identity full (eventos completos) + polling de segurança
+- 2FA opcional (TOTP) em /settings/security + desafio no login
+- Crons liberados no middleware (antes eram redirecionados pro login)
+
 </details>
 
 ---
 
-## 🎯 Próximas etapas — agrupadas por valor
+## 🎯 Próximas etapas
 
-### 🔌 Integrações / API
+🎉 **Roadmap zerado** — todas as funcionalidades planejadas foram implementadas ou descartadas por decisão do dono. Conforme surgirem novas ideias, adicionar abaixo.
 
-| # | Funcionalidade | Por quê |
-|---|---|---|
-| 31 | **Múltiplas instâncias WhatsApp** | Hoje só 1 número. Permitir conectar 2+ (ex: vendas + suporte). |
-
-### 🏗️ Infra / Performance
-
-| # | Funcionalidade | Por quê |
-|---|---|---|
-| 33 | **Full-text search com tsvector** | Pesquisa global hoje usa `ILIKE` — lento com muitas msgs. Migrar pra `tsvector` + GIN index. |
-| 34 | **Paginação no chat (load more)** | Carrega só últimas 100 msgs por conversa. Pra ver histórico antigo, "carregar mais" no scroll-up. |
-| 35 | **Backup automático** | Snapshot diário do banco pro Storage. Política de retenção 30 dias. |
-| 36 | **Migrar realtime correto** | Investigar por que postgres_changes não funciona de forma confiável (hoje apoia em polling). |
-| 37 | **Two-factor auth (2FA)** | Camada extra de segurança no login. Supabase suporta TOTP nativo. |
-
----
-
-## 📊 Recomendação de ordem
-
-Sugestões fortes pra **próximas etapas** (alto valor / baixo esforço):
-
-1. **Paginação no chat** (#34) — "carregar mais" pra ver histórico antigo (e ajuda performance)
-2. **Investigar realtime** (#36) — se resolver, reduz polling/banda
-3. **Múltiplas instâncias WhatsApp** (#31) — conectar 2+ números
+_(sem itens pendentes no momento)_
 
 ---
 
@@ -123,6 +109,7 @@ Sugestões fortes pra **próximas etapas** (alto valor / baixo esforço):
 - Webhooks pra Make/Zapier/n8n
 - API pública
 - Integração Google Calendar
+- Múltiplas instâncias WhatsApp
 
 ---
 
