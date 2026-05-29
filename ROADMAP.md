@@ -64,27 +64,21 @@ Lista de funcionalidades **pendentes**. Tudo que já está em produção pode se
 - Sidebar Kommo style expandida
 - Deploy Vercel + Supabase + Evolution integrados
 
+### Multi-user
+- Gating de admin (só admin convida/remove/muda permissão)
+- Audit log (atribuições, mudanças de estágio, gestão de equipe) em /settings/audit
+- Permissões por atribuição (atendente vê não-atribuídas + as dele; admin vê tudo) via RLS
+- Avatar de quem está vendo a conversa em tempo real
+
+### Métricas
+- Aviso de leads parados +24h (KPI + lista no dashboard)
+- Funil de conversão por origem (quantos de cada canal viram Ganho)
+
 </details>
 
 ---
 
 ## 🎯 Próximas etapas — agrupadas por valor
-
-### 🟢 Multi-user — pra quando crescer a equipe
-
-| # | Funcionalidade | Por quê |
-|---|---|---|
-| 14 | **Gating real de admin** | Só usuários `role=admin` podem convidar/remover atendentes. Hoje qualquer um pode. |
-| 15 | **Audit log de ações** | Tabela registrando quem mudou estágio de qual lead, quem atribuiu pra quem, quem removeu mensagem. Pra acompanhar quando equipe grande. |
-| 16 | **Permissões granulares** | Limitar atendente a ver só conversas atribuídas a ele. Ou só certos pipelines. |
-| 17 | **Avatar de quem está vendo a conversa** | Quando outro atendente abre a mesma conversa, vê seu avatar no topo. Evita 2 pessoas respondendo ao mesmo tempo. |
-
-### 🔵 Métricas / Reports
-
-| # | Funcionalidade | Por quê |
-|---|---|---|
-| 20 | **Aviso de leads parados** | "5 leads sem resposta há mais de 24h". Banner ou notificação. |
-| 22 | **Funil visual por origem** | Quantos leads Meta Ads chegam, quantos viram Ganho. Identificar qual canal converte mais. |
 
 ### ⚙️ Configurações / Customização
 
@@ -117,9 +111,9 @@ Lista de funcionalidades **pendentes**. Tudo que já está em produção pode se
 
 Sugestões fortes pra **próximas etapas** (alto valor / baixo esforço):
 
-1. **Aviso de leads parados +24h** (#20) — visibilidade pro dono não perder venda
-2. **Gating de admin** (#14) — segurança básica antes de adicionar mais atendentes
-3. **Editar tags via UI** (#24) — gestão de etiquetas sem depender do dropdown do chat
+1. **Editar tags via UI** (#24) — gestão de etiquetas sem depender do dropdown do chat
+2. **Configurações de notificação** (#26) — liga/desliga som e notif desktop
+3. **Paginação no chat** (#34) — "carregar mais" pra ver histórico antigo
 
 ---
 
