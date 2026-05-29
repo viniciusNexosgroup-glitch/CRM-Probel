@@ -5,8 +5,26 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { evolution, EvolutionError } from "@/lib/evolution/client";
 import { getCurrentProfile } from "@/lib/auth/roles";
 import { logAudit } from "@/lib/audit/log";
+import { MESSAGE_COLUMNS, type MessageRow } from "./types";
 
 type Result<T = void> = { ok: true; data?: T } | { ok: false; error: string };
+
+/** #34 Carrega mensagens mais antigas que `beforeTimestamp` (paginação "carregar mais"). */
+export async function loadOlderMessagesAction(
+  conversationId: string,
+  beforeTimestamp: string
+): Promise<{ ok: true; data: MessageRow[] } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("messages")
+    .select(MESSAGE_COLUMNS)
+    .eq("conversation_id", conversationId)
+    .lt("timestamp", beforeTimestamp)
+    .order("timestamp", { ascending: false })
+    .limit(50);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, data: ((data ?? []) as unknown as MessageRow[]).reverse() };
+}
 
 /**
  * Marca conversa como lida no CRM E no WhatsApp do celular.
@@ -789,23 +807,60 @@ export async function searchMessagesAction(
 
   const supabase = await createClient();
 
-  const escaped = q.replace(/[%_]/g, (c) => `\\${c}`);
+  // #33 Full-text search por prefixo (ex: "colch" acha "colchão"); fallback ILIKE.
+  const tsq = q
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => w.replace(/[^\p{L}\p{N}]+/gu, ""))
+    .filter((w) => w.length >= 2)
+    .map((w) => `${w}:*`)
+    .join(" & ");
 
-  const [msgsRes, notesRes] = await Promise.all([
-    supabase
-      .from("messages")
-      .select("id, content, conversation_id, from_me, timestamp")
-      .ilike("content", `%${escaped}%`)
-      .not("content", "is", null)
-      .order("timestamp", { ascending: false })
-      .limit(50),
-    supabase
-      .from("internal_notes")
-      .select("id, content, conversation_id, created_at")
-      .ilike("content", `%${escaped}%`)
-      .order("created_at", { ascending: false })
-      .limit(50),
-  ]);
+  type MsgHit = { id: string; content: string | null; conversation_id: string; from_me: boolean; timestamp: string };
+  type NoteHit = { id: string; content: string; conversation_id: string; created_at: string };
+  let msgsRes: { data: MsgHit[] | null } = { data: null };
+  let notesRes: { data: NoteHit[] | null } = { data: null };
+
+  if (tsq) {
+    const [m, n] = await Promise.all([
+      supabase
+        .from("messages")
+        .select("id, content, conversation_id, from_me, timestamp")
+        .textSearch("content_tsv", tsq, { config: "portuguese" })
+        .order("timestamp", { ascending: false })
+        .limit(50),
+      supabase
+        .from("internal_notes")
+        .select("id, content, conversation_id, created_at")
+        .textSearch("content_tsv", tsq, { config: "portuguese" })
+        .order("created_at", { ascending: false })
+        .limit(50),
+    ]);
+    if (!m.error) msgsRes = { data: m.data as unknown as MsgHit[] };
+    if (!n.error) notesRes = { data: n.data as unknown as NoteHit[] };
+  }
+
+  // Fallback ILIKE (query sem termos válidos, ou erro no FTS)
+  if (msgsRes.data === null || notesRes.data === null) {
+    const escaped = q.replace(/[%_]/g, (c) => `\\${c}`);
+    const [m, n] = await Promise.all([
+      supabase
+        .from("messages")
+        .select("id, content, conversation_id, from_me, timestamp")
+        .ilike("content", `%${escaped}%`)
+        .not("content", "is", null)
+        .order("timestamp", { ascending: false })
+        .limit(50),
+      supabase
+        .from("internal_notes")
+        .select("id, content, conversation_id, created_at")
+        .ilike("content", `%${escaped}%`)
+        .order("created_at", { ascending: false })
+        .limit(50),
+    ]);
+    if (msgsRes.data === null) msgsRes = { data: (m.data as unknown as MsgHit[]) ?? [] };
+    if (notesRes.data === null) notesRes = { data: (n.data as unknown as NoteHit[]) ?? [] };
+  }
 
   const convIds = new Set<string>();
   (msgsRes.data ?? []).forEach((m) => convIds.add(m.conversation_id));

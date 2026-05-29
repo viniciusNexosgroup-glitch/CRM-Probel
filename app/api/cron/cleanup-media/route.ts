@@ -10,6 +10,7 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { runBackup } from "@/lib/backup/run";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,7 +27,7 @@ async function authorize(request: NextRequest) {
   return { ok: true } as const;
 }
 
-async function run() {
+async function cleanupMedia() {
   const supabase = createServiceClient();
   const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
@@ -71,6 +72,13 @@ async function run() {
   }
 
   return { deleted, messages: ids.length, cutoff };
+}
+
+// Manutenção diária: limpeza de mídia antiga + backup do CRM (#35).
+async function run() {
+  const cleanup = await cleanupMedia();
+  const backup = await runBackup();
+  return { cleanup, backup };
 }
 
 export async function GET(request: NextRequest) {

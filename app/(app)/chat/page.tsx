@@ -95,17 +95,18 @@ async function getContactPanelData(contactId: string): Promise<ContactPanelData 
 
 async function getMessages(conversationId: string): Promise<MessageRow[]> {
   const supabase = await createClient();
+  // Carrega as ÚLTIMAS N (desc) e reverte pra ordem cronológica.
   const { data, error } = await supabase
     .from("messages")
     .select(MESSAGE_COLUMNS)
     .eq("conversation_id", conversationId)
-    .order("timestamp", { ascending: true })
+    .order("timestamp", { ascending: false })
     .limit(MESSAGES_LIMIT);
   if (error) {
     console.error("[chat] erro buscando mensagens:", error.message);
     return [];
   }
-  return (data ?? []) as MessageRow[];
+  return ((data ?? []) as MessageRow[]).reverse();
 }
 
 async function getInternalNotes(conversationId: string) {

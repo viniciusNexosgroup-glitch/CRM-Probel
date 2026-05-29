@@ -34,7 +34,10 @@ import {
   toggleFavoriteAction,
   togglePinnedAction,
   toggleArchivedAction,
+  loadOlderMessagesAction,
 } from "../actions";
+
+const MESSAGES_PAGE = 100;
 import { MESSAGE_COLUMNS } from "../types";
 import type {
   ConversationWithContact,
@@ -183,6 +186,8 @@ export function ChatWindow({
   const [panelOpen, setPanelOpen] = useState(false);
   const [replyingTo, setReplyingTo] = useState<MessageRow | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(initialMessages.length >= MESSAGES_PAGE);
+  const [loadingOlder, setLoadingOlder] = useState(false);
 
   // Fecha painel + reply ao trocar de conversa
   useEffect(() => {
@@ -199,11 +204,38 @@ export function ChatWindow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation.id]);
 
-  // Sincroniza com o servidor quando troca de conversa ou chega refresh.
-  // (separado do efeito de realtime pra não recriar o canal a cada refresh)
+  // Reseta a lista só ao TROCAR de conversa (não a cada refresh — senão perde
+  // o histórico carregado via "carregar mais"). Updates chegam por poll/realtime.
   useEffect(() => {
     setMessages(initialMessages);
-  }, [initialMessages]);
+    setHasMore(initialMessages.length >= MESSAGES_PAGE);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversation.id]);
+
+  async function loadOlder() {
+    if (loadingOlder || messages.length === 0) return;
+    setLoadingOlder(true);
+    const el = scrollRef.current;
+    const prevHeight = el?.scrollHeight ?? 0;
+    const res = await loadOlderMessagesAction(conversation.id, messages[0].timestamp);
+    setLoadingOlder(false);
+    if (!res.ok) {
+      toast.error("Falha ao carregar histórico", { description: res.error });
+      return;
+    }
+    if (res.data.length < 50) setHasMore(false);
+    if (res.data.length === 0) return;
+    setMessages((prev) => {
+      const map = new Map(prev.map((m) => [m.id, m]));
+      for (const m of res.data) if (!map.has(m.id)) map.set(m.id, m);
+      return Array.from(map.values()).sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    });
+    // preserva a posição de leitura (conteúdo entrou acima)
+    requestAnimationFrame(() => {
+      const el2 = scrollRef.current;
+      if (el2) el2.scrollTop = el2.scrollHeight - prevHeight;
+    });
+  }
 
   // Realtime + polling fallback pra mensagens dessa conversa
   useEffect(() => {
@@ -219,21 +251,34 @@ export function ChatWindow({
     // Polling de mensagens (fallback do realtime). Sem raw_payload = ~90% mais leve.
     async function pollMessages() {
       if (!mounted) return;
+      // Busca as últimas N e MESCLA (não substitui) — preserva o histórico
+      // carregado via "carregar mais" e aplica novas msgs + mudanças de status.
       const { data } = await supabase
         .from("messages")
         .select(MESSAGE_COLUMNS)
         .eq("conversation_id", conversation.id)
-        .order("timestamp", { ascending: true })
-        .limit(200);
+        .order("timestamp", { ascending: false })
+        .limit(MESSAGES_PAGE);
       if (!mounted || !data) return;
+      const incoming = (data as unknown as MessageRow[]).slice().reverse();
       setMessages((prev) => {
-        // Só atualiza se há diferença pra não causar re-render inútil
-        if (prev.length === data.length && prev[prev.length - 1]?.id === data[data.length - 1]?.id) {
-          // Mesmas mensagens — checa só os status que podem ter mudado
-          const changed = data.some((d, i) => prev[i]?.status !== d.status);
-          if (!changed) return prev;
+        const map = new Map(prev.map((m) => [m.id, m]));
+        let changed = false;
+        for (const m of incoming) {
+          const ex = map.get(m.id);
+          if (
+            !ex ||
+            ex.status !== m.status ||
+            ex.is_deleted !== m.is_deleted ||
+            ex.edited_at !== m.edited_at ||
+            ex.media_url !== m.media_url
+          ) {
+            map.set(m.id, m);
+            changed = true;
+          }
         }
-        return data as unknown as MessageRow[];
+        if (!changed) return prev;
+        return Array.from(map.values()).sort((a, b) => a.timestamp.localeCompare(b.timestamp));
       });
     }
     const pollInterval = setInterval(pollMessages, 6000);
@@ -417,6 +462,17 @@ export function ChatWindow({
         ref={scrollRef}
         className="flex-1 overflow-y-auto wa-scroll px-4 md:px-12 py-4 space-y-1"
       >
+        {hasMore && messages.length > 0 && (
+          <div className="flex justify-center pb-2">
+            <button
+              onClick={loadOlder}
+              disabled={loadingOlder}
+              className="text-xs px-3 py-1 rounded-full bg-wa-panel border border-wa-border text-wa-textSecondary hover:bg-wa-hover disabled:opacity-50"
+            >
+              {loadingOlder ? "Carregando…" : "Carregar mensagens antigas"}
+            </button>
+          </div>
+        )}
         {messages.length === 0 && internalNotes.length === 0 ? (
           <div className="h-full flex items-center justify-center text-wa-textSecondary text-sm">
             Nenhuma mensagem ainda nesta conversa.

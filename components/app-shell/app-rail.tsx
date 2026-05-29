@@ -20,6 +20,7 @@ import {
   ScrollText,
   Tag,
   Bell,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -44,6 +45,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/settings/business-hours", label: "Hor\u00e1rio", icon: Clock },
   { href: "/settings/tags", label: "Etiquetas", icon: Tag },
   { href: "/settings/notifications", label: "Notificações", icon: Bell },
+  { href: "/settings/security", label: "Segurança", icon: ShieldCheck },
   { href: "/settings/team", label: "Equipe", icon: Users },
   { href: "/settings/audit", label: "Atividade", icon: ScrollText, adminOnly: true },
   { href: "/settings/whatsapp", label: "WhatsApp", icon: Settings },
