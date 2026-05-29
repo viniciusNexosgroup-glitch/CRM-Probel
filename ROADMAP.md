@@ -74,20 +74,17 @@ Lista de funcionalidades **pendentes**. Tudo que já está em produção pode se
 - Aviso de leads parados +24h (KPI + lista no dashboard)
 - Funil de conversão por origem (quantos de cada canal viram Ganho)
 
+### Configurações
+- Editar etiquetas via UI (/settings/tags)
+- Origens de lead customizáveis (/settings/sources)
+- Preferências de notificação por navegador (/settings/notifications): som, desktop, antecedência do lembrete
+- Mensagem de boas-vindas do convite (mostrada ao definir senha)
+
 </details>
 
 ---
 
 ## 🎯 Próximas etapas — agrupadas por valor
-
-### ⚙️ Configurações / Customização
-
-| # | Funcionalidade | Por quê |
-|---|---|---|
-| 24 | **Editar tags via UI** | Hoje cria pelo dropdown do chat. Página de gerenciamento com edit/delete em massa. |
-| 25 | **Customizar fontes de lead** | Lista de origens é fixa no código (`meta_ads`, `google_ads`, etc). Permitir adicionar customizadas. |
-| 26 | **Configurações de notificação** | Toggle "Som on/off", "Notif desktop on/off", "Lembrete de tarefa antes de quanto tempo". |
-| 27 | **Template de email de convite** | Customizar texto que vai no email quando convida atendente. |
 
 ### 🔌 Integrações / API
 
@@ -111,9 +108,9 @@ Lista de funcionalidades **pendentes**. Tudo que já está em produção pode se
 
 Sugestões fortes pra **próximas etapas** (alto valor / baixo esforço):
 
-1. **Editar tags via UI** (#24) — gestão de etiquetas sem depender do dropdown do chat
-2. **Configurações de notificação** (#26) — liga/desliga som e notif desktop
-3. **Paginação no chat** (#34) — "carregar mais" pra ver histórico antigo
+1. **Paginação no chat** (#34) — "carregar mais" pra ver histórico antigo (e ajuda performance)
+2. **Investigar realtime** (#36) — se resolver, reduz polling/banda
+3. **Múltiplas instâncias WhatsApp** (#31) — conectar 2+ números
 
 ---
 
