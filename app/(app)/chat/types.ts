@@ -6,7 +6,7 @@ import type { Database } from "@/types/database";
  * mantê-lo fora dos selects corta ~90% do tráfego de mensagens (banda/lentidão).
  */
 export const MESSAGE_COLUMNS =
-  "id, conversation_id, instance_id, evolution_message_id, remote_jid, from_me, sender_jid, message_type, content, media_url, media_mimetype, media_filename, media_size, media_caption, thumbnail_url, duration, reply_to_id, status, timestamp, created_at";
+  "id, conversation_id, instance_id, evolution_message_id, remote_jid, from_me, sender_jid, message_type, content, media_url, media_mimetype, media_filename, media_size, media_caption, thumbnail_url, duration, reply_to_id, status, timestamp, is_deleted, edited_at, created_at";
 
 export type ConversationRow = Database["public"]["Tables"]["conversations"]["Row"];
 export type ContactRow = Database["public"]["Tables"]["contacts"]["Row"];

@@ -111,7 +111,9 @@ export function GlobalSearchDialog({
               {results.map((hit) => (
                 <li key={`${hit.kind}-${hit.id}`}>
                   <Link
-                    href={`/chat?c=${hit.conversationId}`}
+                    href={`/chat?c=${hit.conversationId}&m=${
+                      hit.kind === "message" ? `msg-${hit.id}` : `note-${hit.id}`
+                    }`}
                     onClick={onClose}
                     className="flex items-start gap-3 px-3 py-2 rounded-md hover:bg-wa-hover transition-colors"
                   >

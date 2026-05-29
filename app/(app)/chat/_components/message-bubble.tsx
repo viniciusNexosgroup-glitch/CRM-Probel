@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CheckCheck, Clock, AlertTriangle, FileText, Mic, Image as ImageIcon, Video, Reply, Forward } from "lucide-react";
+import { Check, CheckCheck, Clock, AlertTriangle, FileText, Mic, Image as ImageIcon, Video, Reply, Forward, Ban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTime } from "@/lib/format/date";
 import type { MessageRow } from "../types";
@@ -127,6 +127,18 @@ function MediaPlaceholder({
     );
   }
 
+  // Sticker com URL estável: imagem pequena, sem moldura pesada
+  if (type === "sticker" && mediaUrl && isStableUrl(mediaUrl)) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={mediaUrl}
+        alt="Figurinha"
+        className="w-32 h-32 object-contain"
+      />
+    );
+  }
+
   // Fallback: placeholder
   const Icon =
     type === "image" ? ImageIcon : type === "video" ? Video : type === "audio" ? Mic : FileText;
@@ -243,7 +255,11 @@ export function MessageBubble({
             <p className="truncate">{previewOf(quotedMessage)}</p>
           </div>
         )}
-        {isMedia ? (
+        {msg.is_deleted ? (
+          <p className="italic text-wa-textSecondary flex items-center gap-1 pr-12">
+            <Ban className="h-3.5 w-3.5 shrink-0" /> Mensagem apagada
+          </p>
+        ) : isMedia ? (
           <MediaPlaceholder
             type={msg.message_type}
             caption={msg.media_caption ?? msg.content}
@@ -257,6 +273,9 @@ export function MessageBubble({
           </p>
         )}
         <div className="float-right flex items-center gap-1 -mb-0.5 ml-2 mt-0.5">
+          {msg.edited_at && !msg.is_deleted && (
+            <span className="text-[10px] text-wa-textSecondary italic">editada</span>
+          )}
           <span className="text-[10px] text-wa-textSecondary">{formatTime(msg.timestamp)}</span>
           {fromMe && <StatusIcon status={msg.status} />}
         </div>

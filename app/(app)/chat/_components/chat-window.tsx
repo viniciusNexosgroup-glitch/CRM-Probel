@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Phone,
@@ -176,9 +176,12 @@ export function ChatWindow({
   mediaCategories?: CategoryRow[];
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const targetMessage = searchParams.get("m"); // id DOM da msg pra rolar (vindo da busca)
   const [messages, setMessages] = useState<MessageRow[]>(initialMessages);
   const [panelOpen, setPanelOpen] = useState(false);
   const [replyingTo, setReplyingTo] = useState<MessageRow | null>(null);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
 
   // Fecha painel + reply ao trocar de conversa
   useEffect(() => {
@@ -281,6 +284,7 @@ export function ChatWindow({
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    if (targetMessage) return; // se veio da busca, o efeito abaixo cuida do scroll
     const toBottom = () => {
       el.scrollTop = el.scrollHeight;
     };
@@ -293,7 +297,30 @@ export function ChatWindow({
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, [conversation.id]);
+  }, [conversation.id, targetMessage]);
+
+  // Vindo da busca (?m=): rola até a mensagem e destaca por uns segundos.
+  useEffect(() => {
+    if (!targetMessage) return;
+    let tries = 0;
+    const tryScroll = () => {
+      const node = document.getElementById(targetMessage);
+      if (node) {
+        node.scrollIntoView({ behavior: "smooth", block: "center" });
+        setHighlightId(targetMessage);
+        setTimeout(() => setHighlightId(null), 2800);
+        return true;
+      }
+      return false;
+    };
+    // tenta algumas vezes (mensagens podem ainda estar carregando)
+    if (tryScroll()) return;
+    const iv = setInterval(() => {
+      tries++;
+      if (tryScroll() || tries > 10) clearInterval(iv);
+    }, 200);
+    return () => clearInterval(iv);
+  }, [targetMessage, conversation.id, messages.length]);
 
   // Auto-scroll para o final quando entram mensagens novas
   useEffect(() => {
@@ -415,16 +442,30 @@ export function ChatWindow({
                 const m = item.data;
                 const quoted = m.reply_to_id ? map.get(m.reply_to_id) ?? null : null;
                 return (
-                  <div key={item.id}>
+                  <div key={item.id} id={`msg-${m.id}`}>
                     {showDateSep && <DateSeparator date={item.ts} />}
-                    <MessageBubble msg={m} quotedMessage={quoted} onReply={setReplyingTo} />
+                    <div
+                      className={cn(
+                        "rounded-lg transition-colors",
+                        highlightId === `msg-${m.id}` && "bg-amber-400/15 ring-2 ring-amber-400/50"
+                      )}
+                    >
+                      <MessageBubble msg={m} quotedMessage={quoted} onReply={setReplyingTo} />
+                    </div>
                   </div>
                 );
               }
               return (
-                <div key={item.id}>
+                <div key={item.id} id={item.id}>
                   {showDateSep && <DateSeparator date={item.ts} />}
-                  <InternalNoteBubble note={item.data} currentUserId={currentUserId} />
+                  <div
+                    className={cn(
+                      "rounded-lg transition-colors",
+                      highlightId === item.id && "bg-amber-400/15 ring-2 ring-amber-400/50"
+                    )}
+                  >
+                    <InternalNoteBubble note={item.data} currentUserId={currentUserId} />
+                  </div>
                 </div>
               );
             });

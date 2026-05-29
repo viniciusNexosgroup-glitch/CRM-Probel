@@ -391,6 +391,14 @@ export function ConversationList({
                             <Archive className="h-3 w-3 text-wa-textTertiary shrink-0" />
                           )}
                           <span className="truncate">{displayName(c.contact)}</span>
+                          {!c.answered_at && (
+                            <span
+                              className="shrink-0 text-[9px] font-semibold px-1.5 py-0 rounded-full bg-emerald-500/20 text-emerald-400 uppercase tracking-wide"
+                              title="Cliente novo — ainda não foi atendido"
+                            >
+                              🆕 Novo
+                            </span>
+                          )}
                         </span>
                         <span
                           className={cn(

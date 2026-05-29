@@ -399,6 +399,42 @@ async function persistIncomingMedia(
 
 export async function handleMessagesUpsert(instanceName: string, data: MessagesUpsertData) {
   const instanceId = await getOrCreateInstance(instanceName);
+
+  // Edições e exclusões (revoke) do WhatsApp chegam como `protocolMessage` no
+  // fluxo de mensagens — não são mensagens reais. Tratamos e saímos cedo.
+  const proto = (
+    data.message as unknown as {
+      protocolMessage?: {
+        key?: { id?: string };
+        type?: string | number;
+        editedMessage?: WhatsAppMessageContent;
+      };
+    } | null
+  )?.protocolMessage;
+  if (proto) {
+    const supabase = createServiceClient();
+    const typeStr = String(proto.type ?? "");
+    if (proto.key?.id && typeStr.includes("REVOKE")) {
+      await supabase
+        .from("messages")
+        .update({ is_deleted: true })
+        .eq("instance_id", instanceId)
+        .eq("evolution_message_id", proto.key.id);
+    } else if (proto.key?.id && proto.editedMessage) {
+      const edited = extractMessageContent(proto.editedMessage);
+      await supabase
+        .from("messages")
+        .update({
+          content: edited.content,
+          media_caption: edited.mediaCaption,
+          edited_at: new Date().toISOString(),
+        })
+        .eq("instance_id", instanceId)
+        .eq("evolution_message_id", proto.key.id);
+    }
+    return;
+  }
+
   const contactId = await getOrCreateContact(
     instanceId,
     data.key.remoteJid,
@@ -488,7 +524,7 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
       })
       .eq("id", conversationId);
   } else {
-    // Loja enviou — zera unread + atualiza preview
+    // Loja enviou — zera unread + atualiza preview + marca como atendida (não é mais "novo cliente")
     await supabase
       .from("conversations")
       .update({
@@ -496,6 +532,7 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
         last_message_text: preview,
         last_message_at: timestamp,
         last_message_from_me: true,
+        answered_at: timestamp,
       })
       .eq("id", conversationId);
   }

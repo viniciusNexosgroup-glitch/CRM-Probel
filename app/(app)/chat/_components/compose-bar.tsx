@@ -59,6 +59,21 @@ export function ComposeBar({
   const inputRef = useRef<HTMLInputElement>(null);
   const zapButtonRef = useRef<HTMLButtonElement>(null);
 
+  // #9 Rascunhos: guarda o texto digitado por conversa (restaura ao voltar)
+  const draftKey = `crm-draft-${conversationId}`;
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setText(window.localStorage.getItem(`crm-draft-${conversationId}`) ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
+
+  function setTextWithDraft(value: string) {
+    setText(value);
+    if (typeof window === "undefined") return;
+    if (value) window.localStorage.setItem(draftKey, value);
+    else window.localStorage.removeItem(draftKey);
+  }
+
   function insertAtCursor(snippet: string) {
     const el = inputRef.current;
     if (!el) {
@@ -104,6 +119,7 @@ export function ComposeBar({
   function sendNow(value: string) {
     if (!value || pending) return;
     setText("");
+    if (typeof window !== "undefined") window.localStorage.removeItem(draftKey);
     setManualOpen(false);
     const wasInternal = internalMode;
     const replyToCapture = replyingTo?.id ?? null;
@@ -116,7 +132,7 @@ export function ComposeBar({
         toast.error(wasInternal ? "Falha ao salvar nota" : "Falha ao enviar", {
           description: res.error,
         });
-        setText(value);
+        setTextWithDraft(value);
       } else if (wasInternal) {
         toast.success("Nota interna salva");
       }
@@ -344,7 +360,7 @@ export function ComposeBar({
         <Input
           ref={inputRef}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => setTextWithDraft(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder={
             internalMode

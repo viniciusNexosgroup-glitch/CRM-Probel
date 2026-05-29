@@ -245,6 +245,20 @@ export const evolution = {
     });
   },
 
+  /**
+   * Envia figurinha (sticker). Aceita URL pública (webp) ou base64.
+   */
+  async sendSticker(remoteJid: string, stickerUrl: string): Promise<EvolutionSendMediaResponse> {
+    const { instanceName } = getConfig();
+    return evoFetch(`/message/sendSticker/${instanceName}`, {
+      method: "POST",
+      body: JSON.stringify({
+        number: jidToNumber(remoteJid),
+        sticker: stickerUrl,
+      }),
+    });
+  },
+
   async findWebhook(): Promise<EvolutionWebhookConfig | null> {
     const { instanceName } = getConfig();
     try {

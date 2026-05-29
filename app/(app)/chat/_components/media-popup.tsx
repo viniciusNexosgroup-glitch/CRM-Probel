@@ -11,7 +11,8 @@ import type { Database } from "@/types/database";
 
 const MAX_UPLOAD_MB = 50;
 
-function fileTypeFromMime(mime: string): "image" | "video" | "audio" | "document" {
+function fileTypeFromMime(mime: string): "image" | "video" | "audio" | "document" | "sticker" {
+  if (mime === "image/webp") return "sticker"; // webp = figurinha no WhatsApp
   if (mime.startsWith("image/")) return "image";
   if (mime.startsWith("video/")) return "video";
   if (mime.startsWith("audio/")) return "audio";

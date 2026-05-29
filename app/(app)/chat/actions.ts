@@ -165,6 +165,7 @@ export async function sendTextMessageAction(
       last_message_text: trimmed,
       last_message_at: now,
       last_message_from_me: true,
+      answered_at: now,
     })
     .eq("id", conv.id);
 
@@ -527,7 +528,7 @@ export async function sendUploadedMediaAction(
   conversationId: string,
   payload: {
     fileUrl: string;
-    fileType: "image" | "video" | "audio" | "document";
+    fileType: "image" | "video" | "audio" | "document" | "sticker";
     mimetype: string;
     fileName: string;
     caption?: string;
@@ -552,6 +553,8 @@ export async function sendUploadedMediaAction(
   try {
     if (payload.fileType === "audio") {
       sent = await evolution.sendAudio(conv.remote_jid, payload.fileUrl);
+    } else if (payload.fileType === "sticker") {
+      sent = await evolution.sendSticker(conv.remote_jid, payload.fileUrl);
     } else {
       sent = await evolution.sendMedia(conv.remote_jid, {
         mediatype: payload.fileType === "image" ? "image" : payload.fileType === "video" ? "video" : "document",
@@ -592,7 +595,9 @@ export async function sendUploadedMediaAction(
         ? "🎥 Vídeo"
         : payload.fileType === "audio"
           ? "🎵 Áudio"
-          : `📎 ${payload.fileName}`;
+          : payload.fileType === "sticker"
+            ? "🏷️ Figurinha"
+            : `📎 ${payload.fileName}`;
 
   await service
     .from("conversations")
