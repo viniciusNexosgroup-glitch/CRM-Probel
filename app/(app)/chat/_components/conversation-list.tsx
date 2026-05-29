@@ -45,18 +45,19 @@ const QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
 
 export function ConversationList({
   initial,
-  selectedId,
   allTags,
   currentUserId,
 }: {
   initial: ConversationWithContact[];
-  selectedId?: string;
   allTags: TagRow[];
   currentUserId?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  // Lê a conversa selecionada da URL (a lista vive no layout, sem prop do servidor).
+  // Assim o destaque muda na hora do clique, sem esperar o servidor.
+  const selectedId = searchParams.get("c") ?? undefined;
   const [conversations, setConversations] = useState(initial);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<QuickFilter>("all");
