@@ -44,6 +44,7 @@ import type {
   InternalNoteWithAuthor,
 } from "../types";
 import { InternalNoteBubble } from "./internal-note-bubble";
+import { ViewingIndicator } from "./viewing-indicator";
 import type { Database } from "@/types/database";
 
 type QuickReplyRow = Database["public"]["Tables"]["quick_replies"]["Row"];
@@ -389,6 +390,9 @@ export function ChatWindow({
           />
         </div>
         <div className="flex items-center gap-1 text-wa-textSecondary shrink-0">
+          {currentUserId && (
+            <ViewingIndicator conversationId={conversation.id} currentUserId={currentUserId} />
+          )}
           <FavoritePinArchive conversation={conversation} />
           <button
             onClick={() => setPanelOpen((o) => !o)}

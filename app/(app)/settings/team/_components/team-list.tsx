@@ -17,9 +17,11 @@ type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export function TeamList({
   profiles,
   currentUserId,
+  isAdmin,
 }: {
   profiles: Profile[];
   currentUserId: string;
+  isAdmin: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -65,10 +67,12 @@ export function TeamList({
         <p className="text-sm text-muted-foreground">
           {profiles.length} {profiles.length === 1 ? "atendente" : "atendentes"} no CRM
         </p>
-        <Button onClick={() => setOpen(true)}>
-          <Plus className="h-4 w-4" />
-          Convidar atendente
-        </Button>
+        {isAdmin && (
+          <Button onClick={() => setOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Convidar atendente
+          </Button>
+        )}
       </div>
 
       <div className="rounded-lg border border-border overflow-hidden">
@@ -104,34 +108,42 @@ export function TeamList({
                   </td>
                   <td className="px-4 py-3 text-muted-foreground text-xs">{p.email}</td>
                   <td className="px-4 py-3">
-                    <Select
-                      value={p.role}
-                      onChange={(e) =>
-                        onChangeRole(p.id, e.target.value as "admin" | "user")
-                      }
-                      disabled={busy}
-                      className="h-8 text-xs w-36"
-                    >
-                      <option value="user">Atendente</option>
-                      <option value="admin">Administrador</option>
-                    </Select>
+                    {isAdmin ? (
+                      <Select
+                        value={p.role}
+                        onChange={(e) =>
+                          onChangeRole(p.id, e.target.value as "admin" | "user")
+                        }
+                        disabled={busy}
+                        className="h-8 text-xs w-36"
+                      >
+                        <option value="user">Atendente</option>
+                        <option value="admin">Administrador</option>
+                      </Select>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        {p.role === "admin" ? "Administrador" : "Atendente"}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => onRemove(p)}
-                      disabled={busy || isCurrent}
-                      title={isCurrent ? "Você não pode remover a si mesmo" : "Remover"}
-                      className={cn(
-                        "p-1.5 rounded-full text-wa-textSecondary hover:text-red-400 hover:bg-red-500/10 transition-colors",
-                        (busy || isCurrent) && "opacity-30 cursor-not-allowed"
-                      )}
-                    >
-                      {busy ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-3.5 w-3.5" />
-                      )}
-                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => onRemove(p)}
+                        disabled={busy || isCurrent}
+                        title={isCurrent ? "Você não pode remover a si mesmo" : "Remover"}
+                        className={cn(
+                          "p-1.5 rounded-full text-wa-textSecondary hover:text-red-400 hover:bg-red-500/10 transition-colors",
+                          (busy || isCurrent) && "opacity-30 cursor-not-allowed"
+                        )}
+                      >
+                        {busy ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    )}
                   </td>
                 </tr>
               );

@@ -25,7 +25,17 @@ export type DashboardData = {
     count: number;
     totalValue: number;
   }[];
-  bySource: { source: string; count: number; estimatedValue: number }[];
+  bySource: { source: string; count: number; won: number; conversionRate: number; estimatedValue: number }[];
+  stalled: {
+    count: number;
+    items: {
+      conversationId: string;
+      name: string | null;
+      phone: string | null;
+      lastText: string | null;
+      lastAt: string;
+    }[];
+  };
   topLeads: (LeadRow & { contact: { name: string | null; push_name: string | null; phone: string | null } | null })[];
   recentLeads: (LeadRow & { contact: { name: string | null; push_name: string | null; phone: string | null } | null })[];
   attendantRanking: {
@@ -119,18 +129,54 @@ export async function getDashboardData(): Promise<DashboardData> {
     };
   });
 
-  // By source
-  const sourceMap = new Map<string, { count: number; estimatedValue: number }>();
+  // By source (com conversão: quantos viraram Ganho)
+  const sourceMap = new Map<string, { count: number; won: number; estimatedValue: number }>();
   for (const l of leads) {
     const src = l.source ?? "sem origem";
-    const entry = sourceMap.get(src) ?? { count: 0, estimatedValue: 0 };
+    const entry = sourceMap.get(src) ?? { count: 0, won: 0, estimatedValue: 0 };
     entry.count += 1;
+    if (l.status === "won") entry.won += 1;
     entry.estimatedValue += Number(l.estimated_value ?? 0);
     sourceMap.set(src, entry);
   }
   const bySource = Array.from(sourceMap.entries())
-    .map(([source, v]) => ({ source, ...v }))
+    .map(([source, v]) => ({
+      source,
+      ...v,
+      conversionRate: v.count > 0 ? v.won / v.count : 0,
+    }))
     .sort((a, b) => b.count - a.count);
+
+  // #20 Leads parados: conversas onde o cliente foi o último a falar há +24h
+  const stalledCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data: stalledConvs } = await supabase
+    .from("conversations")
+    .select(
+      "id, last_message_at, last_message_text, contact:contacts!conversations_contact_id_fkey(name, push_name, phone)"
+    )
+    .eq("last_message_from_me", false)
+    .eq("is_archived", false)
+    .lt("last_message_at", stalledCutoff)
+    .order("last_message_at", { ascending: true })
+    .limit(100);
+
+  const stalled = {
+    count: stalledConvs?.length ?? 0,
+    items: (stalledConvs ?? []).slice(0, 8).map((c) => {
+      const ct = c.contact as unknown as {
+        name: string | null;
+        push_name: string | null;
+        phone: string | null;
+      } | null;
+      return {
+        conversationId: c.id as string,
+        name: ct?.name ?? ct?.push_name ?? null,
+        phone: ct?.phone ?? null,
+        lastText: c.last_message_text ?? null,
+        lastAt: c.last_message_at as string,
+      };
+    }),
+  };
 
   // Top leads abertos por valor estimado
   const topLeads = leads
@@ -243,6 +289,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     },
     funnel,
     bySource,
+    stalled,
     topLeads,
     recentLeads,
     attendantRanking,

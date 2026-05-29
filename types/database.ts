@@ -323,6 +323,57 @@ export type Database = {
         };
         Relationships: [];
       };
+      audit_log: {
+        Row: {
+          id: string;
+          actor_id: string | null;
+          action: string;
+          entity_type: string | null;
+          entity_id: string | null;
+          summary: string | null;
+          meta: Json | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          actor_id?: string | null;
+          action: string;
+          entity_type?: string | null;
+          entity_id?: string | null;
+          summary?: string | null;
+          meta?: Json | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          actor_id?: string | null;
+          action?: string;
+          entity_type?: string | null;
+          entity_id?: string | null;
+          summary?: string | null;
+          meta?: Json | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      conversation_viewers: {
+        Row: {
+          conversation_id: string;
+          user_id: string;
+          last_seen_at: string;
+        };
+        Insert: {
+          conversation_id: string;
+          user_id: string;
+          last_seen_at?: string;
+        };
+        Update: {
+          conversation_id?: string;
+          user_id?: string;
+          last_seen_at?: string;
+        };
+        Relationships: [];
+      };
       pipeline_stages: {
         Row: {
           id: string;

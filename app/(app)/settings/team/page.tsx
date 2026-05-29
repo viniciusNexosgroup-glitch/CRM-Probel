@@ -17,6 +17,8 @@ export default async function TeamPage() {
     .select("*")
     .order("created_at", { ascending: true });
 
+  const isAdmin = (profiles ?? []).find((p) => p.id === user.id)?.role === "admin";
+
   return (
     <div className="h-full bg-wa-bg flex flex-col overflow-hidden">
       <header className="h-14 bg-wa-header flex items-center px-4 border-b border-wa-border shrink-0">
@@ -30,7 +32,7 @@ export default async function TeamPage() {
           <p className="text-sm text-muted-foreground mb-6">
             Gerencie quem tem acesso ao CRM. Atendentes convidados recebem email pra definir senha.
           </p>
-          <TeamList profiles={profiles ?? []} currentUserId={user.id} />
+          <TeamList profiles={profiles ?? []} currentUserId={user.id} isAdmin={isAdmin} />
         </div>
       </div>
     </div>

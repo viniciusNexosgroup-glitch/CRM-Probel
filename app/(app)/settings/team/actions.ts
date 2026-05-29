@@ -2,14 +2,19 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { isCurrentUserAdmin, getCurrentProfile } from "@/lib/auth/roles";
+import { logAudit } from "@/lib/audit/log";
 
 type Result<T = void> = { ok: true; data?: T } | { ok: false; error: string };
+
+const ADMIN_ONLY = "Apenas administradores podem gerenciar a equipe.";
 
 export async function inviteUserAction(
   email: string,
   fullName: string,
   role: "admin" | "user"
 ): Promise<Result> {
+  if (!(await isCurrentUserAdmin())) return { ok: false, error: ADMIN_ONLY };
   const cleanEmail = email.trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cleanEmail)) {
     return { ok: false, error: "Email inválido" };
@@ -42,6 +47,15 @@ export async function inviteUserAction(
       .eq("id", data.user.id);
   }
 
+  const actor = await getCurrentProfile();
+  await logAudit({
+    actorId: actor?.id ?? null,
+    action: "team_invite",
+    entityType: "profile",
+    entityId: data?.user?.id,
+    summary: `${actor?.full_name ?? actor?.email ?? "Alguém"} convidou ${cleanEmail} (${role})`,
+  });
+
   revalidatePath("/settings/team");
   return { ok: true };
 }
@@ -50,17 +64,30 @@ export async function updateUserRoleAction(
   userId: string,
   role: "admin" | "user"
 ): Promise<Result> {
+  if (!(await isCurrentUserAdmin())) return { ok: false, error: ADMIN_ONLY };
   const supabase = await createClient();
   const { error } = await supabase
     .from("profiles")
     .update({ role })
     .eq("id", userId);
   if (error) return { ok: false, error: error.message };
+
+  const actor = await getCurrentProfile();
+  await logAudit({
+    actorId: actor?.id ?? null,
+    action: "team_role_change",
+    entityType: "profile",
+    entityId: userId,
+    summary: `${actor?.full_name ?? actor?.email ?? "Alguém"} mudou um atendente para ${role}`,
+    meta: { role },
+  });
+
   revalidatePath("/settings/team");
   return { ok: true };
 }
 
 export async function removeUserAction(userId: string): Promise<Result> {
+  if (!(await isCurrentUserAdmin())) return { ok: false, error: ADMIN_ONLY };
   const supabase = await createClient();
   const {
     data: { user: currentUser },
@@ -72,6 +99,16 @@ export async function removeUserAction(userId: string): Promise<Result> {
   const service = createServiceClient();
   const { error } = await service.auth.admin.deleteUser(userId);
   if (error) return { ok: false, error: error.message };
+
+  const actor = await getCurrentProfile();
+  await logAudit({
+    actorId: actor?.id ?? null,
+    action: "team_remove",
+    entityType: "profile",
+    entityId: userId,
+    summary: `${actor?.full_name ?? actor?.email ?? "Alguém"} removeu um atendente`,
+  });
+
   revalidatePath("/settings/team");
   return { ok: true };
 }

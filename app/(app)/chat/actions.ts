@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { evolution, EvolutionError } from "@/lib/evolution/client";
+import { getCurrentProfile } from "@/lib/auth/roles";
+import { logAudit } from "@/lib/audit/log";
 
 type Result<T = void> = { ok: true; data?: T } | { ok: false; error: string };
 
@@ -245,6 +247,16 @@ export async function updateLeadFieldsAction(
       newStageName: stageName,
       userId: user?.id,
     });
+
+    const actor = await getCurrentProfile();
+    await logAudit({
+      actorId: actor?.id ?? null,
+      action: update.status === "won" ? "lead_won" : update.status === "lost" ? "lead_lost" : "lead_stage_change",
+      entityType: "lead",
+      entityId: leadId,
+      summary: `${actor?.full_name ?? actor?.email ?? "Alguém"} moveu um lead para "${stageName}"`,
+      meta: { stageId: fields.stage_id, status: update.status },
+    });
   }
 
   revalidatePath("/chat");
@@ -389,6 +401,26 @@ export async function assignConversationAction(
     .update({ assigned_to: userId })
     .eq("id", conversationId);
   if (error) return { ok: false, error: error.message };
+
+  const actor = await getCurrentProfile();
+  let targetName = "ninguém (removeu atribuição)";
+  if (userId) {
+    const { data: target } = await supabase
+      .from("profiles")
+      .select("full_name, email")
+      .eq("id", userId)
+      .single();
+    targetName = target?.full_name ?? target?.email ?? "atendente";
+  }
+  await logAudit({
+    actorId: actor?.id ?? null,
+    action: "conversation_assign",
+    entityType: "conversation",
+    entityId: conversationId,
+    summary: `${actor?.full_name ?? actor?.email ?? "Alguém"} atribuiu a conversa para ${targetName}`,
+    meta: { assignedTo: userId },
+  });
+
   revalidatePath("/chat");
   return { ok: true };
 }

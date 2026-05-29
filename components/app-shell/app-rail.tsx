@@ -17,6 +17,7 @@ import {
   Users,
   Bot,
   TrendingUp,
+  ScrollText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,7 @@ type NavItem = {
   label: string;
   icon: typeof MessageSquare;
   exact?: boolean;
+  adminOnly?: boolean;
 };
 
 const NAV_ITEMS: NavItem[] = [
@@ -39,6 +41,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/settings/media-library", label: "M\u00eddias", icon: Library },
   { href: "/settings/business-hours", label: "Hor\u00e1rio", icon: Clock },
   { href: "/settings/team", label: "Equipe", icon: Users },
+  { href: "/settings/audit", label: "Atividade", icon: ScrollText, adminOnly: true },
   { href: "/settings/whatsapp", label: "WhatsApp", icon: Settings },
 ];
 
@@ -48,18 +51,27 @@ export function AppRail() {
   const [logoutPending, setLogoutPending] = useState(false);
   const [userName, setUserName] = useState<string>("");
   const [userEmail, setUserEmail] = useState<string>("");
+  const [isAdmin, setIsAdmin] = useState(false);
   const [hovered, setHovered] = useState(false);
   const isCompact = !hovered;
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return;
       setUserEmail(user.email ?? "");
       const meta = user.user_metadata as { full_name?: string } | null;
       setUserName(meta?.full_name ?? user.email?.split("@")[0] ?? "");
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      setIsAdmin(profile?.role === "admin");
     });
   }, []);
+
+  const navItems = NAV_ITEMS.filter((i) => !i.adminOnly || isAdmin);
 
   function isActive(item: NavItem) {
     if (item.exact) return pathname === item.href;
@@ -116,7 +128,7 @@ export function AppRail() {
         >
           Menu
         </p>
-        {NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item);
           return (

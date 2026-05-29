@@ -32,7 +32,7 @@ function displayLeadName(
 
 export default async function DashboardPage() {
   const data = await getDashboardData();
-  const { kpis, funnel, bySource, topLeads, recentLeads, attendantRanking } = data;
+  const { kpis, funnel, bySource, stalled, topLeads, recentLeads, attendantRanking } = data;
 
   const avgRespLabel = (() => {
     if (kpis.avgResponseMinutes == null) return "—";
@@ -112,7 +112,58 @@ export default async function DashboardPage() {
               helper={`${kpis.openConversations} conversas ativas`}
               accent={kpis.unreadConversations > 0 ? "warning" : "default"}
             />
+            <KpiCard
+              icon={<Clock className="h-4 w-4" />}
+              label="Parados +24h"
+              value={stalled.count}
+              helper="Cliente esperando resposta"
+              accent={stalled.count > 0 ? "warning" : "success"}
+            />
           </section>
+
+          {/* #20 Leads parados (cliente sem resposta há +24h) */}
+          {stalled.count > 0 && (
+            <section className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+              <h2 className="text-sm font-medium text-amber-300 mb-3 flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                {stalled.count} {stalled.count === 1 ? "lead parado" : "leads parados"} (sem resposta há +24h)
+              </h2>
+              <ul className="space-y-1">
+                {stalled.items.map((s) => {
+                  const when = new Date(s.lastAt).toLocaleString("pt-BR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
+                  return (
+                    <li key={s.conversationId}>
+                      <Link
+                        href={`/chat?c=${s.conversationId}`}
+                        className="flex items-center justify-between gap-3 p-2 rounded hover:bg-wa-hover transition-colors"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-wa-textPrimary truncate">
+                            {s.name ?? s.phone ?? "Sem nome"}
+                          </p>
+                          <p className="text-[11px] text-wa-textSecondary truncate">
+                            {s.lastText ?? "—"}
+                          </p>
+                        </div>
+                        <span className="text-[11px] text-amber-400 shrink-0">{when}</span>
+                        <ExternalLink className="h-3.5 w-3.5 text-wa-textSecondary shrink-0" />
+                      </Link>
+                    </li>
+                  );
+                })}
+                {stalled.count > stalled.items.length && (
+                  <li className="text-[11px] text-wa-textSecondary px-2 pt-1">
+                    + {stalled.count - stalled.items.length} outros parados
+                  </li>
+                )}
+              </ul>
+            </section>
+          )}
 
           {/* Funil visual */}
           <section className="bg-wa-panel border border-wa-border rounded-lg p-4">
@@ -163,7 +214,7 @@ export default async function DashboardPage() {
             <div className="bg-wa-panel border border-wa-border rounded-lg p-4">
               <h2 className="text-sm font-medium text-wa-textPrimary mb-3 flex items-center gap-2">
                 <Target className="h-4 w-4 text-primary" />
-                Origens dos leads
+                Origens dos leads · conversão
               </h2>
               {bySource.length === 0 ? (
                 <p className="text-xs text-wa-textTertiary">Sem dados ainda.</p>
@@ -176,13 +227,29 @@ export default async function DashboardPage() {
                           {SOURCE_LABELS[s.source] ?? s.source}
                         </span>
                         <span className="text-wa-textSecondary tabular-nums">
-                          {s.count} · {formatBRL(s.estimatedValue)}
+                          {s.count} leads · {s.won} ganhos ·{" "}
+                          <span
+                            className={
+                              s.conversionRate >= 0.5
+                                ? "text-emerald-400"
+                                : s.conversionRate > 0
+                                  ? "text-amber-400"
+                                  : "text-wa-textTertiary"
+                            }
+                          >
+                            {(s.conversionRate * 100).toFixed(0)}%
+                          </span>
                         </span>
                       </div>
-                      <div className="w-full h-1.5 bg-wa-bg/60 rounded-full overflow-hidden">
+                      {/* barra: total (clara) com a parte ganha (verde) por cima */}
+                      <div className="w-full h-1.5 bg-wa-bg/60 rounded-full overflow-hidden relative">
                         <div
-                          className="h-full bg-primary/70 rounded-full"
+                          className="h-full bg-primary/40 rounded-full absolute inset-y-0 left-0"
                           style={{ width: `${(s.count / maxSourceCount) * 100}%` }}
+                        />
+                        <div
+                          className="h-full bg-emerald-500 rounded-full absolute inset-y-0 left-0"
+                          style={{ width: `${(s.won / maxSourceCount) * 100}%` }}
                         />
                       </div>
                     </li>
