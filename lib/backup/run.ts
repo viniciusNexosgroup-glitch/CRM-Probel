@@ -23,21 +23,17 @@ const RETENTION_DAYS = 30;
 const BUCKET = "contact-media";
 const PREFIX = "backups";
 
-type LooseFrom = (t: string) => {
-  select: (c: string) => Promise<{ data: unknown; error: { message: string } | null }>;
-};
-
 export async function runBackup(): Promise<{ ok: boolean; file?: string; error?: string }> {
   try {
     const svc = createServiceClient();
-    const from = svc.from as unknown as LooseFrom;
 
     const dump: Record<string, unknown> = {
       _meta: { generatedAt: new Date().toISOString(), tables: BACKUP_TABLES },
     };
     for (const t of BACKUP_TABLES) {
-      const { data, error } = await from(t).select("*");
-      dump[t] = error ? { _error: error.message } : (data ?? []);
+      // chama com `this` preservado (svc.from(...)); cast só pra satisfazer o tipo
+      const { data, error } = await svc.from(t as never).select("*");
+      dump[t] = error ? { _error: (error as { message: string }).message } : (data ?? []);
     }
 
     const date = new Date().toISOString().slice(0, 10);
