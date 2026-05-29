@@ -3,6 +3,7 @@
  * Usam o cliente service-role do Supabase (bypass RLS) — esta lib só roda
  * dentro da route handler do webhook.
  */
+import { after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { Json, MessageType } from "@/types/database";
 import { mapEvolutionStateToDb } from "@/lib/evolution/client";
@@ -358,8 +359,18 @@ async function persistIncomingMedia(
 ) {
   try {
     const { evolution } = await import("@/lib/evolution/client");
-    const media = await evolution.getBase64FromMedia(evolutionMessageId);
-    if (!media?.base64) return;
+    // Vídeos/arquivos grandes podem ainda não estar prontos na Evolution no
+    // instante em que o webhook chega — tenta algumas vezes com intervalo curto.
+    let media: { base64: string; mimetype: string } | null = null;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      media = await evolution.getBase64FromMedia(evolutionMessageId);
+      if (media?.base64) break;
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    if (!media?.base64) {
+      console.warn("[persistIncomingMedia] base64 indisponível após retries:", evolutionMessageId);
+      return;
+    }
 
     const mimetype = media.mimetype || mimetypeHint || "application/octet-stream";
     const ext = extFromMime(mimetype);
@@ -436,7 +447,11 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
   // (a URL .enc do WhatsApp não é acessível). Best-effort.
   const MEDIA_TYPES = ["image", "video", "audio", "document", "sticker"];
   if (!data.key.fromMe && MEDIA_TYPES.includes(extracted.type) && data.key.id) {
-    await persistIncomingMedia(instanceId, data.key.id, extracted.type, extracted.mediaMimetype);
+    // Roda em segundo plano (após a resposta) pra não travar o webhook enquanto
+    // baixa mídias grandes — o after() mantém a função viva até concluir.
+    const mediaId = data.key.id;
+    const mediaMime = extracted.mediaMimetype;
+    after(() => persistIncomingMedia(instanceId, mediaId, extracted.type, mediaMime));
   }
 
   // Atualiza preview + unread_count na conversa
