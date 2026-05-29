@@ -5,6 +5,36 @@
 
 export type PermissionState = "default" | "granted" | "denied";
 
+// ── Preferências de notificação (#26) — por navegador (localStorage) ──
+export type NotificationPrefs = {
+  sound: boolean;
+  desktop: boolean;
+  taskReminderMinutes: number; // antecedência do lembrete de tarefa
+};
+
+const PREFS_KEY = "crm-probel:notif-prefs";
+export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
+  sound: true,
+  desktop: true,
+  taskReminderMinutes: 10,
+};
+
+export function getNotificationPrefs(): NotificationPrefs {
+  if (typeof window === "undefined") return DEFAULT_NOTIFICATION_PREFS;
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (!raw) return DEFAULT_NOTIFICATION_PREFS;
+    return { ...DEFAULT_NOTIFICATION_PREFS, ...(JSON.parse(raw) as Partial<NotificationPrefs>) };
+  } catch {
+    return DEFAULT_NOTIFICATION_PREFS;
+  }
+}
+
+export function setNotificationPrefs(prefs: NotificationPrefs) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+}
+
 export function getNotificationPermission(): PermissionState {
   if (typeof window === "undefined" || !("Notification" in window)) return "denied";
   return Notification.permission as PermissionState;
@@ -28,6 +58,7 @@ export function showNotification(
 ): Notification | null {
   if (typeof window === "undefined" || !("Notification" in window)) return null;
   if (Notification.permission !== "granted") return null;
+  if (!getNotificationPrefs().desktop) return null; // desligado nas preferências
 
   try {
     const n = new Notification(title, {
@@ -71,6 +102,7 @@ function getAudioCtx(): AudioContext | null {
  * Beep curto de notificação. Som suave estilo WhatsApp Web.
  */
 export function playNotificationSound() {
+  if (!getNotificationPrefs().sound) return; // desligado nas preferências
   const ctx = getAudioCtx();
   if (!ctx) return;
 

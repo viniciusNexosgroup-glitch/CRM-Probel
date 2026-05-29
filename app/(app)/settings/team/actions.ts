@@ -4,10 +4,31 @@ import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { isCurrentUserAdmin, getCurrentProfile } from "@/lib/auth/roles";
 import { logAudit } from "@/lib/audit/log";
+import type { Json } from "@/types/database";
 
 type Result<T = void> = { ok: true; data?: T } | { ok: false; error: string };
 
 const ADMIN_ONLY = "Apenas administradores podem gerenciar a equipe.";
+
+export async function saveInviteWelcomeAction(text: string): Promise<Result> {
+  if (!(await isCurrentUserAdmin())) return { ok: false, error: ADMIN_ONLY };
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { error } = await supabase.from("settings").upsert(
+    {
+      key: "invite_welcome",
+      value: { text: text.trim() } as unknown as Json,
+      updated_by: user?.id ?? null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "key" }
+  );
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/settings/team");
+  return { ok: true };
+}
 
 export async function inviteUserAction(
   email: string,

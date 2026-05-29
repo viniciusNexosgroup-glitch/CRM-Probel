@@ -13,7 +13,7 @@ import {
   Clock,
   Award,
 } from "lucide-react";
-import { getDashboardData, formatBRL, SOURCE_LABELS } from "./_lib/metrics";
+import { getDashboardData, formatBRL } from "./_lib/metrics";
 import { KpiCard } from "./_components/kpi-card";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +32,7 @@ function displayLeadName(
 
 export default async function DashboardPage() {
   const data = await getDashboardData();
-  const { kpis, funnel, bySource, stalled, topLeads, recentLeads, attendantRanking } = data;
+  const { kpis, funnel, bySource, sourceLabels, stalled, topLeads, recentLeads, attendantRanking } = data;
 
   const avgRespLabel = (() => {
     if (kpis.avgResponseMinutes == null) return "—";
@@ -224,7 +224,7 @@ export default async function DashboardPage() {
                     <li key={s.source} className="text-xs">
                       <div className="flex justify-between mb-1">
                         <span className="text-wa-textPrimary">
-                          {SOURCE_LABELS[s.source] ?? s.source}
+                          {sourceLabels[s.source] ?? s.source}
                         </span>
                         <span className="text-wa-textSecondary tabular-nums">
                           {s.count} leads · {s.won} ganhos ·{" "}
@@ -280,7 +280,7 @@ export default async function DashboardPage() {
                           {displayLeadName(l)}
                         </p>
                         <p className="text-[11px] text-wa-textSecondary">
-                          {l.source ? SOURCE_LABELS[l.source] ?? l.source : "—"}
+                          {l.source ? sourceLabels[l.source] ?? l.source : "—"}
                         </p>
                       </div>
                       <span className="text-sm text-emerald-400 font-medium tabular-nums">
@@ -381,7 +381,7 @@ export default async function DashboardPage() {
                           {displayLeadName(l)}
                         </p>
                         <p className="text-[11px] text-wa-textSecondary">
-                          {created} · {l.source ? SOURCE_LABELS[l.source] ?? l.source : "—"}
+                          {created} · {l.source ? sourceLabels[l.source] ?? l.source : "—"}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">

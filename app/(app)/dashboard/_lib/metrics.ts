@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
+import { parseLeadSources, sourceLabelMap } from "@/lib/lead-sources";
 
 type LeadRow = Database["public"]["Tables"]["leads"]["Row"];
 type StageRow = Database["public"]["Tables"]["pipeline_stages"]["Row"];
@@ -26,6 +27,7 @@ export type DashboardData = {
     totalValue: number;
   }[];
   bySource: { source: string; count: number; won: number; conversionRate: number; estimatedValue: number }[];
+  sourceLabels: Record<string, string>;
   stalled: {
     count: number;
     items: {
@@ -160,6 +162,14 @@ export async function getDashboardData(): Promise<DashboardData> {
     .order("last_message_at", { ascending: true })
     .limit(100);
 
+  // Labels de origem (customizáveis #25)
+  const { data: srcSetting } = await supabase
+    .from("settings")
+    .select("value")
+    .eq("key", "lead_sources")
+    .maybeSingle();
+  const sourceLabels = sourceLabelMap(parseLeadSources(srcSetting?.value));
+
   const stalled = {
     count: stalledConvs?.length ?? 0,
     items: (stalledConvs ?? []).slice(0, 8).map((c) => {
@@ -289,6 +299,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     },
     funnel,
     bySource,
+    sourceLabels,
     stalled,
     topLeads,
     recentLeads,

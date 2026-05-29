@@ -3,11 +3,10 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { showNotification, playNotificationSound } from "@/lib/notifications";
+import { showNotification, playNotificationSound, getNotificationPrefs } from "@/lib/notifications";
 
 const STORAGE_KEY = "crm-probel:task-notified";
 const POLL_INTERVAL_MS = 60_000;
-const WINDOW_BEFORE_MS = 5 * 60 * 1000; // notifica até 5 min antes
 
 type TaskRow = {
   id: string;
@@ -51,8 +50,10 @@ export function TaskReminderManager() {
 
     async function check() {
       const now = Date.now();
+      const leadMinutes = getNotificationPrefs().taskReminderMinutes; // antecedência configurável
+      const windowBeforeMs = leadMinutes * 60 * 1000;
       const from = new Date(now - 24 * 60 * 60 * 1000).toISOString(); // até 24h atrás (overdue)
-      const to = new Date(now + 60 * 60 * 1000).toISOString(); // até 1h à frente
+      const to = new Date(now + Math.max(60, leadMinutes) * 60 * 1000).toISOString();
 
       const { data } = await supabase
         .from("tasks")
@@ -78,7 +79,7 @@ export function TaskReminderManager() {
         const dueMs = new Date(t.due_at).getTime();
         const diff = dueMs - now;
         const isOverdue = diff < 0;
-        const isImminent = diff > 0 && diff <= WINDOW_BEFORE_MS;
+        const isImminent = diff > 0 && diff <= windowBeforeMs;
 
         if (!isOverdue && !isImminent) continue;
 

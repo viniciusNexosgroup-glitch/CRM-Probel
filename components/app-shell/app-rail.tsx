@@ -18,6 +18,8 @@ import {
   Bot,
   TrendingUp,
   ScrollText,
+  Tag,
+  Bell,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -40,6 +42,8 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/settings/quick-replies", label: "Respostas", icon: Zap },
   { href: "/settings/media-library", label: "M\u00eddias", icon: Library },
   { href: "/settings/business-hours", label: "Hor\u00e1rio", icon: Clock },
+  { href: "/settings/tags", label: "Etiquetas", icon: Tag },
+  { href: "/settings/notifications", label: "Notificações", icon: Bell },
   { href: "/settings/team", label: "Equipe", icon: Users },
   { href: "/settings/audit", label: "Atividade", icon: ScrollText, adminOnly: true },
   { href: "/settings/whatsapp", label: "WhatsApp", icon: Settings },

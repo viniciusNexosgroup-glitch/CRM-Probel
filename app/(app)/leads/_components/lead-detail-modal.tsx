@@ -18,8 +18,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { updateLeadAction, type LeadFormPayload } from "../actions";
-import { LEAD_SOURCES, type LeadWithContact } from "../types";
+import { type LeadWithContact } from "../types";
 import { formatPhone } from "@/lib/format/avatar";
+import { createClient } from "@/lib/supabase/client";
+import { DEFAULT_LEAD_SOURCES, parseLeadSources, type LeadSource } from "@/lib/lead-sources";
 
 export function LeadDetailModal({
   lead,
@@ -32,6 +34,18 @@ export function LeadDetailModal({
 }) {
   const [pending, startTransition] = useTransition();
   const [form, setForm] = useState<LeadFormPayload>({});
+  const [sources, setSources] = useState<LeadSource[]>(DEFAULT_LEAD_SOURCES);
+
+  // Carrega as origens customizadas (#25); cai nos defaults se não houver
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("settings")
+      .select("value")
+      .eq("key", "lead_sources")
+      .maybeSingle()
+      .then(({ data }) => setSources(parseLeadSources(data?.value)));
+  }, []);
 
   useEffect(() => {
     if (!lead) return;
@@ -108,11 +122,15 @@ export function LeadDetailModal({
               onChange={(e) => set("source", e.target.value || null)}
             >
               <option value="">—</option>
-              {LEAD_SOURCES.map((s) => (
+              {sources.map((s) => (
                 <option key={s.value} value={s.value}>
                   {s.label}
                 </option>
               ))}
+              {/* mantém o valor atual visível mesmo se a origem foi removida da lista */}
+              {form.source && !sources.some((s) => s.value === form.source) && (
+                <option value={form.source}>{form.source}</option>
+              )}
             </Select>
           </div>
           <div className="space-y-1.5">

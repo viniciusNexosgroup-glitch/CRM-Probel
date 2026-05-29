@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { TeamList } from "./_components/team-list";
+import { InviteWelcomeEditor } from "./_components/invite-welcome-editor";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,14 @@ export default async function TeamPage() {
 
   const isAdmin = (profiles ?? []).find((p) => p.id === user.id)?.role === "admin";
 
+  const { data: welcomeSetting } = await supabase
+    .from("settings")
+    .select("value")
+    .eq("key", "invite_welcome")
+    .maybeSingle();
+  const inviteWelcome =
+    (welcomeSetting?.value as unknown as { text?: string } | null)?.text ?? "";
+
   return (
     <div className="h-full bg-wa-bg flex flex-col overflow-hidden">
       <header className="h-14 bg-wa-header flex items-center px-4 border-b border-wa-border shrink-0">
@@ -33,6 +42,7 @@ export default async function TeamPage() {
             Gerencie quem tem acesso ao CRM. Atendentes convidados recebem email pra definir senha.
           </p>
           <TeamList profiles={profiles ?? []} currentUserId={user.id} isAdmin={isAdmin} />
+          {isAdmin && <InviteWelcomeEditor initial={inviteWelcome} />}
         </div>
       </div>
     </div>
