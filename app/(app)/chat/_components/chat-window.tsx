@@ -35,6 +35,7 @@ import {
   togglePinnedAction,
   toggleArchivedAction,
 } from "../actions";
+import { MESSAGE_COLUMNS } from "../types";
 import type {
   ConversationWithContact,
   ContactPanelData,
@@ -194,9 +195,14 @@ export function ChatWindow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation.id]);
 
-  // Realtime + polling fallback pra mensagens dessa conversa
+  // Sincroniza com o servidor quando troca de conversa ou chega refresh.
+  // (separado do efeito de realtime pra não recriar o canal a cada refresh)
   useEffect(() => {
     setMessages(initialMessages);
+  }, [initialMessages]);
+
+  // Realtime + polling fallback pra mensagens dessa conversa
+  useEffect(() => {
     const supabase = createClient();
     let mounted = true;
 
@@ -206,12 +212,12 @@ export function ChatWindow({
       }
     });
 
-    // Polling de mensagens dessa conversa a cada 3s (mais responsivo que a sidebar)
+    // Polling de mensagens (fallback do realtime). Sem raw_payload = ~90% mais leve.
     async function pollMessages() {
       if (!mounted) return;
       const { data } = await supabase
         .from("messages")
-        .select("*")
+        .select(MESSAGE_COLUMNS)
         .eq("conversation_id", conversation.id)
         .order("timestamp", { ascending: true })
         .limit(200);
@@ -223,10 +229,10 @@ export function ChatWindow({
           const changed = data.some((d, i) => prev[i]?.status !== d.status);
           if (!changed) return prev;
         }
-        return data as MessageRow[];
+        return data as unknown as MessageRow[];
       });
     }
-    const pollInterval = setInterval(pollMessages, 3000);
+    const pollInterval = setInterval(pollMessages, 6000);
 
     const channel = supabase
       .channel(`crm-messages-${conversation.id}`)
@@ -268,7 +274,7 @@ export function ChatWindow({
       clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
-  }, [conversation.id, initialMessages]);
+  }, [conversation.id]);
 
   // Ao abrir/trocar de conversa: ancora no final imediatamente (como o WhatsApp).
   // Reancora após uns instantes porque imagens/vídeos carregam depois e mudam a altura.

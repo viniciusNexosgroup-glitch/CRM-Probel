@@ -24,7 +24,7 @@ export function KanbanBoard({
 
   // Polling pra refletir leads novos criados pelos webhooks
   useEffect(() => {
-    const id = setInterval(() => router.refresh(), 8000);
+    const id = setInterval(() => router.refresh(), 15000);
     return () => clearInterval(id);
   }, [router]);
 

@@ -3,11 +3,12 @@ import { createClient } from "@/lib/supabase/server";
 import { ConversationList } from "./_components/conversation-list";
 import { ChatWindow } from "./_components/chat-window";
 import { EmptyState } from "./_components/empty-state";
-import type {
-  ConversationWithContact,
-  ContactPanelData,
-  MessageRow,
-  AssigneeProfile,
+import {
+  MESSAGE_COLUMNS,
+  type ConversationWithContact,
+  type ContactPanelData,
+  type MessageRow,
+  type AssigneeProfile,
 } from "./types";
 
 export const dynamic = "force-dynamic";
@@ -132,7 +133,7 @@ async function getMessages(conversationId: string): Promise<MessageRow[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("messages")
-    .select("*")
+    .select(MESSAGE_COLUMNS)
     .eq("conversation_id", conversationId)
     .order("timestamp", { ascending: true })
     .limit(MESSAGES_LIMIT);

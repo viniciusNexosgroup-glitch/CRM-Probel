@@ -85,7 +85,7 @@ export function ConversationList({
 
     const pollInterval = setInterval(() => {
       if (mounted) startTransition(() => router.refresh());
-    }, 5000);
+    }, 12000);
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.access_token && mounted) {

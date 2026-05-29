@@ -1,5 +1,13 @@
 import type { Database } from "@/types/database";
 
+/**
+ * Colunas de `messages` enviadas pro cliente — TODAS exceto `raw_payload`.
+ * O `raw_payload` é um blob de debug (chega a 47KB/linha) que o front nunca usa;
+ * mantê-lo fora dos selects corta ~90% do tráfego de mensagens (banda/lentidão).
+ */
+export const MESSAGE_COLUMNS =
+  "id, conversation_id, instance_id, evolution_message_id, remote_jid, from_me, sender_jid, message_type, content, media_url, media_mimetype, media_filename, media_size, media_caption, thumbnail_url, duration, reply_to_id, status, timestamp, created_at";
+
 export type ConversationRow = Database["public"]["Tables"]["conversations"]["Row"];
 export type ContactRow = Database["public"]["Tables"]["contacts"]["Row"];
 export type MessageRow = Database["public"]["Tables"]["messages"]["Row"];
