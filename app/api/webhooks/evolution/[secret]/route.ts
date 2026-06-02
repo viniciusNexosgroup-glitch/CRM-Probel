@@ -52,6 +52,30 @@ export async function POST(
 
   console.log(`[webhook] event=${event} instance=${instance}`);
 
+  // DEBUG: log de todo webhook recebido — diagnostica mensagens perdidas (#CTWA).
+  // Remover essa tabela e este bloco após resolver. Custo: 1 insert por webhook.
+  const debugLog = async (note: string, remoteJid: string | null = null, size = -1) => {
+    try {
+      const { createServiceClient } = await import("@/lib/supabase/server");
+      const svc = createServiceClient();
+      await (svc.from as unknown as (t: string) => { insert: (v: unknown) => Promise<unknown> })(
+        "webhook_log"
+      ).insert({ event, instance, remote_jid: remoteJid, body_size: size, note: note.slice(0, 500) });
+    } catch {
+      /* não bloqueia */
+    }
+  };
+  try {
+    const size = JSON.stringify(payload).length;
+    const d = payload.data as { key?: { remoteJid?: string }; message?: Record<string, unknown> } | undefined;
+    const remoteJid = d?.key?.remoteJid ?? null;
+    const msgKeys =
+      event === "messages.upsert" ? Object.keys(d?.message ?? {}).join(",") : "";
+    await debugLog(msgKeys, remoteJid, size);
+  } catch {
+    /* não bloqueia */
+  }
+
   try {
     switch (event) {
       case "messages.upsert":
@@ -79,9 +103,12 @@ export async function POST(
         break;
     }
   } catch (err) {
-    console.error(`[webhook] erro processando ${event}:`, (err as Error).message);
+    const errMsg = (err as Error).message;
+    console.error(`[webhook] erro processando ${event}:`, errMsg);
+    // DEBUG: grava erro no webhook_log
+    await debugLog(`ERRO: ${errMsg}`);
     // Retorna 200 mesmo em erro pra Evolution não ficar reenviando indefinidamente.
-    return NextResponse.json({ ok: false, error: (err as Error).message }, { status: 200 });
+    return NextResponse.json({ ok: false, error: errMsg }, { status: 200 });
   }
 
   return NextResponse.json({ ok: true });
