@@ -252,8 +252,26 @@ async function getOrCreateContact(
     })
     .select("id")
     .single();
-  if (error || !created) throw new Error(`Falha ao criar contato: ${error?.message}`);
-  return created.id;
+  if (created) return created.id;
+
+  // Race condition: contacts.upsert paralelo criou o mesmo JID entre nosso
+  // SELECT e INSERT (duplicate key 23505). Re-busca o existente e segue.
+  if (error?.code === "23505") {
+    const { data: raced } = await supabase
+      .from("contacts")
+      .select("id")
+      .eq("instance_id", instanceId)
+      .eq("whatsapp_id", remoteJid)
+      .maybeSingle();
+    if (raced) {
+      await supabase
+        .from("contacts")
+        .update({ last_contact_at: new Date().toISOString() })
+        .eq("id", raced.id);
+      return raced.id;
+    }
+  }
+  throw new Error(`Falha ao criar contato: ${error?.message ?? "sem detalhe"}`);
 }
 
 async function getOrCreateConversation(
@@ -279,8 +297,19 @@ async function getOrCreateConversation(
     })
     .select("id")
     .single();
-  if (error || !created) throw new Error(`Falha ao criar conversa: ${error?.message}`);
-  return { id: created.id, created: true };
+  if (created) return { id: created.id, created: true };
+
+  // Race condition (duplicate key): outro webhook criou a conversa em paralelo
+  if (error?.code === "23505") {
+    const { data: raced } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("instance_id", instanceId)
+      .eq("remote_jid", remoteJid)
+      .maybeSingle();
+    if (raced) return { id: raced.id, created: false };
+  }
+  throw new Error(`Falha ao criar conversa: ${error?.message ?? "sem detalhe"}`);
 }
 
 async function ensureLeadForContact(contactId: string, conversationId: string) {
