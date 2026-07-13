@@ -11,6 +11,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   handleMessagesUpsert,
   handleMessagesUpdate,
+  handleMessagesDelete,
   handleConnectionUpdate,
   handleContactsUpsert,
   handleChatsUpdate,
@@ -83,6 +84,9 @@ export async function POST(
         break;
       case "messages.update":
         await handleMessagesUpdate(instance, payload.data as never);
+        break;
+      case "messages.delete":
+        await handleMessagesDelete(instance, payload.data as never);
         break;
       case "connection.update":
         await handleConnectionUpdate(instance, payload.data as never);

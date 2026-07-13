@@ -726,6 +726,33 @@ export async function handleMessagesUpdate(instanceName: string, data: MessagesU
 }
 
 /**
+ * MESSAGES_DELETE: mensagem apagada (pelo celular, outro device ou via API).
+ * A Evolution manda ou a key "espalhada" ({ remoteJid, fromMe, id }) ou o
+ * objeto completo ({ id: <cuid interno>, key: {...} }). Marcamos is_deleted.
+ */
+export async function handleMessagesDelete(
+  instanceName: string,
+  data: { id?: string; key?: { id?: string } }
+) {
+  const evolutionMessageId = data.key?.id ?? data.id;
+  if (!evolutionMessageId) return;
+
+  const supabase = createServiceClient();
+  const { data: instance } = await supabase
+    .from("whatsapp_instances")
+    .select("id")
+    .eq("instance_name", instanceName)
+    .single();
+  if (!instance) return;
+
+  await supabase
+    .from("messages")
+    .update({ is_deleted: true })
+    .eq("instance_id", instance.id)
+    .eq("evolution_message_id", evolutionMessageId);
+}
+
+/**
  * Quando o usuário lê uma conversa no celular (ou via outro device),
  * o WhatsApp/Evolution dispara `chats.update` com unreadCount: 0.
  * Sincronizamos o nosso banco pra refletir no CRM também (sumir o badge).

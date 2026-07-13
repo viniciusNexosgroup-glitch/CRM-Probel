@@ -9,6 +9,7 @@ type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: strin
 const WEBHOOK_EVENTS = [
   "MESSAGES_UPSERT",
   "MESSAGES_UPDATE",
+  "MESSAGES_DELETE",
   "CONNECTION_UPDATE",
   "QRCODE_UPDATED",
   "CONTACTS_UPSERT",
