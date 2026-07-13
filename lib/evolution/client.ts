@@ -214,6 +214,43 @@ export const evolution = {
   },
 
   /**
+   * Apaga uma mensagem "para todos" (revoke). Só funciona pra mensagens
+   * enviadas por nós (fromMe) e dentro da janela permitida pelo WhatsApp (~2 dias).
+   */
+  async deleteMessageForEveryone(key: {
+    id: string;
+    remoteJid: string;
+    fromMe: boolean;
+    participant?: string;
+  }): Promise<unknown> {
+    const { instanceName } = getConfig();
+    return evoFetch(`/chat/deleteMessageForEveryone/${instanceName}`, {
+      method: "DELETE",
+      body: JSON.stringify(key),
+    });
+  },
+
+  /**
+   * Edita o texto de uma mensagem já enviada.
+   * WhatsApp só permite editar mensagens próprias em até ~15 minutos.
+   */
+  async updateMessage(
+    remoteJid: string,
+    key: { id: string; remoteJid: string; fromMe: boolean },
+    text: string
+  ): Promise<unknown> {
+    const { instanceName } = getConfig();
+    return evoFetch(`/chat/updateMessage/${instanceName}`, {
+      method: "POST",
+      body: JSON.stringify({
+        number: jidToNumber(remoteJid),
+        key,
+        text,
+      }),
+    });
+  },
+
+  /**
    * Envia áudio como push-to-talk (mensagem de voz).
    * Aceita URL pública ou base64. Evolution converte pra OGG Opus se precisar.
    */

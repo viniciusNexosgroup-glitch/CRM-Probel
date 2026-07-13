@@ -194,6 +194,165 @@ export async function sendTextMessageAction(
 }
 
 // ============================================================
+// Editar / apagar mensagem enviada
+// ============================================================
+
+/** Janela do WhatsApp pra editar mensagem própria (~15 min). */
+const EDIT_WINDOW_MS = 15 * 60 * 1000;
+/** Janela do WhatsApp pra apagar "para todos" (~2 dias). */
+const DELETE_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
+
+type EditableMessage = Pick<
+  MessageRow,
+  | "id"
+  | "conversation_id"
+  | "evolution_message_id"
+  | "remote_jid"
+  | "from_me"
+  | "message_type"
+  | "content"
+  | "timestamp"
+  | "is_deleted"
+>;
+
+/**
+ * Busca a mensagem e valida que ela pode ser alterada (é nossa, tem id da
+ * Evolution e não foi apagada). Retorna a row ou o erro amigável.
+ */
+async function getEditableMessage(
+  messageId: string
+): Promise<{ error: string; msg?: never } | { error?: never; msg: EditableMessage }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autenticado" };
+
+  const { data: msg } = await supabase
+    .from("messages")
+    .select(
+      "id, conversation_id, evolution_message_id, remote_jid, from_me, message_type, content, timestamp, is_deleted"
+    )
+    .eq("id", messageId)
+    .single();
+  if (!msg) return { error: "Mensagem não encontrada" };
+  if (!msg.from_me) return { error: "Só é possível alterar mensagens enviadas por você" };
+  if (msg.is_deleted) return { error: "Mensagem já foi apagada" };
+  if (!msg.evolution_message_id)
+    return { error: "Mensagem sem id do WhatsApp (não sincronizada)" };
+  return { msg };
+}
+
+/** Se a mensagem alterada era a última da conversa, atualiza o preview do inbox. */
+async function refreshConversationPreview(
+  service: ReturnType<typeof createServiceClient>,
+  conversationId: string,
+  messageId: string,
+  newPreview: string
+) {
+  const { data: latest } = await service
+    .from("messages")
+    .select("id")
+    .eq("conversation_id", conversationId)
+    .order("timestamp", { ascending: false })
+    .limit(1)
+    .single();
+  if (latest?.id === messageId) {
+    await service
+      .from("conversations")
+      .update({ last_message_text: newPreview })
+      .eq("id", conversationId);
+  }
+}
+
+/**
+ * Apaga uma mensagem enviada "para todos" (no WhatsApp do cliente também).
+ * Marca is_deleted no banco — a bolha vira "Mensagem apagada".
+ */
+export async function deleteMessageAction(messageId: string): Promise<Result> {
+  const res = await getEditableMessage(messageId);
+  if (res.error !== undefined) return { ok: false, error: res.error };
+  const { msg } = res;
+
+  const age = Date.now() - new Date(msg.timestamp).getTime();
+  if (age > DELETE_WINDOW_MS) {
+    return {
+      ok: false,
+      error: "O WhatsApp só permite apagar para todos em até 2 dias após o envio",
+    };
+  }
+
+  try {
+    await evolution.deleteMessageForEveryone({
+      id: msg.evolution_message_id as string,
+      remoteJid: msg.remote_jid,
+      fromMe: true,
+    });
+  } catch (e) {
+    if (e instanceof EvolutionError) return { ok: false, error: e.message };
+    return { ok: false, error: (e as Error).message };
+  }
+
+  const service = createServiceClient();
+  await service.from("messages").update({ is_deleted: true }).eq("id", msg.id);
+  await refreshConversationPreview(service, msg.conversation_id, msg.id, "🚫 Mensagem apagada");
+
+  revalidatePath("/chat");
+  return { ok: true };
+}
+
+/**
+ * Edita o texto de uma mensagem enviada (no WhatsApp do cliente também).
+ * Só mensagens de texto, dentro da janela de ~15 min do WhatsApp.
+ */
+export async function editMessageAction(
+  messageId: string,
+  newText: string
+): Promise<Result> {
+  const trimmed = newText.trim();
+  if (!trimmed) return { ok: false, error: "Mensagem vazia" };
+  if (trimmed.length > 4096) return { ok: false, error: "Mensagem muito longa (max 4096)" };
+
+  const res = await getEditableMessage(messageId);
+  if (res.error !== undefined) return { ok: false, error: res.error };
+  const { msg } = res;
+
+  if (msg.message_type !== "text") {
+    return { ok: false, error: "Só é possível editar mensagens de texto" };
+  }
+  if (trimmed === msg.content) return { ok: true };
+
+  const age = Date.now() - new Date(msg.timestamp).getTime();
+  if (age > EDIT_WINDOW_MS) {
+    return {
+      ok: false,
+      error: "O WhatsApp só permite editar em até 15 minutos após o envio",
+    };
+  }
+
+  try {
+    await evolution.updateMessage(
+      msg.remote_jid,
+      { id: msg.evolution_message_id as string, remoteJid: msg.remote_jid, fromMe: true },
+      trimmed
+    );
+  } catch (e) {
+    if (e instanceof EvolutionError) return { ok: false, error: e.message };
+    return { ok: false, error: (e as Error).message };
+  }
+
+  const service = createServiceClient();
+  await service
+    .from("messages")
+    .update({ content: trimmed, edited_at: new Date().toISOString() })
+    .eq("id", msg.id);
+  await refreshConversationPreview(service, msg.conversation_id, msg.id, trimmed);
+
+  revalidatePath("/chat");
+  return { ok: true };
+}
+
+// ============================================================
 // Contact panel actions (Etapa 12)
 // ============================================================
 

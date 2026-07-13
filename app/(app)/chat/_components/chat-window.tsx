@@ -47,6 +47,7 @@ import type {
   InternalNoteWithAuthor,
 } from "../types";
 import { InternalNoteBubble } from "./internal-note-bubble";
+import { EditMessageDialog, DeleteMessageDialog } from "./message-actions-dialogs";
 import { ViewingIndicator } from "./viewing-indicator";
 import type { Database } from "@/types/database";
 
@@ -185,6 +186,8 @@ export function ChatWindow({
   const [messages, setMessages] = useState<MessageRow[]>(initialMessages);
   const [panelOpen, setPanelOpen] = useState(false);
   const [replyingTo, setReplyingTo] = useState<MessageRow | null>(null);
+  const [editingMsg, setEditingMsg] = useState<MessageRow | null>(null);
+  const [deletingMsg, setDeletingMsg] = useState<MessageRow | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(initialMessages.length >= MESSAGES_PAGE);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -193,6 +196,8 @@ export function ChatWindow({
   useEffect(() => {
     setPanelOpen(false);
     setReplyingTo(null);
+    setEditingMsg(null);
+    setDeletingMsg(null);
   }, [conversation.id]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -510,7 +515,13 @@ export function ChatWindow({
                         highlightId === `msg-${m.id}` && "bg-amber-400/15 ring-2 ring-amber-400/50"
                       )}
                     >
-                      <MessageBubble msg={m} quotedMessage={quoted} onReply={setReplyingTo} />
+                      <MessageBubble
+                        msg={m}
+                        quotedMessage={quoted}
+                        onReply={setReplyingTo}
+                        onEdit={setEditingMsg}
+                        onDelete={setDeletingMsg}
+                      />
                     </div>
                   </div>
                 );
@@ -551,6 +562,28 @@ export function ChatWindow({
       {panelOpen && panelData && (
         <ContactPanel data={panelData} onClose={() => setPanelOpen(false)} />
       )}
+      <EditMessageDialog
+        message={editingMsg}
+        onClose={() => setEditingMsg(null)}
+        onEdited={(id, newText) =>
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === id
+                ? { ...m, content: newText, edited_at: new Date().toISOString() }
+                : m
+            )
+          )
+        }
+      />
+      <DeleteMessageDialog
+        message={deletingMsg}
+        onClose={() => setDeletingMsg(null)}
+        onDeleted={(id) =>
+          setMessages((prev) =>
+            prev.map((m) => (m.id === id ? { ...m, is_deleted: true } : m))
+          )
+        }
+      />
     </div>
   );
 }

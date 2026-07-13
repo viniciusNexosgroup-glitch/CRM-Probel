@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CheckCheck, Clock, AlertTriangle, FileText, Mic, Image as ImageIcon, Video, Reply, Forward, Ban } from "lucide-react";
+import { Check, CheckCheck, Clock, AlertTriangle, FileText, Mic, Image as ImageIcon, Video, Reply, Forward, Ban, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTime } from "@/lib/format/date";
 import type { MessageRow } from "../types";
@@ -188,14 +188,21 @@ export function MessageBubble({
   quotedMessage,
   onReply,
   onForward,
+  onEdit,
+  onDelete,
 }: {
   msg: MessageRow;
   quotedMessage?: MessageRow | null;
   onReply?: (msg: MessageRow) => void;
   onForward?: (msg: MessageRow) => void;
+  onEdit?: (msg: MessageRow) => void;
+  onDelete?: (msg: MessageRow) => void;
 }) {
   const fromMe = msg.from_me;
   const isMedia = msg.message_type !== "text" && msg.message_type !== "reaction";
+  // Editar: só texto próprio não-apagado. Apagar: qualquer msg própria não-apagada.
+  const canEdit = fromMe && !msg.is_deleted && msg.message_type === "text" && !!onEdit;
+  const canDelete = fromMe && !msg.is_deleted && !!onDelete;
 
   return (
     <div
@@ -280,7 +287,7 @@ export function MessageBubble({
           {fromMe && <StatusIcon status={msg.status} />}
         </div>
       </div>
-      {fromMe && (onReply || onForward) && (
+      {fromMe && (onReply || onForward || canEdit || canDelete) && (
         <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 order-3 transition-opacity">
           {onReply && (
             <button
@@ -300,6 +307,26 @@ export function MessageBubble({
               aria-label="Encaminhar"
             >
               <Forward className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {canEdit && (
+            <button
+              onClick={() => onEdit!(msg)}
+              className="p-1.5 rounded-full bg-wa-panel hover:bg-wa-hover text-wa-textSecondary"
+              title="Editar"
+              aria-label="Editar"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={() => onDelete!(msg)}
+              className="p-1.5 rounded-full bg-wa-panel hover:bg-wa-hover text-wa-textSecondary hover:text-red-400"
+              title="Apagar para todos"
+              aria-label="Apagar para todos"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
