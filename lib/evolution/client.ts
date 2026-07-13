@@ -214,6 +214,32 @@ export const evolution = {
   },
 
   /**
+   * Resolve o JID canônico de um número individual via onWhatsApp check.
+   * Números BR têm alias com/sem o nono dígito (5534 9 9143... vs 5534 9143...);
+   * delete/edit exigem o JID exato da conta — com o alias errado o WhatsApp
+   * ignora o revoke/edit silenciosamente (a Evolution ainda retorna 201).
+   * Em caso de falha na consulta, retorna o JID original (best-effort).
+   */
+  async resolveCanonicalJid(remoteJid: string): Promise<string> {
+    if (remoteJid.endsWith("@g.us")) return remoteJid;
+    const { instanceName } = getConfig();
+    try {
+      const res = await evoFetch<Array<{ exists: boolean; jid?: string }>>(
+        `/chat/whatsappNumbers/${instanceName}`,
+        {
+          method: "POST",
+          body: JSON.stringify({ numbers: [jidToNumber(remoteJid)] }),
+        }
+      );
+      const hit = res?.[0];
+      return hit?.exists && hit.jid ? hit.jid : remoteJid;
+    } catch (e) {
+      console.warn("[resolveCanonicalJid] falhou:", e instanceof Error ? e.message : e);
+      return remoteJid;
+    }
+  },
+
+  /**
    * Apaga uma mensagem "para todos" (revoke). Só funciona pra mensagens
    * enviadas por nós (fromMe) e dentro da janela permitida pelo WhatsApp (~2 dias).
    */

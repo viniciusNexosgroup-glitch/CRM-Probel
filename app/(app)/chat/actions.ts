@@ -283,9 +283,12 @@ export async function deleteMessageAction(messageId: string): Promise<Result> {
   }
 
   try {
+    // JID canônico: números BR podem estar salvos com o nono dígito enquanto a
+    // conta real usa o formato antigo — com o alias errado o revoke não propaga.
+    const canonicalJid = await evolution.resolveCanonicalJid(msg.remote_jid);
     await evolution.deleteMessageForEveryone({
       id: msg.evolution_message_id as string,
-      remoteJid: msg.remote_jid,
+      remoteJid: canonicalJid,
       fromMe: true,
     });
   } catch (e) {
@@ -331,9 +334,11 @@ export async function editMessageAction(
   }
 
   try {
+    // Mesmo motivo do delete: o edit precisa do JID canônico da conta.
+    const canonicalJid = await evolution.resolveCanonicalJid(msg.remote_jid);
     await evolution.updateMessage(
-      msg.remote_jid,
-      { id: msg.evolution_message_id as string, remoteJid: msg.remote_jid, fromMe: true },
+      canonicalJid,
+      { id: msg.evolution_message_id as string, remoteJid: canonicalJid, fromMe: true },
       trimmed
     );
   } catch (e) {
