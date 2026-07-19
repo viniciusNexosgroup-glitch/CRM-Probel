@@ -16,7 +16,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const RETENTION_DAYS = 30;
+const RETENTION_DAYS = 5;
 const STORAGE_MARKER = "/object/public/contact-media/";
 
 async function authorize(request: NextRequest) {
