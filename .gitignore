@@ -9,6 +9,12 @@ out
 CREDENTIALS.md
 credentials.md
 .credentials.md
+
+# Dumps de auditoria/recuperação — contêm dados de clientes (PII), NUNCA comitar
+.audit-missing.json
+.recovery-evolution.json
+.recovery-filtered.json
+.recovery-missing.json
 .DS_Store
 *.log
 .vercel

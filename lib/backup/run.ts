@@ -1,6 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/server";
 
-// Backup diário dos dados de CRM em JSON no Storage (retenção 30 dias).
+// Backup diário dos dados de CRM em JSON no Storage (retenção 14 dias).
 // NÃO inclui `messages` (volumoso e recuperável via WhatsApp/Evolution).
 const BACKUP_TABLES = [
   "leads",
@@ -19,7 +19,7 @@ const BACKUP_TABLES = [
   "profiles",
 ];
 
-const RETENTION_DAYS = 30;
+const RETENTION_DAYS = 14;
 const BUCKET = "contact-media";
 const PREFIX = "backups";
 

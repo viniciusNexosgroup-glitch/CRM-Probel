@@ -1,9 +1,12 @@
 /**
- * Cron de retenção de mídia: apaga do Storage as mídias RECEBIDAS com mais de
+ * Cron de retenção de mídia: apaga do Storage as mídias de CONVERSA com mais de
  * RETENTION_DAYS dias e zera a media_url da mensagem (a UI passa a mostrar um
  * placeholder no lugar). Mantém o Storage longe do limite de 1GB do plano grátis.
  *
- * Só mexe em `received/` — mídia enviada (adhoc) e biblioteca não são tocadas.
+ * Cobre toda mídia do bucket `contact-media` referenciada por mensagens:
+ * `received/` (recebida), `audio/` (nota de voz enviada) e `adhoc/` (arquivo enviado).
+ * NÃO toca no bucket `media-library` (biblioteca reutilizável) nem em `backups/`
+ * (que tem retenção própria em lib/backup/run.ts e não é referenciado por mensagens).
  *
  * Auth: header `Authorization: Bearer <CRON_SECRET>` (a Vercel injeta isso
  * automaticamente nos crons quando CRON_SECRET está definido).
@@ -35,7 +38,7 @@ async function cleanupMedia() {
     .from("messages")
     .select("id, media_url")
     .lt("timestamp", cutoff)
-    .like("media_url", `%${STORAGE_MARKER}received/%`)
+    .like("media_url", `%${STORAGE_MARKER}%`)
     .limit(2000);
 
   if (error) return { deleted: 0, error: error.message };
