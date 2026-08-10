@@ -50,7 +50,7 @@ async function getConversationById(id: string): Promise<ConversationWithContact 
 
 async function getContactPanelData(contactId: string): Promise<ContactPanelData | null> {
   const supabase = await createClient();
-  const [contactRes, leadRes, allTagsRes, allStagesRes] = await Promise.all([
+  const [contactRes, leadRes, allTagsRes] = await Promise.all([
     supabase.from("contacts").select("*").eq("id", contactId).single(),
     supabase
       .from("leads")
@@ -58,11 +58,22 @@ async function getContactPanelData(contactId: string): Promise<ContactPanelData 
       .eq("contact_id", contactId)
       .maybeSingle(),
     supabase.from("tags").select("*").order("name", { ascending: true }),
-    supabase.from("pipeline_stages").select("*").order("position", { ascending: true }),
   ]);
 
   if (contactRes.error || !contactRes.data) return null;
   const lead = leadRes.data ?? null;
+
+  // Estágios do DONO do lead (funil individual); sem dono => board "Sem vendedor".
+  const stageOwnerId = (lead as { assigned_to?: string | null } | null)?.assigned_to ?? null;
+  let stagesQuery = supabase
+    .from("pipeline_stages")
+    .select("*")
+    .order("position", { ascending: true });
+  stagesQuery =
+    stageOwnerId === null
+      ? stagesQuery.is("user_id", null)
+      : stagesQuery.eq("user_id", stageOwnerId);
+  const allStagesRes = await stagesQuery;
 
   const tasksRes = await supabase
     .from("tasks")

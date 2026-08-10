@@ -8,12 +8,20 @@ import { LeadDetailModal } from "./lead-detail-modal";
 import { updateLeadStageAction } from "../actions";
 import type { LeadWithContact, PipelineStageRow } from "../types";
 
+type Board = { value: string; label: string; ownerId: string | null };
+
 export function KanbanBoard({
   stages,
   leads: initialLeads,
+  isAdmin = false,
+  boards = [],
+  selectedValue,
 }: {
   stages: PipelineStageRow[];
   leads: LeadWithContact[];
+  isAdmin?: boolean;
+  boards?: Board[];
+  selectedValue?: string;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -64,23 +72,45 @@ export function KanbanBoard({
   }
 
   return (
-    <>
-      <div className="flex gap-3 overflow-x-auto wa-scroll pb-3 h-full">
-        {stages.map((s) => (
-          <KanbanColumn
-            key={s.id}
-            stage={s}
-            leads={byStage.get(s.id) ?? []}
-            onDropLead={onDropLead}
-            onClickLead={setSelected}
-          />
-        ))}
+    <div className="h-full flex flex-col">
+      {isAdmin && boards.length > 0 && (
+        <div className="flex items-center gap-2 pb-2 shrink-0">
+          <span className="text-xs text-wa-textSecondary">Funil de:</span>
+          <select
+            value={selectedValue}
+            onChange={(e) => router.push(`/leads?board=${e.target.value}`)}
+            className="h-8 text-xs rounded-md bg-wa-panel border border-wa-border px-2 text-wa-textPrimary focus:outline-none focus:border-primary/40"
+          >
+            {boards.map((b) => (
+              <option key={b.value} value={b.value}>
+                {b.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      <div className="flex gap-3 overflow-x-auto wa-scroll pb-3 flex-1 min-h-0">
+        {stages.length === 0 ? (
+          <div className="text-sm text-wa-textSecondary p-4">
+            Nenhuma coluna neste funil ainda.
+          </div>
+        ) : (
+          stages.map((s) => (
+            <KanbanColumn
+              key={s.id}
+              stage={s}
+              leads={byStage.get(s.id) ?? []}
+              onDropLead={onDropLead}
+              onClickLead={setSelected}
+            />
+          ))
+        )}
       </div>
       <LeadDetailModal
         lead={selected}
         open={!!selected}
         onClose={() => setSelected(null)}
       />
-    </>
+    </div>
   );
 }

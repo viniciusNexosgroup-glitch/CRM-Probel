@@ -1193,6 +1193,7 @@ export async function startConversationAction(
     const { data: stage } = await service
       .from("pipeline_stages")
       .select("id")
+      .is("user_id", null)
       .order("position", { ascending: true })
       .limit(1)
       .single();

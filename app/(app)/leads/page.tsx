@@ -1,22 +1,25 @@
 import { KanbanSquare } from "lucide-react";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentProfile } from "@/lib/auth/roles";
 import { KanbanBoard } from "./_components/kanban-board";
 import type { LeadWithContact, PipelineStageRow } from "./types";
 
 export const dynamic = "force-dynamic";
 
-async function getStages(): Promise<PipelineStageRow[]> {
+type Board = { value: string; label: string; ownerId: string | null };
+
+async function getStages(ownerId: string | null): Promise<PipelineStageRow[]> {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("pipeline_stages")
-    .select("*")
-    .order("position", { ascending: true });
+  let q = supabase.from("pipeline_stages").select("*").order("position", { ascending: true });
+  q = ownerId === null ? q.is("user_id", null) : q.eq("user_id", ownerId);
+  const { data } = await q;
   return data ?? [];
 }
 
-async function getLeads(): Promise<LeadWithContact[]> {
+async function getLeads(ownerId: string | null): Promise<LeadWithContact[]> {
   const supabase = await createClient();
-  const { data } = await supabase
+  let q = supabase
     .from("leads")
     .select(
       `
@@ -27,11 +30,50 @@ async function getLeads(): Promise<LeadWithContact[]> {
     `
     )
     .order("updated_at", { ascending: false });
+  q = ownerId === null ? q.is("assigned_to", null) : q.eq("assigned_to", ownerId);
+  const { data } = await q;
   return (data ?? []) as unknown as LeadWithContact[];
 }
 
-export default async function LeadsPage() {
-  const [stages, leads] = await Promise.all([getStages(), getLeads()]);
+export default async function LeadsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ board?: string }>;
+}) {
+  const supabase = await createClient();
+  const profile = await getCurrentProfile();
+  if (!profile) redirect("/login");
+  const isAdmin = profile.role === "admin";
+
+  let boards: Board[];
+  if (isAdmin) {
+    const { data: users } = await supabase
+      .from("profiles")
+      .select("id, full_name, email")
+      .order("full_name", { ascending: true });
+    boards = [
+      ...(users ?? []).map((u) => ({
+        value: u.id,
+        label: (u.full_name ?? u.email ?? "Usuário") + (u.id === profile.id ? " (você)" : ""),
+        ownerId: u.id as string | null,
+      })),
+      { value: "none", label: "Sem vendedor", ownerId: null },
+    ];
+  } else {
+    boards = [{ value: profile.id, label: "Meu funil", ownerId: profile.id }];
+  }
+
+  const sp = await searchParams;
+  const selectedValue =
+    boards.find((b) => b.value === sp.board)?.value ??
+    boards.find((b) => b.ownerId === profile.id)?.value ??
+    boards[0].value;
+  const selectedOwnerId = boards.find((b) => b.value === selectedValue)!.ownerId;
+
+  const [stages, leads] = await Promise.all([
+    getStages(selectedOwnerId),
+    getLeads(selectedOwnerId),
+  ]);
 
   return (
     <div className="h-full bg-wa-bg flex flex-col">
@@ -47,7 +89,13 @@ export default async function LeadsPage() {
       </header>
 
       <div className="flex-1 overflow-hidden px-3 pt-3">
-        <KanbanBoard stages={stages} leads={leads} />
+        <KanbanBoard
+          stages={stages}
+          leads={leads}
+          isAdmin={isAdmin}
+          boards={boards}
+          selectedValue={selectedValue}
+        />
       </div>
     </div>
   );

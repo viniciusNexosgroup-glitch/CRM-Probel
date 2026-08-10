@@ -321,10 +321,12 @@ async function ensureLeadForContact(contactId: string, conversationId: string) {
     .maybeSingle();
   if (existing) return existing.id;
 
-  // Pega o primeiro stage do pipeline (Novo Lead)
+  // Primeiro stage do board "Sem vendedor" (user_id null) — leads novos nascem sem dono.
+  // Ao serem atribuídos (SalesBot/manual), o trigger move pro board do dono.
   const { data: stage } = await supabase
     .from("pipeline_stages")
     .select("id")
+    .is("user_id", null)
     .order("position", { ascending: true })
     .limit(1)
     .single();

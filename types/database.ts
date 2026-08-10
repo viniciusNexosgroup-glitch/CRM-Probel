@@ -377,6 +377,7 @@ export type Database = {
       pipeline_stages: {
         Row: {
           id: string;
+          user_id: string | null;
           name: string;
           position: number;
           color: string;
@@ -387,6 +388,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
+          user_id?: string | null;
           name: string;
           position: number;
           color?: string;
@@ -397,6 +399,7 @@ export type Database = {
         };
         Update: {
           id?: string;
+          user_id?: string | null;
           name?: string;
           position?: number;
           color?: string;

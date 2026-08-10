@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -31,13 +31,29 @@ const COLORS = [
   "#f59e0b", "#10b981", "#ef4444", "#6b7280",
 ];
 
-export function StagesEditor({ initial }: { initial: Stage[] }) {
+type Board = { value: string; label: string; ownerId: string | null };
+
+export function StagesEditor({
+  initial,
+  isAdmin = false,
+  boards = [],
+  selectedValue,
+  targetOwnerId = null,
+}: {
+  initial: Stage[];
+  isAdmin?: boolean;
+  boards?: Board[];
+  selectedValue?: string;
+  targetOwnerId?: string | null;
+}) {
   const router = useRouter();
   const [stages, setStages] = useState(initial);
   const [, startTransition] = useTransition();
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(COLORS[0]);
   const [pendingId, setPendingId] = useState<string | null>(null);
+
+  useEffect(() => setStages(initial), [initial]);
 
   function setField(id: string, key: keyof Stage, value: unknown) {
     setStages((arr) => arr.map((s) => (s.id === id ? { ...s, [key]: value } : s)));
@@ -65,7 +81,7 @@ export function StagesEditor({ initial }: { initial: Stage[] }) {
   function onCreate() {
     if (!newName.trim()) return;
     startTransition(async () => {
-      const res = await createStageAction(newName, newColor);
+      const res = await createStageAction(newName, newColor, targetOwnerId);
       if (res.ok) {
         toast.success("Estágio criado");
         setNewName("");
@@ -111,6 +127,24 @@ export function StagesEditor({ initial }: { initial: Stage[] }) {
 
   return (
     <div className="space-y-4">
+      {/* Seletor de board (admin) */}
+      {isAdmin && boards.length > 0 && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-wa-textSecondary">Funil de:</span>
+          <select
+            value={selectedValue}
+            onChange={(e) => router.push(`/settings/pipeline?board=${e.target.value}`)}
+            className="h-8 text-xs rounded-md bg-wa-panel border border-wa-border px-2 text-wa-textPrimary focus:outline-none focus:border-primary/40"
+          >
+            {boards.map((b) => (
+              <option key={b.value} value={b.value}>
+                {b.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Lista */}
       <div className="space-y-2">
         {stages.map((s, i) => {

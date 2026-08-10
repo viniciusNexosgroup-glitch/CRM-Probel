@@ -116,20 +116,26 @@ export async function getDashboardData(): Promise<DashboardData> {
     (c) => (c.unread_count ?? 0) > 0
   ).length;
 
-  // Funnel
-  const funnel = stages.map((stage) => {
+  // Funnel — agrega por NOME do estágio. Com estágios por vendedor, o admin vê o
+  // funil somado de todos os boards; o vendedor vê o próprio (nomes já únicos).
+  const funnelMap = new Map<string, { stage: StageRow; count: number; totalValue: number }>();
+  for (const stage of stages) {
     const inStage = leads.filter((l) => l.stage_id === stage.id);
-    return {
-      stage,
-      count: inStage.length,
-      totalValue: inStage.reduce((s, l) => {
-        const v = stage.is_won
-          ? Number(l.closed_value ?? l.estimated_value ?? 0)
-          : Number(l.estimated_value ?? 0);
-        return s + v;
-      }, 0),
-    };
-  });
+    const value = inStage.reduce((s, l) => {
+      const v = stage.is_won
+        ? Number(l.closed_value ?? l.estimated_value ?? 0)
+        : Number(l.estimated_value ?? 0);
+      return s + v;
+    }, 0);
+    const existing = funnelMap.get(stage.name);
+    if (existing) {
+      existing.count += inStage.length;
+      existing.totalValue += value;
+    } else {
+      funnelMap.set(stage.name, { stage, count: inStage.length, totalValue: value });
+    }
+  }
+  const funnel = [...funnelMap.values()];
 
   // By source (com conversão: quantos viraram Ganho)
   const sourceMap = new Map<string, { count: number; won: number; estimatedValue: number }>();
