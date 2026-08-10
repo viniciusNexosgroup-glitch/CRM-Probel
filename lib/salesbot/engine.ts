@@ -206,6 +206,26 @@ async function resolveAutomaticAssignee(
   const candidateIds = (profiles as Array<{ id: string }>).map((profile) => profile.id);
   const strategy = textValue(config.distribution_strategy) || "least_active";
 
+  // Rodízio real: alterna os NOVOS leads entre os vendedores ignorando o volume
+  // histórico — leva o próximo quem recebeu há mais tempo (ou nunca). Assim a
+  // distribuição fica ~50/50 mesmo com um vendedor cheio de leads antigos.
+  if (strategy === "round_robin") {
+    const { data: recent } = await db
+      .from("leads")
+      .select("assigned_to, created_at")
+      .in("assigned_to", candidateIds)
+      .order("created_at", { ascending: false });
+    const lastAt = new Map<string, string>();
+    for (const lead of (recent ?? []) as Array<{ assigned_to?: string | null; created_at?: string | null }>) {
+      if (lead.assigned_to && !lastAt.has(lead.assigned_to)) lastAt.set(lead.assigned_to, lead.created_at ?? "");
+    }
+    return (
+      [...candidateIds].sort(
+        (a, b) => (lastAt.get(a) ?? "").localeCompare(lastAt.get(b) ?? "") || a.localeCompare(b)
+      )[0] ?? null
+    );
+  }
+
   const { data: leads } = await db
     .from("leads")
     .select("assigned_to, status")
