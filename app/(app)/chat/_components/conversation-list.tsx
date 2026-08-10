@@ -47,10 +47,14 @@ export function ConversationList({
   initial,
   allTags,
   currentUserId,
+  isAdmin = false,
+  assignees = [],
 }: {
   initial: ConversationWithContact[];
   allTags: TagRow[];
   currentUserId?: string;
+  isAdmin?: boolean;
+  assignees?: { id: string; full_name: string | null; email: string | null }[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -63,6 +67,8 @@ export function ConversationList({
   const [filter, setFilter] = useState<QuickFilter>("all");
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState<string | null>(null);
+  const [assigneeDropdownOpen, setAssigneeDropdownOpen] = useState(false);
   const [newConvOpen, setNewConvOpen] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
 
@@ -175,6 +181,17 @@ export function ConversationList({
     return () => document.removeEventListener("mousedown", onClick);
   }, [tagDropdownOpen]);
 
+  // Fecha dropdown de vendedor ao clicar fora
+  useEffect(() => {
+    if (!assigneeDropdownOpen) return;
+    function onClick(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-assignee-dropdown]")) setAssigneeDropdownOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [assigneeDropdownOpen]);
+
   const filtered = useMemo(() => {
     const list = conversations.filter((c) => {
       // Arquivadas: aparecem só com filtro 'archived'
@@ -185,6 +202,7 @@ export function ConversationList({
       }
 
       if (filter === "mine" && c.assigned_user?.id !== currentUserId) return false;
+      if (selectedAssigneeId && c.assigned_user?.id !== selectedAssigneeId) return false;
       if (filter === "unread" && c.unread_count <= 0) return false;
       if (filter === "favorites" && !c.contact.is_favorite) return false;
       if (filter === "groups" && !c.contact.is_group) return false;
@@ -211,7 +229,7 @@ export function ConversationList({
       const tb = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
       return tb - ta;
     });
-  }, [conversations, query, filter, selectedTagId, currentUserId]);
+  }, [conversations, query, filter, selectedTagId, selectedAssigneeId, currentUserId]);
 
   function hrefForConversation(id: string) {
     const sp = new URLSearchParams(searchParams.toString());
@@ -349,6 +367,63 @@ export function ConversationList({
               </div>
             )}
           </div>
+
+          {/* Dropdown de vendedor (só admin) — filtra atendimentos por vendedor */}
+          {isAdmin && assignees.length > 0 && (
+            <div data-assignee-dropdown className="relative">
+              <button
+                onClick={() => setAssigneeDropdownOpen((o) => !o)}
+                className={cn(
+                  "inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border transition-colors",
+                  selectedAssigneeId
+                    ? "bg-primary/15 text-primary border-primary/40 font-medium"
+                    : "border-wa-border text-wa-textSecondary hover:bg-wa-hover hover:text-wa-textPrimary"
+                )}
+              >
+                <UserCircle2 className="h-3 w-3" />
+                {selectedAssigneeId
+                  ? assignees.find((a) => a.id === selectedAssigneeId)?.full_name ??
+                    assignees.find((a) => a.id === selectedAssigneeId)?.email ??
+                    "Vendedor"
+                  : "Vendedor"}
+                {selectedAssigneeId ? (
+                  <X
+                    className="h-3 w-3 ml-0.5 hover:opacity-70"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedAssigneeId(null);
+                      setAssigneeDropdownOpen(false);
+                    }}
+                  />
+                ) : (
+                  <ChevronDown className="h-3 w-3" />
+                )}
+              </button>
+
+              {assigneeDropdownOpen && (
+                <div className="absolute top-full left-0 mt-1 min-w-48 max-h-64 overflow-y-auto wa-scroll bg-wa-panel border border-wa-border rounded-lg shadow-lg z-50 py-1">
+                  {assignees.map((a) => (
+                    <button
+                      key={a.id}
+                      onClick={() => {
+                        setSelectedAssigneeId(a.id === selectedAssigneeId ? null : a.id);
+                        setAssigneeDropdownOpen(false);
+                      }}
+                      className={cn(
+                        "w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-wa-hover text-left",
+                        a.id === selectedAssigneeId && "bg-wa-active"
+                      )}
+                    >
+                      <span className="w-5 h-5 rounded-full bg-primary/20 text-primary text-[9px] font-bold flex items-center justify-center shrink-0">
+                        {getInitials(a.full_name ?? a.email ?? "?").slice(0, 2)}
+                      </span>
+                      <span className="text-wa-textPrimary truncate">{a.full_name ?? a.email}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

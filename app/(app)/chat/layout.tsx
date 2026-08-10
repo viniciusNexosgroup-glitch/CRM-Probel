@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentProfile } from "@/lib/auth/roles";
 import { ConversationList } from "./_components/conversation-list";
 import type { ConversationWithContact } from "./types";
 
@@ -40,23 +41,39 @@ async function getAllTags() {
   return data ?? [];
 }
 
+async function getAssignees() {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, full_name, email")
+    .order("full_name", { ascending: true });
+  return (data ?? []) as { id: string; full_name: string | null; email: string | null }[];
+}
+
 /**
  * Layout do chat: a lista de conversas vive aqui (não na page) pra NÃO ser
  * re-buscada a cada troca de conversa (mudança do ?c=). O Next mantém o layout
  * montado entre navegações; só a page (painel da conversa) recarrega.
  */
 export default async function ChatLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const profile = await getCurrentProfile();
+  if (!profile) redirect("/login");
 
-  const [conversations, allTags] = await Promise.all([getConversations(), getAllTags()]);
+  const [conversations, allTags, assignees] = await Promise.all([
+    getConversations(),
+    getAllTags(),
+    getAssignees(),
+  ]);
 
   return (
     <div className="h-full flex bg-wa-bg overflow-hidden">
-      <ConversationList initial={conversations} allTags={allTags} currentUserId={user.id} />
+      <ConversationList
+        initial={conversations}
+        allTags={allTags}
+        currentUserId={profile.id}
+        isAdmin={profile.role === "admin"}
+        assignees={assignees}
+      />
       {children}
     </div>
   );
