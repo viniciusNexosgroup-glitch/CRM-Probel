@@ -584,6 +584,12 @@ export async function assignConversationAction(
     .eq("id", conversationId);
   if (error) return { ok: false, error: error.message };
 
+  // Transfere o LEAD junto pro novo vendedor — o trigger sync_lead_stage_to_owner
+  // leva o lead pro funil (board) do novo dono. Service client porque a transferência
+  // entre vendedores já está autorizada pela atualização da conversa acima (RLS).
+  const service = createServiceClient();
+  await service.from("leads").update({ assigned_to: userId }).eq("conversation_id", conversationId);
+
   const actor = await getCurrentProfile();
   let targetName = "ninguém (removeu atribuição)";
   if (userId) {
@@ -604,6 +610,7 @@ export async function assignConversationAction(
   });
 
   revalidatePath("/chat");
+  revalidatePath("/leads");
   return { ok: true };
 }
 
