@@ -67,6 +67,9 @@ export interface MessagesUpsertData {
   messageTimestamp: number;
   instanceId: string;
   source?: string;
+  // Irmão de `message` (não filho!) — é onde a Evolution manda os dados de
+  // anúncio CTWA (externalAdReply, ctwaClid, etc.) quando a msg veio de anúncio.
+  contextInfo?: unknown;
 }
 
 export interface MessagesUpdateData {

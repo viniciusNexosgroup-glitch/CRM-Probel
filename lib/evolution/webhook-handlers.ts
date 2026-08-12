@@ -319,9 +319,10 @@ type AdReferral = {
   sourceUrl: string | null;
 };
 
-// Extrai os dados do anúncio Click-to-WhatsApp (externalAdReply) do payload da
-// mensagem — procura em qualquer profundidade (contextInfo varia por tipo).
-function extractAdReferral(msg: unknown): AdReferral | null {
+// Extrai os dados do anúncio Click-to-WhatsApp (externalAdReply). A Evolution
+// manda esses dados em `data.contextInfo` — IRMÃO de `data.message`, não filho —
+// então recebe o payload inteiro do webhook e procura em qualquer profundidade.
+function extractAdReferral(payload: unknown): AdReferral | null {
   function findAdReply(o: unknown, depth: number): Record<string, unknown> | null {
     if (!o || typeof o !== "object" || depth > 6) return null;
     const rec = o as Record<string, unknown>;
@@ -334,7 +335,7 @@ function extractAdReferral(msg: unknown): AdReferral | null {
     }
     return null;
   }
-  const ad = findAdReply(msg, 0);
+  const ad = findAdReply(payload, 0);
   if (!ad) return null;
   const str = (v: unknown) => (typeof v === "string" && v ? v : null);
   return {
@@ -518,7 +519,7 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
   const leadId = await ensureLeadForContact(
     contactId,
     conversationId,
-    extractAdReferral(data.message)
+    extractAdReferral(data)
   );
 
   const extracted = extractMessageContent(data.message);
