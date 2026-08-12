@@ -5,6 +5,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { evolution, EvolutionError } from "@/lib/evolution/client";
 import { getCurrentProfile } from "@/lib/auth/roles";
 import { logAudit } from "@/lib/audit/log";
+import { sendCtwaConversion } from "@/lib/meta/capi";
 import { MESSAGE_COLUMNS, type MessageRow } from "./types";
 
 type Result<T = void> = { ok: true; data?: T } | { ok: false; error: string };
@@ -621,6 +622,61 @@ export async function assignToMeAction(conversationId: string): Promise<Result> 
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Não autenticado" };
   return assignConversationAction(conversationId, user.id);
+}
+
+/**
+ * Marca o lead como qualificado/desqualificado. Ao QUALIFICAR, envia a conversão
+ * pro Meta (CAPI) atribuída ao clique do anúncio — otimizando a campanha por
+ * leads bons. No-op no Meta se ainda não estiver configurado.
+ */
+export async function setLeadQualificationAction(
+  leadId: string,
+  qualification: "qualified" | "disqualified"
+): Promise<Result> {
+  const supabase = await createClient();
+  const profile = await getCurrentProfile();
+
+  const service = createServiceClient();
+  const { data: lead } = await service
+    .from("leads")
+    .select("id, ctwa_clid, phone")
+    .eq("id", leadId)
+    .maybeSingle();
+
+  const { error } = await supabase
+    .from("leads")
+    .update({
+      qualification,
+      qualified_at: new Date().toISOString(),
+      qualified_by: profile?.id ?? null,
+    })
+    .eq("id", leadId);
+  if (error) return { ok: false, error: error.message };
+
+  await logAudit({
+    actorId: profile?.id ?? null,
+    action: "lead_qualification",
+    entityType: "lead",
+    entityId: leadId,
+    summary: `${profile?.full_name ?? profile?.email ?? "Alguém"} marcou o lead como ${
+      qualification === "qualified" ? "Qualificado" : "Desqualificado"
+    }`,
+    meta: { qualification },
+  });
+
+  // Só o evento positivo alimenta a otimização (Meta aprende com os leads bons).
+  if (qualification === "qualified") {
+    const r = await sendCtwaConversion({
+      ctwaClid: lead?.ctwa_clid ?? null,
+      phone: lead?.phone ?? null,
+      eventId: `qualified_${leadId}`,
+    });
+    if (!r.ok && !r.skipped) console.warn("[capi] falha ao enviar conversão:", r.error);
+  }
+
+  revalidatePath("/chat");
+  revalidatePath("/leads");
+  return { ok: true };
 }
 
 export async function deleteTaskAction(taskId: string): Promise<Result> {

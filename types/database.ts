@@ -435,6 +435,11 @@ export type Database = {
           next_action_at: string | null;
           last_contact_at: string | null;
           notes: string | null;
+          ctwa_clid: string | null;
+          ctwa_source_id: string | null;
+          qualification: "qualified" | "disqualified" | null;
+          qualified_at: string | null;
+          qualified_by: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -462,6 +467,11 @@ export type Database = {
           next_action_at?: string | null;
           last_contact_at?: string | null;
           notes?: string | null;
+          ctwa_clid?: string | null;
+          ctwa_source_id?: string | null;
+          qualification?: "qualified" | "disqualified" | null;
+          qualified_at?: string | null;
+          qualified_by?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -489,6 +499,11 @@ export type Database = {
           next_action_at?: string | null;
           last_contact_at?: string | null;
           notes?: string | null;
+          ctwa_clid?: string | null;
+          ctwa_source_id?: string | null;
+          qualification?: "qualified" | "disqualified" | null;
+          qualified_at?: string | null;
+          qualified_by?: string | null;
           created_at?: string;
           updated_at?: string;
         };

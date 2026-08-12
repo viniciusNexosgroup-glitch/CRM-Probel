@@ -312,7 +312,44 @@ async function getOrCreateConversation(
   throw new Error(`Falha ao criar conversa: ${error?.message ?? "sem detalhe"}`);
 }
 
-async function ensureLeadForContact(contactId: string, conversationId: string) {
+type AdReferral = {
+  ctwaClid: string | null;
+  sourceId: string | null;
+  title: string | null;
+  sourceUrl: string | null;
+};
+
+// Extrai os dados do anúncio Click-to-WhatsApp (externalAdReply) do payload da
+// mensagem — procura em qualquer profundidade (contextInfo varia por tipo).
+function extractAdReferral(msg: unknown): AdReferral | null {
+  function findAdReply(o: unknown, depth: number): Record<string, unknown> | null {
+    if (!o || typeof o !== "object" || depth > 6) return null;
+    const rec = o as Record<string, unknown>;
+    if (rec.externalAdReply && typeof rec.externalAdReply === "object") {
+      return rec.externalAdReply as Record<string, unknown>;
+    }
+    for (const k of Object.keys(rec)) {
+      const found = findAdReply(rec[k], depth + 1);
+      if (found) return found;
+    }
+    return null;
+  }
+  const ad = findAdReply(msg, 0);
+  if (!ad) return null;
+  const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+  return {
+    ctwaClid: str(ad.ctwaClid),
+    sourceId: str(ad.sourceId),
+    title: str(ad.title),
+    sourceUrl: str(ad.sourceUrl) ?? str(ad.mediaUrl),
+  };
+}
+
+async function ensureLeadForContact(
+  contactId: string,
+  conversationId: string,
+  adRef?: AdReferral | null
+) {
   const supabase = createServiceClient();
   const { data: existing } = await supabase
     .from("leads")
@@ -349,7 +386,10 @@ async function ensureLeadForContact(contactId: string, conversationId: string) {
       stage_id: stage.id,
       name: contact?.name ?? contact?.push_name ?? null,
       phone: contact?.phone ?? null,
-      source: "whatsapp",
+      source: adRef ? "meta_ads" : "whatsapp",
+      ad_name: adRef?.title ?? null,
+      ctwa_clid: adRef?.ctwaClid ?? null,
+      ctwa_source_id: adRef?.sourceId ?? null,
       status: "open",
       last_contact_at: new Date().toISOString(),
     })
@@ -475,7 +515,11 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
   const conversationId = conversation.id;
 
   // Cria lead automaticamente em "Novo Lead" se ainda não houver
-  const leadId = await ensureLeadForContact(contactId, conversationId);
+  const leadId = await ensureLeadForContact(
+    contactId,
+    conversationId,
+    extractAdReferral(data.message)
+  );
 
   const extracted = extractMessageContent(data.message);
   const timestamp = new Date(data.messageTimestamp * 1000).toISOString();

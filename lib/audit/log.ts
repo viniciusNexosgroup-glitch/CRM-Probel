@@ -7,7 +7,8 @@ export type AuditAction =
   | "conversation_assign"
   | "lead_stage_change"
   | "lead_won"
-  | "lead_lost";
+  | "lead_lost"
+  | "lead_qualification";
 
 /**
  * Registra uma ação no audit_log (best-effort, nunca quebra o fluxo).

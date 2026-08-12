@@ -3,7 +3,17 @@
 import { useState, useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown, Plus, X, Tag as TagIcon, Loader2, UserCircle2, User } from "lucide-react";
+import {
+  ChevronDown,
+  Plus,
+  X,
+  Tag as TagIcon,
+  Loader2,
+  UserCircle2,
+  User,
+  ThumbsUp,
+  ThumbsDown,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   addTagToLeadAction,
@@ -11,6 +21,7 @@ import {
   createTagAction,
   updateLeadFieldsAction,
   assignConversationAction,
+  setLeadQualificationAction,
 } from "../actions";
 import { getInitials } from "@/lib/format/avatar";
 import type {
@@ -350,6 +361,56 @@ function AssigneePill({
   );
 }
 
+function QualificationPill({ panelData }: { panelData: ContactPanelData }) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  const lead = panelData.lead;
+  if (!lead) return null;
+  const current = (lead as { qualification?: string | null }).qualification ?? null;
+
+  function set(q: "qualified" | "disqualified") {
+    if (!lead) return;
+    startTransition(async () => {
+      const res = await setLeadQualificationAction(lead.id, q);
+      if (res.ok) {
+        toast.success(q === "qualified" ? "Lead qualificado ✅" : "Lead desqualificado");
+        router.refresh();
+      } else {
+        toast.error("Falha", { description: res.error });
+      }
+    });
+  }
+
+  return (
+    <div className="inline-flex items-center gap-1">
+      <button
+        onClick={() => set("qualified")}
+        title="Marcar como Lead Qualificado (envia a conversão pro Meta)"
+        className={cn(
+          "inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border transition-colors",
+          current === "qualified"
+            ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-medium"
+            : "border-wa-border text-wa-textSecondary hover:bg-emerald-500/10 hover:text-emerald-400"
+        )}
+      >
+        <ThumbsUp className="h-3 w-3" /> Qualificado
+      </button>
+      <button
+        onClick={() => set("disqualified")}
+        title="Marcar como Lead Desqualificado"
+        className={cn(
+          "inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border transition-colors",
+          current === "disqualified"
+            ? "bg-red-500/20 text-red-400 border-red-500/40 font-medium"
+            : "border-wa-border text-wa-textSecondary hover:bg-red-500/10 hover:text-red-400"
+        )}
+      >
+        <ThumbsDown className="h-3 w-3" /> Desqualificado
+      </button>
+    </div>
+  );
+}
+
 export function ChatHeaderActions({
   panelData,
   conversation,
@@ -372,6 +433,7 @@ export function ChatHeaderActions({
           currentUserId={currentUserId}
         />
       )}
+      <QualificationPill panelData={panelData} />
       <TagPills panelData={panelData} />
     </div>
   );
