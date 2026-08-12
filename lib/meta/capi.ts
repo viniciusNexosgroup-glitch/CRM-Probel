@@ -2,11 +2,14 @@ import crypto from "node:crypto";
 import { createServiceClient } from "@/lib/supabase/server";
 
 // Config do Meta guardada em settings (key = 'meta_capi'):
-//   { dataset_id, access_token, event_name?, test_event_code? }
+//   { dataset_id, access_token, whatsapp_business_account_id, event_name?, test_event_code? }
 // Enquanto não estiver preenchida, o envio é um no-op (skipped).
+// dataset_id aqui é o "conjunto de dados de Mensagens" (Events Manager > Mensagens),
+// não o pixel do site — eventos business_messaging exigem esse dataset específico.
 type MetaConfig = {
   dataset_id: string;
   access_token: string;
+  whatsapp_business_account_id: string;
   event_name?: string;
   test_event_code?: string;
 };
@@ -15,10 +18,11 @@ async function getMetaConfig(): Promise<MetaConfig | null> {
   const svc = createServiceClient();
   const { data } = await svc.from("settings").select("value").eq("key", "meta_capi").maybeSingle();
   const v = (data?.value ?? null) as Partial<MetaConfig> | null;
-  if (!v?.dataset_id || !v?.access_token) return null;
+  if (!v?.dataset_id || !v?.access_token || !v?.whatsapp_business_account_id) return null;
   return {
     dataset_id: v.dataset_id,
     access_token: v.access_token,
+    whatsapp_business_account_id: v.whatsapp_business_account_id,
     event_name: v.event_name,
     test_event_code: v.test_event_code,
   };
@@ -47,8 +51,13 @@ export async function sendCtwaConversion(params: {
   if (!cfg) return { ok: false, skipped: true };
   if (!params.ctwaClid) return { ok: false, skipped: true, error: "lead sem ctwa_clid" };
 
-  const eventName = params.eventName || cfg.event_name || "Lead";
-  const userData: Record<string, unknown> = { ctwa_clid: params.ctwaClid };
+  // "LeadSubmitted" é o nome de evento padrão aceito pelo Meta pra business_messaging
+  // (o evento genérico "Lead" é rejeitado nesse canal).
+  const eventName = params.eventName || cfg.event_name || "LeadSubmitted";
+  const userData: Record<string, unknown> = {
+    ctwa_clid: params.ctwaClid,
+    whatsapp_business_account_id: cfg.whatsapp_business_account_id,
+  };
   if (params.phone) {
     const digits = params.phone.replace(/\D/g, "");
     if (digits) userData.ph = [sha256(digits)];
@@ -60,6 +69,7 @@ export async function sendCtwaConversion(params: {
         event_name: eventName,
         event_time: Math.floor(Date.now() / 1000),
         action_source: "business_messaging",
+        messaging_channel: "whatsapp",
         ...(params.eventId ? { event_id: params.eventId } : {}),
         user_data: userData,
         ...(params.value != null
