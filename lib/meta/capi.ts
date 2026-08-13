@@ -53,10 +53,13 @@ export async function sendCtwaConversion(params: {
   // o ctwa_clid como identificador de clique ("Identificação do clique", prioridade
   // mais alta na doc do Meta). O formato business_messaging exigiria a conta do
   // WhatsApp formalmente vinculada ao dataset — bloqueado por "Página não qualificada".
-  // Evento personalizado "LeadQualificado" — nome explícito nos relatórios do Meta.
-  // Exige uma Conversão Personalizada apontando pra ele pra ficar selecionável
-  // como meta de otimização da campanha.
-  const eventName = params.eventName || cfg.event_name || "LeadQualificado";
+  // Evento PADRÃO "Lead". Testamos o caminho do evento custom + Conversão
+  // Personalizada e ele NÃO funciona aqui: a conversão personalizada só aceita
+  // "Fonte da ação" = Site ou Loja física, e nossos eventos são system_generated
+  // (servidor/CRM) — nunca casam, ficam 0 pra sempre. Como só enviamos ao marcar
+  // "Qualificado", o "Lead" nesse dataset == lead qualificado, e evento padrão
+  // fica direto selecionável como meta de otimização da campanha.
+  const eventName = params.eventName || cfg.event_name || "Lead";
   const userData: Record<string, unknown> = { ctwa_clid: params.ctwaClid };
   if (params.phone) {
     const digits = params.phone.replace(/\D/g, "");
