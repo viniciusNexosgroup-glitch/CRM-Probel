@@ -429,7 +429,7 @@ export function SalesbotEditor({
             </Button>
           </div>
           <span className="text-xs text-wa-textSecondary">
-            Arraste blocos para o canvas. Use "Conectar" para ligar etapas.
+            Arraste blocos para o canvas. Use &quot;Conectar&quot; para ligar etapas.
           </span>
         </div>
 

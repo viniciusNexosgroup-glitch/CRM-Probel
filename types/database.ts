@@ -509,6 +509,36 @@ export type Database = {
         };
         Relationships: [];
       };
+      webhook_log: {
+        Row: {
+          id: string;
+          event: string;
+          instance: string | null;
+          remote_jid: string | null;
+          body_size: number | null;
+          note: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          event: string;
+          instance?: string | null;
+          remote_jid?: string | null;
+          body_size?: number | null;
+          note?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          event?: string;
+          instance?: string | null;
+          remote_jid?: string | null;
+          body_size?: number | null;
+          note?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       tags: {
         Row: { id: string; name: string; color: string; created_at: string };
         Insert: { id?: string; name: string; color?: string; created_at?: string };

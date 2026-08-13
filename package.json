@@ -6,7 +6,7 @@
     "dev": "cross-env NODE_OPTIONS=--use-system-ca next dev",
     "build": "cross-env NODE_OPTIONS=--use-system-ca next build",
     "start": "cross-env NODE_OPTIONS=--use-system-ca next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "migrate": "node --env-file=.env.local scripts/migrate.mjs",
     "supabase:types": "supabase gen types typescript --project-id $SUPABASE_PROJECT_ID --schema public > types/database.ts"

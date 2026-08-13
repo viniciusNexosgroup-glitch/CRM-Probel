@@ -20,6 +20,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const RETENTION_DAYS = 5;
+const WEBHOOK_LOG_DAYS = 7;
 const STORAGE_MARKER = "/object/public/contact-media/";
 
 async function authorize(request: NextRequest) {
@@ -77,11 +78,29 @@ async function cleanupMedia() {
   return { deleted, messages: ids.length, cutoff };
 }
 
-// Manutenção diária: limpeza de mídia antiga + backup do CRM (#35).
+/**
+ * Poda a webhook_log — tabela só de diagnóstico dos webhooks recebidos, que
+ * crescia sem limite (~2.5k linhas/dia; chegou a 182k linhas / 37MB).
+ * Mantém os últimos WEBHOOK_LOG_DAYS dias, o suficiente pra investigar
+ * mensagem perdida sem virar a segunda maior tabela do banco.
+ */
+async function cleanupWebhookLog() {
+  const supabase = createServiceClient();
+  const cutoff = new Date(Date.now() - WEBHOOK_LOG_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const { error, count } = await supabase
+    .from("webhook_log")
+    .delete({ count: "exact" })
+    .lt("created_at", cutoff);
+  if (error) return { deleted: 0, error: error.message };
+  return { deleted: count ?? 0, cutoff };
+}
+
+// Manutenção diária: limpeza de mídia antiga + poda do log + backup do CRM (#35).
 async function run() {
   const cleanup = await cleanupMedia();
+  const webhookLog = await cleanupWebhookLog();
   const backup = await runBackup();
-  return { cleanup, backup };
+  return { cleanup, webhookLog, backup };
 }
 
 export async function GET(request: NextRequest) {
