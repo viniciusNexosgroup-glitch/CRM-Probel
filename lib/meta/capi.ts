@@ -53,7 +53,10 @@ export async function sendCtwaConversion(params: {
   // o ctwa_clid como identificador de clique ("Identificação do clique", prioridade
   // mais alta na doc do Meta). O formato business_messaging exigiria a conta do
   // WhatsApp formalmente vinculada ao dataset — bloqueado por "Página não qualificada".
-  const eventName = params.eventName || cfg.event_name || "LeadQualificado";
+  // Evento PADRÃO "Lead": como só enviamos quando o vendedor marca "Qualificado",
+  // o "Lead" nesse dataset == lead qualificado, e fica direto selecionável pra
+  // otimização na campanha (evento com nome custom exigiria Conversão Personalizada).
+  const eventName = params.eventName || cfg.event_name || "Lead";
   const userData: Record<string, unknown> = { ctwa_clid: params.ctwaClid };
   if (params.phone) {
     const digits = params.phone.replace(/\D/g, "");
@@ -84,7 +87,7 @@ export async function sendCtwaConversion(params: {
 
   try {
     const res = await fetch(
-      `https://graph.facebook.com/v21.0/${cfg.dataset_id}/events?access_token=${encodeURIComponent(cfg.access_token)}`,
+      `https://graph.facebook.com/v26.0/${cfg.dataset_id}/events?access_token=${encodeURIComponent(cfg.access_token)}`,
       { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
     );
     const json = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
