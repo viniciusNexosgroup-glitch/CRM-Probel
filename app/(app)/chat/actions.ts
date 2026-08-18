@@ -579,19 +579,39 @@ export async function assignConversationAction(
   userId: string | null
 ): Promise<Result> {
   const supabase = await createClient();
-  const { error } = await supabase
+  const actor = await getCurrentProfile();
+  if (!actor) return { ok: false, error: "Não autenticado" };
+
+  const service = createServiceClient();
+
+  // A transferência roda com service client porque o RLS bloqueia o próprio ato de
+  // transferir: ao passar a conversa pra outro vendedor, a linha nova deixa de ser
+  // visível pra quem transferiu, e o Postgres recusa ("new row violates row-level
+  // security policy"). A permissão é verificada aqui, espelhando a regra do RLS:
+  // admin transfere qualquer uma; vendedor só transfere a que é dele ou a que está
+  // sem dono.
+  const { data: conv } = await service
+    .from("conversations")
+    .select("assigned_to")
+    .eq("id", conversationId)
+    .maybeSingle();
+  if (!conv) return { ok: false, error: "Conversa não encontrada" };
+
+  const podeTransferir =
+    actor.role === "admin" || conv.assigned_to === null || conv.assigned_to === actor.id;
+  if (!podeTransferir) {
+    return { ok: false, error: "Você só pode transferir conversas suas ou sem atendente." };
+  }
+
+  const { error } = await service
     .from("conversations")
     .update({ assigned_to: userId })
     .eq("id", conversationId);
   if (error) return { ok: false, error: error.message };
 
-  // Transfere o LEAD junto pro novo vendedor — o trigger sync_lead_stage_to_owner
-  // leva o lead pro funil (board) do novo dono. Service client porque a transferência
-  // entre vendedores já está autorizada pela atualização da conversa acima (RLS).
-  const service = createServiceClient();
+  // Leva o LEAD junto pro novo vendedor — o trigger sync_lead_stage_to_owner move
+  // o lead pro funil (board) do novo dono, preservando a coluna.
   await service.from("leads").update({ assigned_to: userId }).eq("conversation_id", conversationId);
-
-  const actor = await getCurrentProfile();
   let targetName = "ninguém (removeu atribuição)";
   if (userId) {
     const { data: target } = await supabase
