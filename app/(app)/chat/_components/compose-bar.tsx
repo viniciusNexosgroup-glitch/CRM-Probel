@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useRef, useEffect, KeyboardEvent } from "react";
 import { toast } from "sonner";
-import { Smile, Paperclip, SendHorizonal, Loader2, Zap, Reply, X, Mic, StickyNote, Calendar } from "lucide-react";
+import { Smile, Paperclip, SendHorizonal, Loader2, Zap, Reply, X, Mic, StickyNote, Calendar, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { sendTextMessageAction, createInternalNoteAction } from "../actions";
@@ -56,6 +56,10 @@ export function ComposeBar({
   const [internalMode, setInternalMode] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  // No celular os 4 atalhos (emoji, mídia, resposta rápida, nota) ficam atrás de
+  // um "+" — assim o campo de mensagem nasce com a largura toda. No desktop
+  // continuam sempre visíveis.
+  const [actionsOpen, setActionsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const zapButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -291,6 +295,27 @@ export function ComposeBar({
           />
         )}
         <button
+          onClick={() => setActionsOpen((o) => !o)}
+          className={cn(
+            "md:hidden p-2 rounded transition-colors shrink-0",
+            actionsOpen
+              ? "bg-primary/20 text-primary rotate-45"
+              : "text-wa-textSecondary hover:bg-wa-hover hover:text-primary"
+          )}
+          aria-label={actionsOpen ? "Fechar atalhos" : "Mais opções"}
+          aria-expanded={actionsOpen}
+          title={actionsOpen ? "Fechar atalhos" : "Mais opções"}
+        >
+          <Plus className="h-5 w-5 transition-transform" />
+        </button>
+
+        <div
+          className={cn(
+            "items-center gap-2 md:flex",
+            actionsOpen ? "flex" : "hidden"
+          )}
+        >
+        <button
           data-emoji-trigger
           onClick={() => setEmojiOpen((o) => !o)}
           className={cn(
@@ -357,6 +382,7 @@ export function ComposeBar({
         >
           <StickyNote className="h-5 w-5" />
         </button>
+        </div>
         <Input
           ref={inputRef}
           value={text}
