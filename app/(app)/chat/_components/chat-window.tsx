@@ -409,7 +409,7 @@ export function ChatWindow({
         </Link>
         <button
           onClick={() => setPanelOpen(true)}
-          className="flex items-center gap-3 min-w-0 hover:bg-wa-hover/50 rounded-md px-2 py-1 -ml-2 transition-colors shrink-0"
+          className="flex items-center gap-3 min-w-0 flex-1 md:flex-none hover:bg-wa-hover/50 rounded-md px-2 py-1 -ml-2 transition-colors"
         >
           <Avatar
             src={conversation.contact.profile_pic_url}
@@ -431,7 +431,7 @@ export function ChatWindow({
             )}
           </div>
         </button>
-        <div className="flex-1 min-w-0 flex justify-start">
+        <div className="hidden md:flex flex-1 min-w-0 justify-start">
           <ChatHeaderActions
             panelData={panelData}
             conversation={conversation}
@@ -461,6 +461,17 @@ export function ChatWindow({
           </button>
         </div>
       </header>
+
+      {panelData && (
+        <div className="md:hidden bg-wa-header border-l border-t border-wa-border px-3 py-2 shrink-0">
+          <ChatHeaderActions
+            panelData={panelData}
+            conversation={conversation}
+            allProfiles={allProfiles}
+            currentUserId={currentUserId}
+          />
+        </div>
+      )}
 
       {/* Mensagens */}
       <div

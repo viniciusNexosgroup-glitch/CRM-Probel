@@ -82,7 +82,7 @@ function StagePill({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-wa-border bg-wa-bg/40 text-[11px] hover:border-primary/40 transition-colors"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 md:px-2.5 md:py-1 rounded-full border border-wa-border bg-wa-bg/40 text-xs md:text-[11px] hover:border-primary/40 transition-colors"
       >
         {currentStage && (
           <span
@@ -190,7 +190,7 @@ function TagPills({
       {currentTags.map((tag) => (
         <span
           key={tag.id}
-          className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-wa-border"
+          className="inline-flex items-center gap-1 text-xs md:text-[11px] px-2.5 py-1.5 md:px-2 md:py-0.5 rounded-full border border-wa-border"
           style={{ backgroundColor: `${tag.color}25`, color: tag.color }}
         >
           <TagIcon className="h-2.5 w-2.5" />
@@ -206,7 +206,7 @@ function TagPills({
       ))}
       <button
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-dashed border-wa-border text-wa-textSecondary hover:text-wa-textPrimary hover:border-primary/50"
+        className="inline-flex items-center gap-1 text-xs md:text-[11px] px-2.5 py-1.5 md:px-2 md:py-0.5 rounded-full border border-dashed border-wa-border text-wa-textSecondary hover:text-wa-textPrimary hover:border-primary/50"
       >
         <Plus className="h-2.5 w-2.5" />
         Etiqueta
@@ -302,7 +302,7 @@ function AssigneePill({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-wa-border bg-wa-bg/40 text-[11px] hover:border-primary/40 transition-colors"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 md:px-2.5 md:py-1 rounded-full border border-wa-border bg-wa-bg/40 text-xs md:text-[11px] hover:border-primary/40 transition-colors"
       >
         {current ? (
           <span className="w-4 h-4 rounded-full bg-primary/20 text-primary text-[9px] font-bold flex items-center justify-center shrink-0">
@@ -387,7 +387,7 @@ function QualificationPill({ panelData }: { panelData: ContactPanelData }) {
         onClick={() => set("qualified")}
         title="Marcar como Lead Qualificado (envia a conversão pro Meta)"
         className={cn(
-          "inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border transition-colors",
+          "inline-flex items-center gap-1 text-xs md:text-[11px] px-3 py-1.5 md:px-2.5 md:py-1 rounded-full border transition-colors",
           current === "qualified"
             ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-medium"
             : "border-wa-border text-wa-textSecondary hover:bg-emerald-500/10 hover:text-emerald-400"
@@ -399,7 +399,7 @@ function QualificationPill({ panelData }: { panelData: ContactPanelData }) {
         onClick={() => set("disqualified")}
         title="Marcar como Lead Desqualificado"
         className={cn(
-          "inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border transition-colors",
+          "inline-flex items-center gap-1 text-xs md:text-[11px] px-3 py-1.5 md:px-2.5 md:py-1 rounded-full border transition-colors",
           current === "disqualified"
             ? "bg-red-500/20 text-red-400 border-red-500/40 font-medium"
             : "border-wa-border text-wa-textSecondary hover:bg-red-500/10 hover:text-red-400"
@@ -416,15 +416,17 @@ export function ChatHeaderActions({
   conversation,
   allProfiles = [],
   currentUserId,
+  className,
 }: {
   panelData: ContactPanelData | null;
   conversation?: ConversationWithContact;
   allProfiles?: AssigneeProfile[];
   currentUserId?: string;
+  className?: string;
 }) {
   if (!panelData) return null;
   return (
-    <div className="flex items-center gap-2 min-w-0 flex-wrap">
+    <div className={cn("flex items-center gap-2 min-w-0 flex-wrap", className)}>
       <StagePill panelData={panelData} />
       {conversation && (
         <AssigneePill
