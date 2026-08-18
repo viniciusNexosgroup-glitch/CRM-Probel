@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCachedUser } from "@/lib/auth/current-user";
 import { ChatWindow } from "./_components/chat-window";
 import { EmptyState } from "./_components/empty-state";
 import {
@@ -73,26 +74,30 @@ async function getContactPanelData(contactId: string): Promise<ContactPanelData 
     stageOwnerId === null
       ? stagesQuery.is("user_id", null)
       : stagesQuery.eq("user_id", stageOwnerId);
-  const allStagesRes = await stagesQuery;
 
-  const tasksRes = await supabase
-    .from("tasks")
-    .select("*")
-    .or(
-      lead
-        ? `lead_id.eq.${lead.id},contact_id.eq.${contactId}`
-        : `contact_id.eq.${contactId}`
-    )
-    .order("due_at", { ascending: true, nullsFirst: false });
-
-  const activityRes = lead
-    ? await supabase
-        .from("lead_activity")
-        .select(`*, user:profiles!lead_activity_user_id_fkey(full_name, email)`)
-        .eq("lead_id", lead.id)
-        .order("created_at", { ascending: false })
-        .limit(30)
-    : { data: [] };
+  // Estágios, tarefas e histórico dependem do lead, mas não uns dos outros —
+  // vão juntos numa ida só. Em série eram 3 idas à rede, e é isso que fazia a
+  // conversa demorar a abrir (o banco responde em milissegundos).
+  const [allStagesRes, tasksRes, activityRes] = await Promise.all([
+    stagesQuery,
+    supabase
+      .from("tasks")
+      .select("*")
+      .or(
+        lead
+          ? `lead_id.eq.${lead.id},contact_id.eq.${contactId}`
+          : `contact_id.eq.${contactId}`
+      )
+      .order("due_at", { ascending: true, nullsFirst: false }),
+    lead
+      ? supabase
+          .from("lead_activity")
+          .select(`*, user:profiles!lead_activity_user_id_fkey(full_name, email)`)
+          .eq("lead_id", lead.id)
+          .order("created_at", { ascending: false })
+          .limit(30)
+      : Promise.resolve({ data: [] }),
+  ]);
 
   return {
     contact: contactRes.data,
@@ -136,9 +141,7 @@ export default async function ChatPage({
   searchParams: Promise<{ c?: string }>;
 }) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCachedUser();
   if (!user) redirect("/login");
 
   const { c: selectedId } = await searchParams;

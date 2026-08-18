@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { createClient } from "@/lib/supabase/server";
+import { getCachedUser } from "@/lib/auth/current-user";
 import { AppRail } from "@/components/app-shell/app-rail";
 import { MobileNav } from "@/components/app-shell/mobile-nav";
 import { TaskReminderManager } from "./_components/task-reminder-manager";
@@ -12,11 +12,7 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const user = await getCachedUser();
   if (!user) redirect("/login");
 
   return (
