@@ -218,7 +218,7 @@ export function ComposeBar({
 
   if (recordingAudio) {
     return (
-      <footer className="bg-wa-header px-3 py-2 border-l border-wa-border shrink-0">
+      <footer className="bg-wa-header px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] border-l border-wa-border shrink-0">
         <AudioRecorder
           conversationId={conversationId}
           onClose={() => setRecordingAudio(false)}
@@ -228,7 +228,7 @@ export function ComposeBar({
   }
 
   return (
-    <footer className="bg-wa-header px-3 py-2 border-l border-wa-border shrink-0 relative">
+    <footer className="bg-wa-header px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] border-l border-wa-border shrink-0 relative">
       {replyingTo && (
         <div className="mb-2 px-3 py-2 rounded-md bg-wa-bg/60 border-l-4 border-primary flex items-start gap-2">
           <Reply className="h-4 w-4 text-primary shrink-0 mt-0.5" />
@@ -371,7 +371,7 @@ export function ComposeBar({
           }
           disabled={pending}
           className={cn(
-            "border-0 text-sm h-10",
+            "border-0 text-base md:text-sm h-10",
             internalMode ? "bg-amber-500/10 text-amber-100 placeholder:text-amber-300/60" : "bg-wa-panel"
           )}
           autoFocus

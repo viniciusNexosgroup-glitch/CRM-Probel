@@ -101,7 +101,7 @@ export function AppRail() {
   return (
     <nav
       className={cn(
-        "shrink-0 bg-wa-header border-r border-wa-border flex flex-col transition-[width] duration-200 ease-out",
+        "hidden md:flex shrink-0 bg-wa-header border-r border-wa-border flex-col transition-[width] duration-200 ease-out",
         isCompact ? "w-16" : "w-56"
       )}
       aria-label="Navega\u00e7\u00e3o principal"

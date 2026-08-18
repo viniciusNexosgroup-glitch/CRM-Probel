@@ -41,7 +41,7 @@ export function KanbanColumn({
   return (
     <div
       className={cn(
-        "w-[300px] shrink-0 bg-wa-panel rounded-lg flex flex-col border-2 border-transparent transition-colors max-h-full",
+        "w-[86vw] max-w-[320px] md:w-[300px] snap-start shrink-0 bg-wa-panel rounded-lg flex flex-col border-2 border-transparent transition-colors max-h-full",
         over && "border-primary/60 bg-wa-active"
       )}
       onDragOver={handleDragOver}
