@@ -7,12 +7,11 @@ import { Plus, Loader2, X, Trash2, Pencil, MessageCircle, CheckCircle2 } from "l
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
-  EVENTOS_META,
   salvarEtapaJornadaAction,
   criarEtapaJornadaAction,
   excluirEtapaJornadaAction,
-  type CamposDaEtapa,
 } from "../actions";
+import { EVENTOS_META, type CamposDaEtapa } from "../eventos";
 import type { Database } from "@/types/database";
 
 type Etapa = Database["public"]["Tables"]["pipeline_stages"]["Row"];

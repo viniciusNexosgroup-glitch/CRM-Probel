@@ -4,38 +4,9 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentInstanceId, getCachedProfile } from "@/lib/auth/current-user";
 import type { Json, Database } from "@/types/database";
+import type { CamposDaEtapa } from "./eventos";
 
 type Result = { ok: true } | { ok: false; error: string };
-
-/** Eventos padrão do Meta aceitos numa etapa (mesma lista da checagem no banco). */
-export const EVENTOS_META = [
-  "Contact",
-  "Lead",
-  "CompleteRegistration",
-  "Schedule",
-  "ViewContent",
-  "InitiateCheckout",
-  "AddToCart",
-  "AddPaymentInfo",
-  "Purchase",
-  "Subscribe",
-  "StartTrial",
-  "SubmitApplication",
-  "FindLocation",
-  "Search",
-  "CustomizeProduct",
-  "AddToWishlist",
-  "Donate",
-] as const;
-
-export type CamposDaEtapa = {
-  name: string;
-  meta_event_name: string | null;
-  is_sale: boolean;
-  default_value: number | null;
-  is_first_contact: boolean;
-  keyword: string | null;
-};
 
 type AtualizacaoEtapa = Database["public"]["Tables"]["pipeline_stages"]["Update"];
 
