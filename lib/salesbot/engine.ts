@@ -543,10 +543,13 @@ async function executeNode(
 }
 
 async function getActiveFlows(db: UntypedSupabase, context: SalesbotContext): Promise<FlowBundle[]> {
+  // Só fluxos da MESMA loja (ou os antigos, sem loja definida). Sem isso uma
+  // mensagem da Vivence dispararia uma automação da Probel.
   let query = db
     .from("salesbot_flows")
     .select("*")
     .eq("status", "active")
+    .or(`instance_id.eq.${context.instanceId},instance_id.is.null`)
     .in("channel", ["whatsapp", "multi"]);
   if (context.flowId) query = query.eq("id", context.flowId);
 
