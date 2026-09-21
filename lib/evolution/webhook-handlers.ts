@@ -616,6 +616,14 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
         answered_at: timestamp,
       })
       .eq("id", conversationId);
+
+    // Palavra-chave move o lead sozinho: se o atendente escreveu a expressão
+    // configurada numa etapa (ex.: "Segue orçamento"), o lead avança e o evento
+    // do Meta dispara junto. Vale pra mensagem mandada do CRM ou do celular.
+    const textoEnviado = extracted.content ?? "";
+    if (textoEnviado.trim().length >= 3 && !isGroupJid(data.key.remoteJid)) {
+      after(() => aplicarPalavraChave(instanceId, conversationId, textoEnviado));
+    }
   }
 
   // Auto-resposta fora do horário comercial (apenas pra mensagens recebidas, não-grupo)
@@ -953,5 +961,59 @@ export async function handleContactsUpsert(
       },
       { onConflict: "instance_id,whatsapp_id" }
     );
+  }
+}
+
+
+/**
+ * Move o lead de etapa quando o atendente envia a expressão configurada.
+ *
+ * Roda fora do caminho crítico (after) — se falhar, a mensagem já foi entregue
+ * e registrada normalmente.
+ */
+async function aplicarPalavraChave(
+  instanceId: string,
+  conversationId: string,
+  texto: string
+) {
+  try {
+    const supabase = createServiceClient();
+    const { data: lead } = await supabase
+      .from("leads")
+      .select("id, stage_id, assigned_to")
+      .eq("conversation_id", conversationId)
+      .maybeSingle();
+    if (!lead) return;
+
+    const { findStageByKeyword } = await import("@/lib/meta/stage-events");
+    const etapa = await findStageByKeyword(instanceId, lead.assigned_to, texto);
+    if (!etapa || etapa.id === lead.stage_id) return;
+
+    const { data: nova } = await supabase
+      .from("pipeline_stages")
+      .select("name, is_won, is_lost")
+      .eq("id", etapa.id)
+      .maybeSingle();
+    const status: "open" | "won" | "lost" = nova?.is_won
+      ? "won"
+      : nova?.is_lost
+        ? "lost"
+        : "open";
+
+    await supabase.from("leads").update({ stage_id: etapa.id, status }).eq("id", lead.id);
+
+    // Reaproveita o fluxo normal: registra no histórico e dispara o evento.
+    const { handleLeadStageTransition } = await import("@/lib/leads/activity");
+    await handleLeadStageTransition({
+      leadId: lead.id,
+      oldStageId: lead.stage_id,
+      newStageId: etapa.id,
+      newStatus: status,
+      oldStatus: "open",
+      newStageName: etapa.name,
+      userId: null,
+    });
+  } catch (e) {
+    console.error("[palavra-chave] falha ao mover o lead:", (e as Error).message);
   }
 }

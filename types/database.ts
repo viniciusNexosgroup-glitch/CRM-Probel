@@ -378,10 +378,45 @@ export type Database = {
         };
         Relationships: [];
       };
+      lead_stage_events: {
+        Row: {
+          id: string;
+          lead_id: string;
+          stage_id: string;
+          event_name: string;
+          sent_at: string;
+          ok: boolean;
+          detail: string | null;
+        };
+        Insert: {
+          id?: string;
+          lead_id: string;
+          stage_id: string;
+          event_name: string;
+          sent_at?: string;
+          ok?: boolean;
+          detail?: string | null;
+        };
+        Update: {
+          id?: string;
+          lead_id?: string;
+          stage_id?: string;
+          event_name?: string;
+          sent_at?: string;
+          ok?: boolean;
+          detail?: string | null;
+        };
+        Relationships: [];
+      };
       pipeline_stages: {
         Row: {
           id: string;
           instance_id: string;
+          meta_event_name: string | null;
+          is_sale: boolean;
+          default_value: number | null;
+          is_first_contact: boolean;
+          keyword: string | null;
           user_id: string | null;
           name: string;
           position: number;
@@ -394,6 +429,11 @@ export type Database = {
         Insert: {
           id?: string;
           instance_id?: string;
+          meta_event_name?: string | null;
+          is_sale?: boolean;
+          default_value?: number | null;
+          is_first_contact?: boolean;
+          keyword?: string | null;
           user_id?: string | null;
           name: string;
           position: number;
@@ -406,6 +446,11 @@ export type Database = {
         Update: {
           id?: string;
           instance_id?: string;
+          meta_event_name?: string | null;
+          is_sale?: boolean;
+          default_value?: number | null;
+          is_first_contact?: boolean;
+          keyword?: string | null;
           user_id?: string | null;
           name?: string;
           position?: number;

@@ -92,4 +92,15 @@ export async function handleLeadStageTransition(params: {
   } else if (newStatus === "open" && oldStatus !== "open") {
     await logLeadActivity(leadId, "reopened", "Lead reaberto", userId);
   }
+
+  // Alimenta o público do Meta Ads conforme o lead avança no funil. Fica aqui,
+  // no ponto único por onde passam todas as formas de mover o lead (arrastar no
+  // Kanban, trocar a etapa no chat, palavra-chave do atendente), para nenhuma
+  // delas esquecer de disparar. Falha aqui nunca derruba a movimentação.
+  try {
+    const { fireStageEvent } = await import("@/lib/meta/stage-events");
+    await fireStageEvent(leadId, newStageId);
+  } catch (e) {
+    console.error("[meta] erro ao disparar evento da etapa:", (e as Error).message);
+  }
 }

@@ -12,9 +12,19 @@ type MetaConfig = {
   test_event_code?: string;
 };
 
-async function getMetaConfig(): Promise<MetaConfig | null> {
+/**
+ * Configuração do Meta DA LOJA. Cada empresa tem seu próprio pixel/conjunto de
+ * dados, então ler sem filtrar a loja mandaria conversão da Vivence pro Meta da
+ * Probel.
+ */
+async function getMetaConfig(instanceId: string): Promise<MetaConfig | null> {
   const svc = createServiceClient();
-  const { data } = await svc.from("settings").select("value").eq("key", "meta_capi").maybeSingle();
+  const { data } = await svc
+    .from("settings")
+    .select("value")
+    .eq("instance_id", instanceId)
+    .eq("key", "meta_capi")
+    .maybeSingle();
   const v = (data?.value ?? null) as Partial<MetaConfig> | null;
   if (!v?.dataset_id || !v?.access_token) return null;
   return {
@@ -38,6 +48,8 @@ export type CapiResult = { ok: boolean; skipped?: boolean; error?: string; respo
  * No-op se o Meta ainda não foi configurado nas settings.
  */
 export async function sendCtwaConversion(params: {
+  /** Loja dona do lead — define qual pixel/conjunto de dados recebe o evento. */
+  instanceId: string;
   ctwaClid: string | null;
   eventName?: string;
   phone?: string | null;
@@ -45,7 +57,7 @@ export async function sendCtwaConversion(params: {
   value?: number | null;
   currency?: string;
 }): Promise<CapiResult> {
-  const cfg = await getMetaConfig();
+  const cfg = await getMetaConfig(params.instanceId);
   if (!cfg) return { ok: false, skipped: true };
   if (!params.ctwaClid) return { ok: false, skipped: true, error: "lead sem ctwa_clid" };
 

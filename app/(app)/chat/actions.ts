@@ -664,7 +664,7 @@ export async function setLeadQualificationAction(
   const service = createServiceClient();
   const { data: lead } = await service
     .from("leads")
-    .select("id, ctwa_clid, phone")
+    .select("id, instance_id, ctwa_clid, phone")
     .eq("id", leadId)
     .maybeSingle();
 
@@ -692,6 +692,7 @@ export async function setLeadQualificationAction(
   // Só o evento positivo alimenta a otimização (Meta aprende com os leads bons).
   if (qualification === "qualified") {
     const r = await sendCtwaConversion({
+      instanceId: lead!.instance_id,
       ctwaClid: lead?.ctwa_clid ?? null,
       phone: lead?.phone ?? null,
       eventId: `qualified_${leadId}`,
