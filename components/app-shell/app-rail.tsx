@@ -5,51 +5,17 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   MessageSquare,
-  KanbanSquare,
-  Settings,
   LogOut,
   Loader2,
   User,
-  Zap,
-  LayoutDashboard,
-  Library,
-  Clock,
-  Users,
-  Bot,
-  TrendingUp,
-  ScrollText,
-  Tag,
-  Bell,
-  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+// Lista única, compartilhada com o menu do celular — antes cada um tinha a
+// sua, e item novo aparecia só num dos dois.
+import { NAV_ITEMS, isNavActive, type NavItem } from "./nav-items";
 
-type NavItem = {
-  href: string;
-  label: string;
-  icon: typeof MessageSquare;
-  exact?: boolean;
-  adminOnly?: boolean;
-};
-
-const NAV_ITEMS: NavItem[] = [
-  { href: "/chat", label: "Conversas", icon: MessageSquare },
-  { href: "/leads", label: "Funil", icon: KanbanSquare },
-  { href: "/settings/pipeline", label: "Estágios", icon: TrendingUp },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/salesbot", label: "SalesBot", icon: Bot },
-  { href: "/settings/quick-replies", label: "Respostas", icon: Zap },
-  { href: "/settings/media-library", label: "M\u00eddias", icon: Library },
-  { href: "/settings/business-hours", label: "Hor\u00e1rio", icon: Clock },
-  { href: "/settings/tags", label: "Etiquetas", icon: Tag },
-  { href: "/settings/notifications", label: "Notificações", icon: Bell },
-  { href: "/settings/security", label: "Segurança", icon: ShieldCheck },
-  { href: "/settings/team", label: "Equipe", icon: Users },
-  { href: "/settings/audit", label: "Atividade", icon: ScrollText, adminOnly: true },
-  { href: "/settings/whatsapp", label: "WhatsApp", icon: Settings },
-];
 
 export function AppRail() {
   const pathname = usePathname();
@@ -90,10 +56,6 @@ export function AppRail() {
 
   const navItems = NAV_ITEMS.filter((i) => !i.adminOnly || isAdmin);
 
-  function isActive(item: NavItem) {
-    if (item.exact) return pathname === item.href;
-    return pathname.startsWith(item.href);
-  }
 
   async function onLogout() {
     if (logoutPending) return;
@@ -147,7 +109,7 @@ export function AppRail() {
         </p>
         {navItems.map((item) => {
           const Icon = item.icon;
-          const active = isActive(item);
+          const active = isNavActive(item, pathname);
           return (
             <Link
               key={item.href}
