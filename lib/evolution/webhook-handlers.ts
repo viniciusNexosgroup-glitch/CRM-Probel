@@ -430,7 +430,8 @@ async function persistIncomingMedia(
   mimetypeHint: string | null
 ) {
   try {
-    const { evolution } = await import("@/lib/evolution/client");
+    const { evoFor } = await import("@/lib/evolution/instance");
+    const evolution = await evoFor(instanceId);
     // Vídeos/arquivos grandes podem ainda não estar prontos na Evolution no
     // instante em que o webhook chega — tenta algumas vezes com intervalo curto.
     let media: { base64: string; mimetype: string } | null = null;
@@ -652,9 +653,17 @@ async function maybeSendAutoReply(
     const supabase = createServiceClient();
 
     // Busca configs
+    // Configurações são por loja: o horário e a mensagem automática da Probel
+    // não valem para a Vivence.
+    const { data: inst } = await supabase
+      .from("whatsapp_instances")
+      .select("id")
+      .eq("instance_name", instanceName)
+      .maybeSingle();
     const { data: settingsRows } = await supabase
       .from("settings")
       .select("key, value")
+      .eq("instance_id", inst?.id ?? "")
       .in("key", ["business_hours", "auto_reply_outside_hours"]);
 
     const map = new Map(settingsRows?.map((r) => [r.key, r.value]) ?? []);
@@ -694,7 +703,8 @@ async function maybeSendAutoReply(
     });
 
     // Envia via Evolution
-    const { evolution } = await import("@/lib/evolution/client");
+    const { evolutionFor } = await import("@/lib/evolution/client");
+    const evolution = evolutionFor(instanceName);
     const sent = await evolution.sendText(remoteJid, resolvedMessage);
 
     // Registra a auto-resposta na conversa + insere a msg no histórico

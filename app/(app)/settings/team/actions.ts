@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getCurrentInstanceId } from "@/lib/auth/current-user";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { isCurrentUserAdmin, getCurrentProfile } from "@/lib/auth/roles";
 import { logAudit } from "@/lib/audit/log";
@@ -16,14 +17,17 @@ export async function saveInviteWelcomeAction(text: string): Promise<Result> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const instanceId = await getCurrentInstanceId();
+  if (!instanceId) return { ok: false, error: "Usuário sem loja vinculada" };
   const { error } = await supabase.from("settings").upsert(
     {
       key: "invite_welcome",
+      instance_id: instanceId,
       value: { text: text.trim() } as unknown as Json,
       updated_by: user?.id ?? null,
       updated_at: new Date().toISOString(),
     },
-    { onConflict: "key" }
+    { onConflict: "instance_id,key" }
   );
   if (error) return { ok: false, error: error.message };
   revalidatePath("/settings/team");

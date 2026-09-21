@@ -6,6 +6,8 @@ export type CurrentProfile = {
   role: "admin" | "user";
   full_name: string | null;
   email: string | null;
+  /** Loja (instância de WhatsApp) à qual o usuário pertence. */
+  instance_id: string | null;
 };
 
 /**
@@ -31,8 +33,13 @@ export const getCachedProfile = cache(async (): Promise<CurrentProfile | null> =
   const supabase = await createClient();
   const { data } = await supabase
     .from("profiles")
-    .select("id, role, full_name, email")
+    .select("id, role, full_name, email, instance_id")
     .eq("id", user.id)
     .single();
   return (data as CurrentProfile) ?? null;
 });
+
+/** Id da loja do usuário logado — usado para gravar dados na loja certa. */
+export async function getCurrentInstanceId(): Promise<string | null> {
+  return (await getCachedProfile())?.instance_id ?? null;
+}

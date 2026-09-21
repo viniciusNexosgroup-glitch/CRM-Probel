@@ -10,6 +10,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { evolution, EvolutionError } from "@/lib/evolution/client";
+import { evoFor } from "@/lib/evolution/instance";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,7 +61,7 @@ async function run() {
     }
 
     try {
-      const r = await evolution.sendText(remoteJid, msg.content);
+      const r = await (await evoFor(msg.instance_id)).sendText(remoteJid, msg.content);
       const sentAt = new Date().toISOString();
 
       await supabase.from("messages").insert({

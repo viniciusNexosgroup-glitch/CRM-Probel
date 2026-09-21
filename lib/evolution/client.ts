@@ -87,12 +87,21 @@ async function evoFetch<T>(
   return body as T;
 }
 
-export const evolution = {
+/**
+ * Cliente da Evolution amarrado a UMA instância (= uma loja).
+ *
+ * O CRM agora atende mais de uma empresa, cada uma com seu próprio WhatsApp.
+ * `evolution` segue apontando para a instância do .env (compatibilidade), e
+ * `evolutionFor(nome)` devolve o mesmo conjunto de operações para a loja certa.
+ */
+function makeEvolution(instanceOverride?: string) {
+  const resolveInstance = () => instanceOverride ?? getConfig().instanceName;
+  return {
   /**
    * Retorna a instância com nome configurado, ou null se a Evolution não a tiver.
    */
   async fetchInstance(): Promise<EvolutionInstance | null> {
-    const { instanceName } = getConfig();
+    const instanceName = resolveInstance();
     const data = await evoFetch<EvolutionInstance[]>("/instance/fetchInstances", {
       method: "GET",
       searchParams: { instanceName },
@@ -101,7 +110,7 @@ export const evolution = {
   },
 
   async connectionState(): Promise<EvolutionConnectionStateResponse> {
-    const { instanceName } = getConfig();
+    const instanceName = resolveInstance();
     return evoFetch(`/instance/connectionState/${instanceName}`, { method: "GET" });
   },
 
@@ -110,17 +119,17 @@ export const evolution = {
    * Se já conectada, retorna estado.
    */
   async connect(): Promise<EvolutionQrResponse> {
-    const { instanceName } = getConfig();
+    const instanceName = resolveInstance();
     return evoFetch(`/instance/connect/${instanceName}`, { method: "GET" });
   },
 
   async logout(): Promise<{ status: string }> {
-    const { instanceName } = getConfig();
+    const instanceName = resolveInstance();
     return evoFetch(`/instance/logout/${instanceName}`, { method: "DELETE" });
   },
 
   async setWebhook(config: EvolutionWebhookConfig): Promise<unknown> {
-    const { instanceName } = getConfig();
+    const instanceName = resolveInstance();
     // Evolution v2.3.7 espera `base64` e `byEvents` no SET (não `webhookBase64`/`webhookByEvents`).
     return evoFetch(`/webhook/set/${instanceName}`, {
       method: "POST",
@@ -150,7 +159,7 @@ export const evolution = {
       content: string;
     }
   ): Promise<EvolutionSendTextResponse> {
-    const { instanceName } = getConfig();
+    const instanceName = resolveInstance();
     const body: Record<string, unknown> = {
       number: jidToNumber(remoteJid),
       text,
@@ -180,7 +189,7 @@ export const evolution = {
     messageId: string,
     convertToMp4 = false
   ): Promise<{ base64: string; mimetype: string } | null> {
-    const { instanceName } = getConfig();
+    const instanceName = resolveInstance();
     try {
       const res = await evoFetch<{ base64?: string; media?: string; mimetype?: string }>(
         `/chat/getBase64FromMediaMessage/${instanceName}`,
@@ -206,7 +215,7 @@ export const evolution = {
     messages: Array<{ remoteJid: string; fromMe: boolean; id: string }>
   ): Promise<unknown> {
     if (messages.length === 0) return null;
-    const { instanceName } = getConfig();
+    const instanceName = resolveInstance();
     return evoFetch(`/chat/markMessageAsRead/${instanceName}`, {
       method: "POST",
       body: JSON.stringify({ readMessages: messages }),
@@ -222,7 +231,7 @@ export const evolution = {
    */
   async resolveCanonicalJid(remoteJid: string): Promise<string> {
     if (remoteJid.endsWith("@g.us")) return remoteJid;
-    const { instanceName } = getConfig();
+    const instanceName = resolveInstance();
     try {
       const res = await evoFetch<Array<{ exists: boolean; jid?: string }>>(
         `/chat/whatsappNumbers/${instanceName}`,
@@ -249,7 +258,7 @@ export const evolution = {
     fromMe: boolean;
     participant?: string;
   }): Promise<unknown> {
-    const { instanceName } = getConfig();
+    const instanceName = resolveInstance();
     return evoFetch(`/chat/deleteMessageForEveryone/${instanceName}`, {
       method: "DELETE",
       body: JSON.stringify(key),
@@ -265,7 +274,7 @@ export const evolution = {
     key: { id: string; remoteJid: string; fromMe: boolean },
     text: string
   ): Promise<unknown> {
-    const { instanceName } = getConfig();
+    const instanceName = resolveInstance();
     return evoFetch(`/chat/updateMessage/${instanceName}`, {
       method: "POST",
       body: JSON.stringify({
@@ -281,7 +290,7 @@ export const evolution = {
    * Aceita URL pública ou base64. Evolution converte pra OGG Opus se precisar.
    */
   async sendAudio(remoteJid: string, audioUrl: string): Promise<EvolutionSendMediaResponse> {
-    const { instanceName } = getConfig();
+    const instanceName = resolveInstance();
     return evoFetch(`/message/sendWhatsAppAudio/${instanceName}`, {
       method: "POST",
       body: JSON.stringify({
@@ -298,7 +307,7 @@ export const evolution = {
     remoteJid: string,
     payload: Omit<EvolutionSendMediaPayload, "number">
   ): Promise<EvolutionSendMediaResponse> {
-    const { instanceName } = getConfig();
+    const instanceName = resolveInstance();
     return evoFetch(`/message/sendMedia/${instanceName}`, {
       method: "POST",
       body: JSON.stringify({
@@ -312,7 +321,7 @@ export const evolution = {
    * Envia figurinha (sticker). Aceita URL pública (webp) ou base64.
    */
   async sendSticker(remoteJid: string, stickerUrl: string): Promise<EvolutionSendMediaResponse> {
-    const { instanceName } = getConfig();
+    const instanceName = resolveInstance();
     return evoFetch(`/message/sendSticker/${instanceName}`, {
       method: "POST",
       body: JSON.stringify({
@@ -323,7 +332,7 @@ export const evolution = {
   },
 
   async findWebhook(): Promise<EvolutionWebhookConfig | null> {
-    const { instanceName } = getConfig();
+    const instanceName = resolveInstance();
     try {
       return await evoFetch<EvolutionWebhookConfig>(`/webhook/find/${instanceName}`, {
         method: "GET",
@@ -333,7 +342,16 @@ export const evolution = {
       throw e;
     }
   },
-};
+  };
+}
+
+/** Instância padrão (a do .env) — mantém funcionando tudo que já existia. */
+export const evolution = makeEvolution();
+
+/** Operações da Evolution na instância (loja) informada. */
+export function evolutionFor(instanceName: string) {
+  return makeEvolution(instanceName);
+}
 
 /**
  * Mapeia estado da Evolution → enum do nosso banco (whatsapp_instances.status).

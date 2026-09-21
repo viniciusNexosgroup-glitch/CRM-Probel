@@ -53,6 +53,7 @@ export type Database = {
       profiles: {
         Row: {
           id: string;
+          instance_id: string;
           email: string | null;
           full_name: string | null;
           avatar_url: string | null;
@@ -71,6 +72,7 @@ export type Database = {
         };
         Update: {
           id?: string;
+          instance_id?: string;
           email?: string | null;
           full_name?: string | null;
           avatar_url?: string | null;
@@ -85,6 +87,7 @@ export type Database = {
           id: string;
           user_id: string | null;
           instance_name: string;
+          label: string | null;
           evolution_api_url: string | null;
           status: WhatsAppStatus;
           phone_number: string | null;
@@ -115,6 +118,7 @@ export type Database = {
           id?: string;
           user_id?: string | null;
           instance_name?: string;
+          label?: string | null;
           evolution_api_url?: string | null;
           status?: WhatsAppStatus;
           phone_number?: string | null;
@@ -377,6 +381,7 @@ export type Database = {
       pipeline_stages: {
         Row: {
           id: string;
+          instance_id: string;
           user_id: string | null;
           name: string;
           position: number;
@@ -388,6 +393,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
+          instance_id?: string;
           user_id?: string | null;
           name: string;
           position: number;
@@ -399,6 +405,7 @@ export type Database = {
         };
         Update: {
           id?: string;
+          instance_id?: string;
           user_id?: string | null;
           name?: string;
           position?: number;
@@ -413,6 +420,7 @@ export type Database = {
       leads: {
         Row: {
           id: string;
+          instance_id: string;
           contact_id: string;
           conversation_id: string | null;
           stage_id: string | null;
@@ -445,6 +453,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
+          instance_id?: string;
           contact_id: string;
           conversation_id?: string | null;
           stage_id?: string | null;
@@ -477,6 +486,7 @@ export type Database = {
         };
         Update: {
           id?: string;
+          instance_id?: string;
           contact_id?: string;
           conversation_id?: string | null;
           stage_id?: string | null;
@@ -540,9 +550,9 @@ export type Database = {
         Relationships: [];
       };
       tags: {
-        Row: { id: string; name: string; color: string; created_at: string };
-        Insert: { id?: string; name: string; color?: string; created_at?: string };
-        Update: { id?: string; name?: string; color?: string; created_at?: string };
+        Row: { id: string; instance_id: string; name: string; color: string; created_at: string };
+        Insert: { id?: string; instance_id?: string; name: string; color?: string; created_at?: string };
+        Update: { id?: string; instance_id?: string; name?: string; color?: string; created_at?: string };
         Relationships: [];
       };
       lead_tags: {
@@ -554,6 +564,7 @@ export type Database = {
       quick_replies: {
         Row: {
           id: string;
+          instance_id: string;
           shortcut: string;
           title: string;
           content: string;
@@ -564,6 +575,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
+          instance_id?: string;
           shortcut: string;
           title: string;
           content: string;
@@ -574,6 +586,7 @@ export type Database = {
         };
         Update: {
           id?: string;
+          instance_id?: string;
           shortcut?: string;
           title?: string;
           content?: string;
@@ -632,6 +645,7 @@ export type Database = {
       media_categories: {
         Row: {
           id: string;
+          instance_id: string;
           name: string;
           color: string | null;
           position: number;
@@ -644,6 +658,7 @@ export type Database = {
       media_library: {
         Row: {
           id: string;
+          instance_id: string;
           category_id: string | null;
           title: string;
           description: string | null;
@@ -660,6 +675,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
+          instance_id?: string;
           category_id?: string | null;
           title: string;
           description?: string | null;
@@ -676,6 +692,7 @@ export type Database = {
         };
         Update: {
           id?: string;
+          instance_id?: string;
           category_id?: string | null;
           title?: string;
           description?: string | null;
@@ -693,9 +710,9 @@ export type Database = {
         Relationships: [];
       };
       settings: {
-        Row: { key: string; value: Json; updated_by: string | null; updated_at: string };
-        Insert: { key: string; value: Json; updated_by?: string | null; updated_at?: string };
-        Update: { key?: string; value?: Json; updated_by?: string | null; updated_at?: string };
+        Row: { key: string; value: Json; instance_id: string; updated_by: string | null; updated_at: string };
+        Insert: { key: string; value: Json; instance_id?: string; updated_by?: string | null; updated_at?: string };
+        Update: { key?: string; value?: Json; instance_id?: string; updated_by?: string | null; updated_at?: string };
         Relationships: [];
       };
       scheduled_messages: {
@@ -800,6 +817,7 @@ export type Database = {
       automations: {
         Row: {
           id: string;
+          instance_id: string;
           name: string;
           trigger_type: "new_conversation" | "no_response" | "stage_change" | "tag_added" | "task_overdue";
           trigger_config: Json;
@@ -811,6 +829,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
+          instance_id?: string;
           name: string;
           trigger_type: "new_conversation" | "no_response" | "stage_change" | "tag_added" | "task_overdue";
           trigger_config?: Json;
@@ -822,6 +841,7 @@ export type Database = {
         };
         Update: {
           id?: string;
+          instance_id?: string;
           name?: string;
           trigger_type?: "new_conversation" | "no_response" | "stage_change" | "tag_added" | "task_overdue";
           trigger_config?: Json;
@@ -836,6 +856,7 @@ export type Database = {
       salesbot_flows: {
         Row: {
           id: string;
+          instance_id: string;
           name: string;
           description: string | null;
           channel: SalesbotChannel;
@@ -848,6 +869,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
+          instance_id?: string;
           name: string;
           description?: string | null;
           channel?: SalesbotChannel;
@@ -860,6 +882,7 @@ export type Database = {
         };
         Update: {
           id?: string;
+          instance_id?: string;
           name?: string;
           description?: string | null;
           channel?: SalesbotChannel;

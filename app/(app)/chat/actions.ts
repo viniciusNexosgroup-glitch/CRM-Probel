@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { evolution, EvolutionError } from "@/lib/evolution/client";
+import { evoFor } from "@/lib/evolution/instance";
+import { getCurrentInstanceId } from "@/lib/auth/current-user";
 import { getCurrentProfile } from "@/lib/auth/roles";
 import { logAudit } from "@/lib/audit/log";
 import { sendCtwaConversion } from "@/lib/meta/capi";
@@ -43,7 +45,7 @@ export async function markAsReadAction(conversationId: string) {
 
   const { data: conv } = await supabase
     .from("conversations")
-    .select("id, remote_jid, unread_count")
+    .select("id, instance_id, remote_jid, unread_count")
     .eq("id", conversationId)
     .single();
   if (!conv) return { ok: false, error: "Conversa não encontrada" };
@@ -68,7 +70,7 @@ export async function markAsReadAction(conversationId: string) {
 
     if (keys.length > 0) {
       try {
-        await evolution.markAsRead(keys);
+        await (await evoFor(conv.instance_id)).markAsRead(keys);
       } catch (e) {
         console.warn(
           "[markAsRead] Evolution falhou (continuando local):",
@@ -152,7 +154,7 @@ export async function sendTextMessageAction(
 
   let sent;
   try {
-    sent = await evolution.sendText(conv.remote_jid, trimmed, quoted);
+    sent = await (await evoFor(conv.instance_id)).sendText(conv.remote_jid, trimmed, quoted);
   } catch (e) {
     if (e instanceof EvolutionError) return { ok: false, error: e.message };
     return { ok: false, error: (e as Error).message };
@@ -207,6 +209,7 @@ type EditableMessage = Pick<
   MessageRow,
   | "id"
   | "conversation_id"
+  | "instance_id"
   | "evolution_message_id"
   | "remote_jid"
   | "from_me"
@@ -232,7 +235,7 @@ async function getEditableMessage(
   const { data: msg } = await supabase
     .from("messages")
     .select(
-      "id, conversation_id, evolution_message_id, remote_jid, from_me, message_type, content, timestamp, is_deleted"
+      "id, conversation_id, instance_id, evolution_message_id, remote_jid, from_me, message_type, content, timestamp, is_deleted"
     )
     .eq("id", messageId)
     .single();
@@ -286,8 +289,9 @@ export async function deleteMessageAction(messageId: string): Promise<Result> {
   try {
     // JID canônico: números BR podem estar salvos com o nono dígito enquanto a
     // conta real usa o formato antigo — com o alias errado o revoke não propaga.
-    const canonicalJid = await evolution.resolveCanonicalJid(msg.remote_jid);
-    await evolution.deleteMessageForEveryone({
+    const evo = await evoFor(msg.instance_id);
+    const canonicalJid = await evo.resolveCanonicalJid(msg.remote_jid);
+    await evo.deleteMessageForEveryone({
       id: msg.evolution_message_id as string,
       remoteJid: canonicalJid,
       fromMe: true,
@@ -336,8 +340,9 @@ export async function editMessageAction(
 
   try {
     // Mesmo motivo do delete: o edit precisa do JID canônico da conta.
-    const canonicalJid = await evolution.resolveCanonicalJid(msg.remote_jid);
-    await evolution.updateMessage(
+    const evo = await evoFor(msg.instance_id);
+    const canonicalJid = await evo.resolveCanonicalJid(msg.remote_jid);
+    await evo.updateMessage(
       canonicalJid,
       { id: msg.evolution_message_id as string, remoteJid: canonicalJid, fromMe: true },
       trimmed
@@ -849,11 +854,11 @@ export async function sendUploadedMediaAction(
   let sent;
   try {
     if (payload.fileType === "audio") {
-      sent = await evolution.sendAudio(conv.remote_jid, payload.fileUrl);
+      sent = await (await evoFor(conv.instance_id)).sendAudio(conv.remote_jid, payload.fileUrl);
     } else if (payload.fileType === "sticker") {
-      sent = await evolution.sendSticker(conv.remote_jid, payload.fileUrl);
+      sent = await (await evoFor(conv.instance_id)).sendSticker(conv.remote_jid, payload.fileUrl);
     } else {
-      sent = await evolution.sendMedia(conv.remote_jid, {
+      sent = await (await evoFor(conv.instance_id)).sendMedia(conv.remote_jid, {
         mediatype: payload.fileType === "image" ? "image" : payload.fileType === "video" ? "video" : "document",
         media: payload.fileUrl,
         mimetype: payload.mimetype,
@@ -948,10 +953,10 @@ export async function forwardMessageAction(
       let evolutionMessageId: string;
 
       if (msg.message_type === "text") {
-        const r = await evolution.sendText(target.remote_jid, msg.content ?? "");
+        const r = await (await evoFor(target.instance_id)).sendText(target.remote_jid, msg.content ?? "");
         evolutionMessageId = r.key.id;
       } else if (msg.message_type === "audio" && msg.media_url) {
-        const r = await evolution.sendAudio(target.remote_jid, msg.media_url);
+        const r = await (await evoFor(target.instance_id)).sendAudio(target.remote_jid, msg.media_url);
         evolutionMessageId = r.key.id;
       } else if (msg.media_url) {
         const mediatype =
@@ -960,7 +965,7 @@ export async function forwardMessageAction(
             : msg.message_type === "video"
               ? "video"
               : "document";
-        const r = await evolution.sendMedia(target.remote_jid, {
+        const r = await (await evoFor(target.instance_id)).sendMedia(target.remote_jid, {
           mediatype,
           media: msg.media_url,
           mimetype: msg.media_mimetype ?? undefined,
@@ -1210,12 +1215,16 @@ export async function startConversationAction(
   // Cria contato + conversa + mensagem idempotentes (o webhook MESSAGES_UPSERT
   // vai upsert depois também, mas fazendo aqui já temos algo pra navegar)
   const service = createServiceClient();
+  // A conversa nasce no WhatsApp da loja de quem está iniciando — nunca na
+  // instância fixa do .env, que com duas empresas mandaria pelo número errado.
+  const instanceId = await getCurrentInstanceId();
+  if (!instanceId) return { ok: false, error: "Usuário sem loja vinculada" };
   const { data: instance } = await service
     .from("whatsapp_instances")
     .select("id")
-    .eq("instance_name", process.env.EVOLUTION_INSTANCE_NAME ?? "")
+    .eq("id", instanceId)
     .single();
-  if (!instance) return { ok: false, error: "Instância não encontrada no banco" };
+  if (!instance) return { ok: false, error: "Loja não encontrada no banco" };
 
   const { data: contact, error: contactErr } = await service
     .from("contacts")
@@ -1331,7 +1340,7 @@ export async function sendAudioMessageAction(
 
   let sent;
   try {
-    sent = await evolution.sendAudio(conv.remote_jid, audioUrl);
+    sent = await (await evoFor(conv.instance_id)).sendAudio(conv.remote_jid, audioUrl);
   } catch (e) {
     if (e instanceof EvolutionError) return { ok: false, error: e.message };
     return { ok: false, error: (e as Error).message };
@@ -1438,7 +1447,7 @@ export async function sendMediaFromLibraryAction(
 
   let sent;
   try {
-    sent = await evolution.sendMedia(conv.remote_jid, {
+    sent = await (await evoFor(conv.instance_id)).sendMedia(conv.remote_jid, {
       mediatype,
       media: media.file_url,
       mimetype,

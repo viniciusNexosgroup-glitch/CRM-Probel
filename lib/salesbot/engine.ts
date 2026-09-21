@@ -1,5 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { evolution } from "@/lib/evolution/client";
+import { evoFor } from "@/lib/evolution/instance";
 import { salesbotDb, type UntypedSupabase } from "@/lib/salesbot/db";
 import type { Json, MessageType } from "@/types/database";
 import type { SalesbotEdge, SalesbotFlow, SalesbotNode, SalesbotTrigger } from "@/lib/salesbot/types";
@@ -195,11 +196,15 @@ async function getLeadData(db: UntypedSupabase, leadId: string | null): Promise<
 
 async function resolveAutomaticAssignee(
   db: UntypedSupabase,
-  config: Record<string, Json | undefined>
+  config: Record<string, Json | undefined>,
+  // Só distribui entre vendedores da MESMA loja — com duas empresas no CRM,
+  // um lead da Vivence não pode cair para alguém da Probel.
+  instanceId: string
 ): Promise<string | null> {
   const { data: profiles, error } = await db
     .from("profiles")
     .select("id, role")
+    .eq("instance_id", instanceId)
     .in("role", ["user", "admin"]);
   if (error || !profiles?.length) return null;
 
@@ -354,7 +359,7 @@ async function executeNode(
         textValue(config.message) ||
         textValue(config.question) ||
         "Ol\u00e1! Como posso ajudar?";
-      const sent = await evolution.sendText(context.remoteJid, text);
+      const sent = await (await evoFor(context.instanceId)).sendText(context.remoteJid, text);
       await insertOutgoingMessage(db, context, {
         evolutionMessageId: sent.key.id,
         messageType: "text",
@@ -429,7 +434,7 @@ async function executeNode(
       const userId =
         typeof config.user_id === "string" && config.user_id
           ? config.user_id
-          : await resolveAutomaticAssignee(db, config);
+          : await resolveAutomaticAssignee(db, config, context.instanceId);
       if (userId) {
         await db.from("conversations").update({ assigned_to: userId }).eq("id", context.conversationId);
         if (context.leadId) await db.from("leads").update({ assigned_to: userId }).eq("id", context.leadId);
@@ -469,7 +474,7 @@ async function executeNode(
 
       const mediaType = normalizeMediaType(media.file_type);
       const caption = textValue(config.caption);
-      const sent = await evolution.sendMedia(context.remoteJid, {
+      const sent = await (await evoFor(context.instanceId)).sendMedia(context.remoteJid, {
         mediatype: mediaType,
         media: media.file_url,
         mimetype: media.mimetype ?? undefined,
@@ -517,7 +522,7 @@ async function executeNode(
 
     case "ai_response": {
       const text = await callAiResponse(db, flowId, context, textValue(config.prompt));
-      const sent = await evolution.sendText(context.remoteJid, text);
+      const sent = await (await evoFor(context.instanceId)).sendText(context.remoteJid, text);
       await insertOutgoingMessage(db, context, {
         evolutionMessageId: sent.key.id,
         messageType: "text",

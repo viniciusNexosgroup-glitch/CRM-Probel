@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getCurrentInstanceId } from "@/lib/auth/current-user";
 import { createClient } from "@/lib/supabase/server";
 import type { LeadSource } from "@/lib/lead-sources";
 import type { Json } from "@/types/database";
@@ -26,14 +27,17 @@ export async function saveLeadSourcesAction(sources: LeadSource[]): Promise<Resu
     data: { user },
   } = await supabase.auth.getUser();
 
+  const instanceId = await getCurrentInstanceId();
+  if (!instanceId) return { ok: false, error: "Usuário sem loja vinculada" };
   const { error } = await supabase.from("settings").upsert(
     {
       key: "lead_sources",
+      instance_id: instanceId,
       value: clean as unknown as Json,
       updated_by: user?.id ?? null,
       updated_at: new Date().toISOString(),
     },
-    { onConflict: "key" }
+    { onConflict: "instance_id,key" }
   );
   if (error) return { ok: false, error: error.message };
 
