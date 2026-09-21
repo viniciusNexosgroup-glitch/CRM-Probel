@@ -1,10 +1,23 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { evolution, mapEvolutionStateToDb, EvolutionError } from "@/lib/evolution/client";
+import { mapEvolutionStateToDb, EvolutionError } from "@/lib/evolution/client";
+import { evoFor } from "@/lib/evolution/instance";
+import { getCurrentInstanceId } from "@/lib/auth/current-user";
 import { createClient } from "@/lib/supabase/server";
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
+
+/**
+ * Cliente da Evolution da loja de quem está logado. Cada empresa conecta o
+ * próprio WhatsApp por esta tela, então nada aqui pode usar a instância fixa
+ * do .env — senão o admin da Vivence mexeria no número da Probel.
+ */
+async function evoDaMinhaLoja() {
+  const instanceId = await getCurrentInstanceId();
+  if (!instanceId) return null;
+  return { instanceId, evo: await evoFor(instanceId) };
+}
 
 const WEBHOOK_EVENTS = [
   "MESSAGES_UPSERT",
@@ -24,12 +37,14 @@ const WEBHOOK_EVENTS = [
  */
 export async function syncInstanceAction(): Promise<ActionResult<{ status: string }>> {
   try {
-    const instance = await evolution.fetchInstance();
+    const ctx = await evoDaMinhaLoja();
+    if (!ctx) return { ok: false, error: "Usuário sem loja vinculada" };
+    const instance = await ctx.evo.fetchInstance();
     if (!instance) {
       return {
         ok: false,
         error:
-          "Instância não encontrada na Evolution. Verifique EVOLUTION_INSTANCE_NAME no .env.local.",
+          "WhatsApp desta loja ainda não foi criado na Evolution. Fale com o suporte.",
       };
     }
 
@@ -71,7 +86,9 @@ export async function syncInstanceAction(): Promise<ActionResult<{ status: strin
  */
 export async function disconnectAction(): Promise<ActionResult> {
   try {
-    await evolution.logout();
+    const ctx = await evoDaMinhaLoja();
+    if (!ctx) return { ok: false, error: "Usuário sem loja vinculada" };
+    await ctx.evo.logout();
     await syncInstanceAction();
     revalidatePath("/settings/whatsapp");
     return { ok: true };
@@ -108,7 +125,9 @@ export async function configureWebhookAction(): Promise<ActionResult<{ url: stri
 
     const webhookUrl = `${appUrl.replace(/\/+$/, "")}/api/webhooks/evolution/${secret}`;
 
-    await evolution.setWebhook({
+    const ctx = await evoDaMinhaLoja();
+    if (!ctx) return { ok: false, error: "Usuário sem loja vinculada" };
+    await ctx.evo.setWebhook({
       enabled: true,
       url: webhookUrl,
       webhookByEvents: false,
@@ -131,7 +150,9 @@ export async function configureWebhookAction(): Promise<ActionResult<{ url: stri
  */
 export async function reconnectAction(): Promise<ActionResult<{ qrCode?: string }>> {
   try {
-    const resp = await evolution.connect();
+    const ctx = await evoDaMinhaLoja();
+    if (!ctx) return { ok: false, error: "Usuário sem loja vinculada" };
+    const resp = await ctx.evo.connect();
     await syncInstanceAction();
     revalidatePath("/settings/whatsapp");
     return { ok: true, data: { qrCode: resp.base64 } };

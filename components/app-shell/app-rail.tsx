@@ -58,6 +58,7 @@ export function AppRail() {
   const [userName, setUserName] = useState<string>("");
   const [userEmail, setUserEmail] = useState<string>("");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [lojaLabel, setLojaLabel] = useState("");
   const [hovered, setHovered] = useState(false);
   const isCompact = !hovered;
 
@@ -70,10 +71,20 @@ export function AppRail() {
       setUserName(meta?.full_name ?? user.email?.split("@")[0] ?? "");
       const { data: profile } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, instance_id")
         .eq("id", user.id)
         .single();
       setIsAdmin(profile?.role === "admin");
+      // Com uma conta por loja, mostrar o nome da empresa evita a dúvida de
+      // "em qual loja eu estou?" ao alternar entre os logins.
+      if (profile?.instance_id) {
+        const { data: loja } = await supabase
+          .from("whatsapp_instances")
+          .select("label, profile_name, instance_name")
+          .eq("id", profile.instance_id)
+          .single();
+        setLojaLabel(loja?.label ?? loja?.profile_name ?? loja?.instance_name ?? "");
+      }
     });
   }, []);
 
@@ -118,10 +129,10 @@ export function AppRail() {
           <MessageSquare className="h-5 w-5 text-primary" />
         </div>
         <div className={cn("min-w-0", isCompact && "hidden")}>
-          <p className="font-semibold text-wa-textPrimary text-sm">CRM Probel</p>
-          <p className="text-[10px] text-wa-textSecondary truncate">
-            {"Colch\u00f5es Probel"}
+          <p className="font-semibold text-wa-textPrimary text-sm truncate">
+            {lojaLabel || "CRM"}
           </p>
+          <p className="text-[10px] text-wa-textSecondary truncate">CRM de atendimento</p>
         </div>
       </div>
 

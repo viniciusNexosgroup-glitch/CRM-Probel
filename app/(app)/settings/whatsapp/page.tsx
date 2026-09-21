@@ -9,7 +9,9 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { evolution, mapEvolutionStateToDb, EvolutionError } from "@/lib/evolution/client";
+import { mapEvolutionStateToDb, EvolutionError } from "@/lib/evolution/client";
+import { evoFor } from "@/lib/evolution/instance";
+import { getCurrentInstanceId } from "@/lib/auth/current-user";
 import { createClient } from "@/lib/supabase/server";
 import {
   SyncButton,
@@ -30,7 +32,10 @@ const statusLabel: Record<string, { label: string; variant: "success" | "warning
 
 async function fetchAndPersistInstance() {
   try {
-    const instance = await evolution.fetchInstance();
+    const instanceId = await getCurrentInstanceId();
+    if (!instanceId) return { instance: null, error: "Usuário sem loja vinculada." };
+    const evo = await evoFor(instanceId);
+    const instance = await evo.fetchInstance();
     if (!instance) return { instance: null, error: "Instância não encontrada na Evolution." };
 
     const supabase = await createClient();
@@ -60,7 +65,9 @@ async function fetchAndPersistInstance() {
 
 async function fetchCurrentWebhook(): Promise<string | null> {
   try {
-    const wh = await evolution.findWebhook();
+    const instanceId = await getCurrentInstanceId();
+    if (!instanceId) return null;
+    const wh = await (await evoFor(instanceId)).findWebhook();
     return (wh as { url?: string } | null)?.url ?? null;
   } catch {
     return null;
@@ -85,7 +92,7 @@ export default async function WhatsAppSettingsPage() {
         <div className="container max-w-3xl py-6 space-y-6">
       <div>
         <p className="text-sm text-muted-foreground">
-          Status e dados da instância <code>{process.env.EVOLUTION_INSTANCE_NAME}</code> na Evolution API.
+          Status e dados do WhatsApp desta loja.
         </p>
       </div>
 
@@ -95,7 +102,7 @@ export default async function WhatsAppSettingsPage() {
             <p className="text-sm text-red-400">⚠️ {error}</p>
             <p className="text-xs text-muted-foreground mt-2">
               Verifique <code>EVOLUTION_API_URL</code>, <code>EVOLUTION_API_KEY</code> e{" "}
-              <code>EVOLUTION_INSTANCE_NAME</code> no <code>.env.local</code>.
+              a conexão desta loja.
             </p>
           </CardContent>
         </Card>
