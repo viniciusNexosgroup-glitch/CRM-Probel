@@ -53,7 +53,14 @@ function telefoneValido(phone: string | null | undefined): string | null {
   return d;
 }
 
-export type CapiResult = { ok: boolean; skipped?: boolean; error?: string; response?: unknown };
+export type CapiResult = {
+  ok: boolean;
+  skipped?: boolean;
+  error?: string;
+  response?: unknown;
+  /** Conjunto de dados (pixel) que recebeu o evento — para auditoria. */
+  datasetId?: string;
+};
 
 /**
  * Envia um evento de conversão pro Meta (Conversions API).
@@ -126,9 +133,19 @@ export async function sendCtwaConversion(params: {
       { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
     );
     const json = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
-    if (!res.ok) return { ok: false, error: json?.error?.message || `HTTP ${res.status}`, response: json };
-    return { ok: true, response: json };
+    if (!res.ok)
+      return {
+        ok: false,
+        error: json?.error?.message || `HTTP ${res.status}`,
+        response: json,
+        datasetId: cfg.dataset_id,
+      };
+    return { ok: true, response: json, datasetId: cfg.dataset_id };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : String(e),
+      datasetId: cfg.dataset_id,
+    };
   }
 }

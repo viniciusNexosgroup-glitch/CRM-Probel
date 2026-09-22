@@ -384,6 +384,7 @@ export type Database = {
           lead_id: string;
           stage_id: string;
           event_name: string;
+          dataset_id: string | null;
           sent_at: string;
           ok: boolean;
           detail: string | null;
@@ -393,6 +394,7 @@ export type Database = {
           lead_id: string;
           stage_id: string;
           event_name: string;
+          dataset_id?: string | null;
           sent_at?: string;
           ok?: boolean;
           detail?: string | null;
@@ -402,6 +404,7 @@ export type Database = {
           lead_id?: string;
           stage_id?: string;
           event_name?: string;
+          dataset_id?: string | null;
           sent_at?: string;
           ok?: boolean;
           detail?: string | null;

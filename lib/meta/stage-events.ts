@@ -66,6 +66,7 @@ export async function fireStageEvent(
     lead_id: leadId,
     stage_id: stageId,
     event_name: stage.meta_event_name,
+    dataset_id: r.datasetId ?? null,
     ok: r.ok,
     detail: r.ok ? null : (r.error ?? "falha no envio"),
   });
