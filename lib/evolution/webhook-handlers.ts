@@ -210,10 +210,13 @@ async function getOrCreateInstance(instanceName: string) {
 async function getOrCreateContact(
   instanceId: string,
   remoteJid: string,
-  pushName: string | null
+  pushName: string | null,
+  // Quando o contato é identificado por LID, o telefone de verdade vem aqui.
+  // Sem isso gravávamos o número interno do WhatsApp como telefone.
+  remoteJidAlt?: string | null
 ) {
   const supabase = createServiceClient();
-  const phone = jidToPhone(remoteJid);
+  const phone = jidToPhone(remoteJidAlt ?? "") ?? jidToPhone(remoteJid);
   const isGroup = isGroupJid(remoteJid);
 
   const { data: existing } = await supabase
@@ -528,7 +531,8 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
   const contactId = await getOrCreateContact(
     instanceId,
     data.key.remoteJid,
-    data.pushName ?? null
+    data.pushName ?? null,
+    data.key.remoteJidAlt ?? null
   );
   const conversation = await getOrCreateConversation(instanceId, contactId, data.key.remoteJid);
   const conversationId = conversation.id;

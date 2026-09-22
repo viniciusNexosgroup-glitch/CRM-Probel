@@ -40,6 +40,19 @@ function sha256(s: string): string {
   return crypto.createHash("sha256").update(s.trim().toLowerCase()).digest("hex");
 }
 
+/**
+ * O WhatsApp identifica parte dos contatos por um número interno (LID) em vez
+ * do telefone, e esse número acaba gravado no campo `phone`. Mandar o hash de
+ * um LID como telefone nunca casa com ninguém no Meta e ainda derruba a
+ * qualidade de correspondência do conjunto de dados — então só enviamos o que
+ * tem cara de telefone brasileiro com DDI (55 + DDD + número).
+ */
+function telefoneValido(phone: string | null | undefined): string | null {
+  const d = (phone ?? "").replace(/\D/g, "");
+  if (!/^55\d{10,11}$/.test(d)) return null;
+  return d;
+}
+
 export type CapiResult = { ok: boolean; skipped?: boolean; error?: string; response?: unknown };
 
 /**
@@ -66,9 +79,13 @@ export async function sendCtwaConversion(params: {
 }): Promise<CapiResult> {
   const cfg = await getMetaConfig(params.instanceId);
   if (!cfg) return { ok: false, skipped: true };
-  const temTelefone = Boolean(params.phone && params.phone.replace(/\D/g, ""));
-  if (!params.ctwaClid && !temTelefone)
-    return { ok: false, skipped: true, error: "lead sem clique de anúncio e sem telefone" };
+  const telefone = telefoneValido(params.phone);
+  if (!params.ctwaClid && !telefone)
+    return {
+      ok: false,
+      skipped: true,
+      error: "lead sem clique de anúncio e sem telefone válido",
+    };
 
   // Formato de "evento de CRM" (action_source: system_generated), o único que
   // funciona aqui: o business_messaging exige a conta do WhatsApp vinculada ao
@@ -79,10 +96,7 @@ export async function sendCtwaConversion(params: {
   const eventName = params.eventName || cfg.event_name || "Lead";
   const userData: Record<string, unknown> = {};
   if (params.ctwaClid) userData.ctwa_clid = params.ctwaClid;
-  if (params.phone) {
-    const digits = params.phone.replace(/\D/g, "");
-    if (digits) userData.ph = [sha256(digits)];
-  }
+  if (telefone) userData.ph = [sha256(telefone)];
 
   const customData: Record<string, unknown> = {
     event_source: "crm",

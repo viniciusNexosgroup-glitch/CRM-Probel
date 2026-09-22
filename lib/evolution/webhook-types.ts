@@ -32,6 +32,8 @@ export interface WhatsAppMessageKey {
   remoteJid: string;
   fromMe: boolean;
   participant?: string;
+  /** Telefone real quando o contato é identificado por LID. */
+  remoteJidAlt?: string;
 }
 
 export interface WhatsAppMessageContent {
