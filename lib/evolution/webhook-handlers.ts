@@ -347,6 +347,7 @@ function extractAdReferral(payload: unknown): AdReferral | null {
 }
 
 async function ensureLeadForContact(
+  instanceId: string,
   contactId: string,
   conversationId: string,
   adRef?: AdReferral | null
@@ -364,6 +365,7 @@ async function ensureLeadForContact(
   const { data: stage } = await supabase
     .from("pipeline_stages")
     .select("id")
+    .eq("instance_id", instanceId)
     .is("user_id", null)
     .order("position", { ascending: true })
     .limit(1)
@@ -396,6 +398,21 @@ async function ensureLeadForContact(
     })
     .select("id")
     .single();
+
+  // Primeiro contato: dispara o evento da etapa inicial (ex.: "Novo Lead" →
+  // Contact). Vale para todo mundo que chama no WhatsApp, sem palavra-chave.
+  // Fora do caminho crítico: se o Meta falhar, a mensagem já está registrada.
+  if (created?.id) {
+    const idDoLead = created.id;
+    after(async () => {
+      try {
+        const { fireStageEvent } = await import("@/lib/meta/stage-events");
+        await fireStageEvent(idDoLead, stage.id);
+      } catch (e) {
+        console.error("[meta] falha no evento de primeiro contato:", (e as Error).message);
+      }
+    });
+  }
 
   return created?.id ?? null;
 }
@@ -518,6 +535,7 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
 
   // Cria lead automaticamente em "Novo Lead" se ainda não houver
   const leadId = await ensureLeadForContact(
+    instanceId,
     contactId,
     conversationId,
     extractAdReferral(data)

@@ -45,6 +45,7 @@ export async function createStageAction(
     .insert({ name: name.trim(), color, position: nextPos, user_id: ownerId });
   if (error) return { ok: false, error: error.message };
   revalidatePath("/settings/pipeline");
+  revalidatePath("/jornada");
   revalidatePath("/leads");
   return { ok: true };
 }
@@ -61,6 +62,7 @@ export async function updateStageAction(
     .eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/settings/pipeline");
+  revalidatePath("/jornada");
   revalidatePath("/leads");
   return { ok: true };
 }
@@ -84,6 +86,7 @@ export async function deleteStageAction(id: string): Promise<Result> {
   const { error } = await supabase.from("pipeline_stages").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/settings/pipeline");
+  revalidatePath("/jornada");
   revalidatePath("/leads");
   return { ok: true };
 }
@@ -107,6 +110,7 @@ export async function reorderStagesAction(orderedIds: string[]): Promise<Result>
     if (error) return { ok: false, error: error.message };
   }
   revalidatePath("/settings/pipeline");
+  revalidatePath("/jornada");
   revalidatePath("/leads");
   return { ok: true };
 }

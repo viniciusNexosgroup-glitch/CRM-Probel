@@ -31,7 +31,10 @@ export async function fireStageEvent(
     .eq("id", leadId)
     .maybeSingle();
   if (!lead) return { sent: false, motivo: "lead não encontrado" };
-  if (!lead.ctwa_clid) return { sent: false, motivo: "lead não veio de anúncio" };
+  // Com clique de anúncio o Meta credita a conversão à campanha; sem ele, o
+  // telefone ainda serve para reconhecer a pessoa e alimentar o público.
+  if (!lead.ctwa_clid && !lead.phone)
+    return { sent: false, motivo: "lead sem clique de anúncio e sem telefone" };
 
   // Já mandamos este evento para este lead nesta etapa? O lead pode ir e voltar
   // no funil, e o Meta não deve contar a mesma conversão duas vezes.

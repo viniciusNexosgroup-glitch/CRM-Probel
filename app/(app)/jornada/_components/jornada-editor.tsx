@@ -3,7 +3,17 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Loader2, X, Trash2, Pencil, MessageCircle, CheckCircle2 } from "lucide-react";
+import {
+  Plus,
+  Loader2,
+  X,
+  Trash2,
+  Pencil,
+  MessageCircle,
+  CheckCircle2,
+  ArrowUp,
+  ArrowDown,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +21,7 @@ import {
   criarEtapaJornadaAction,
   excluirEtapaJornadaAction,
 } from "../actions";
+import { reorderStagesAction } from "../../settings/pipeline/actions";
 import { EVENTOS_META, type CamposDaEtapa } from "../eventos";
 import type { Database } from "@/types/database";
 
@@ -61,6 +72,20 @@ export function JornadaEditor({
       } else {
         toast.error("Não deu para salvar", { description: res.error });
       }
+    });
+  }
+
+  // Reordenar troca a etapa de lugar com a vizinha e renumera tudo em sequência
+  // (1, 2, 3...), como na referência — sem deixar buracos tipo 1, 4, 6, 10.
+  function mover(indice: number, direcao: -1 | 1) {
+    const destino = indice + direcao;
+    if (destino < 0 || destino >= etapas.length) return;
+    const ordem = etapas.map((e) => e.id);
+    [ordem[indice], ordem[destino]] = [ordem[destino], ordem[indice]];
+    startTransition(async () => {
+      const res = await reorderStagesAction(ordem);
+      if (res.ok) router.refresh();
+      else toast.error("Não deu para reordenar", { description: res.error });
     });
   }
 
@@ -121,9 +146,31 @@ export function JornadaEditor({
                 </td>
               </tr>
             )}
-            {etapas.map((e) => (
+            {etapas.map((e, i) => (
               <tr key={e.id} className="border-b border-wa-border/50 last:border-0">
-                <td className="px-4 py-3 text-wa-textSecondary tabular-nums">{e.position}</td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-wa-textSecondary tabular-nums w-4">{i + 1}</span>
+                    <span className="flex flex-col">
+                      <button
+                        onClick={() => mover(i, -1)}
+                        disabled={pending || i === 0}
+                        className="p-0.5 rounded hover:bg-wa-hover text-wa-textTertiary hover:text-wa-textPrimary disabled:opacity-30 disabled:hover:bg-transparent"
+                        aria-label={`Subir ${e.name}`}
+                      >
+                        <ArrowUp className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => mover(i, 1)}
+                        disabled={pending || i === etapas.length - 1}
+                        className="p-0.5 rounded hover:bg-wa-hover text-wa-textTertiary hover:text-wa-textPrimary disabled:opacity-30 disabled:hover:bg-transparent"
+                        aria-label={`Descer ${e.name}`}
+                      >
+                        <ArrowDown className="h-3 w-3" />
+                      </button>
+                    </span>
+                  </div>
+                </td>
                 <td className="px-4 py-3">
                   <span className="inline-flex items-center gap-2">
                     <span
@@ -272,7 +319,8 @@ function FormularioEtapa({
           <span className="text-sm">
             <span className="text-wa-textPrimary">Representa o primeiro contato</span>
             <span className="block text-xs text-wa-textSecondary">
-              Marca o início da jornada do cliente.
+              O evento dispara sozinho para todo mundo que chamar no WhatsApp, assim que a
+              conversa entra — sem precisar de palavra-chave.
             </span>
           </span>
         </label>
@@ -313,18 +361,25 @@ function FormularioEtapa({
           </label>
         )}
 
-        <label className="block space-y-1.5">
-          <span className="text-sm text-wa-textPrimary">Palavra-chave (opcional)</span>
-          <Input
-            value={c.keyword ?? ""}
-            onChange={(e) => setC({ ...c, keyword: e.target.value || null })}
-            placeholder="Ex.: Segue orçamento"
-          />
-          <span className="block text-xs text-wa-textSecondary">
-            Quando o atendente enviar essa expressão na conversa, o lead vem para esta etapa
-            sozinho e o evento dispara junto.
-          </span>
-        </label>
+        {c.is_first_contact ? (
+          <p className="text-xs text-wa-textSecondary rounded-md border border-wa-border bg-wa-bg/60 px-3 py-2.5">
+            Esta etapa não usa palavra-chave: por ser o primeiro contato, ela dispara
+            automaticamente quando a conversa entra.
+          </p>
+        ) : (
+          <label className="block space-y-1.5">
+            <span className="text-sm text-wa-textPrimary">Palavra-chave (opcional)</span>
+            <Input
+              value={c.keyword ?? ""}
+              onChange={(e) => setC({ ...c, keyword: e.target.value || null })}
+              placeholder="Ex.: Segue orçamento"
+            />
+            <span className="block text-xs text-wa-textSecondary">
+              Quando o atendente enviar essa expressão na conversa, o lead vem para esta etapa
+              sozinho e o evento dispara junto.
+            </span>
+          </label>
+        )}
 
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="ghost" onClick={onCancelar} disabled={pending}>
