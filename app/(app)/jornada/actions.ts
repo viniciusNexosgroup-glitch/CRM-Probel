@@ -126,3 +126,62 @@ export async function salvarPixelAction(cfg: {
   revalidatePath("/jornada/pixel");
   return { ok: true };
 }
+
+/**
+ * Move o lead para outra etapa manualmente, a partir da tela de disparos.
+ *
+ * Passa pelo mesmo caminho das outras formas de mover (Kanban, chat,
+ * palavra-chave), então registra no histórico e dispara o evento da etapa —
+ * sem duplicar regra.
+ */
+export async function moverLeadParaEtapaAction(
+  leadId: string,
+  stageId: string
+): Promise<Result> {
+  const supabase = await createClient();
+
+  // O RLS já limita aos leads/etapas que o usuário pode ver; aqui só validamos
+  // que a etapa de destino é da mesma loja do lead.
+  const [{ data: lead }, { data: etapa }] = await Promise.all([
+    supabase.from("leads").select("id, stage_id, instance_id").eq("id", leadId).maybeSingle(),
+    supabase
+      .from("pipeline_stages")
+      .select("id, name, instance_id, is_won, is_lost")
+      .eq("id", stageId)
+      .maybeSingle(),
+  ]);
+  if (!lead) return { ok: false, error: "Lead não encontrado" };
+  if (!etapa) return { ok: false, error: "Etapa não encontrada" };
+  if (etapa.instance_id !== lead.instance_id)
+    return { ok: false, error: "Essa etapa é de outra loja" };
+  if (lead.stage_id === stageId) return { ok: true };
+
+  const status: "open" | "won" | "lost" = etapa.is_won
+    ? "won"
+    : etapa.is_lost
+      ? "lost"
+      : "open";
+
+  const { error } = await supabase
+    .from("leads")
+    .update({ stage_id: stageId, status })
+    .eq("id", leadId);
+  if (error) return { ok: false, error: error.message };
+
+  const perfil = await getCachedProfile();
+  const { handleLeadStageTransition } = await import("@/lib/leads/activity");
+  await handleLeadStageTransition({
+    leadId,
+    oldStageId: lead.stage_id,
+    newStageId: stageId,
+    newStatus: status,
+    oldStatus: "open",
+    newStageName: etapa.name,
+    userId: perfil?.id ?? null,
+  });
+
+  revalidatePath("/jornada/disparos");
+  revalidatePath("/leads");
+  revalidatePath("/chat");
+  return { ok: true };
+}

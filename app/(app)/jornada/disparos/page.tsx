@@ -1,6 +1,7 @@
 import { CheckCircle2, XCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { JornadaNav } from "../_components/jornada-nav";
+import { SeletorEtapa } from "./seletor-etapa";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +11,16 @@ type Disparo = {
   sent_at: string;
   ok: boolean;
   detail: string | null;
+  dataset_id: string | null;
   stage: { name: string } | null;
-  lead: { name: string | null; phone: string | null; ad_name: string | null } | null;
+  lead: {
+    id: string;
+    stage_id: string | null;
+    assigned_to: string | null;
+    name: string | null;
+    phone: string | null;
+    ad_name: string | null;
+  } | null;
 };
 
 function quando(iso: string) {
@@ -30,14 +39,29 @@ export default async function DisparosPage() {
   const { data } = await supabase
     .from("lead_stage_events")
     .select(
-      `id, event_name, sent_at, ok, detail,
+      `id, event_name, sent_at, ok, detail, dataset_id,
        stage:pipeline_stages!lead_stage_events_stage_id_fkey(name),
-       lead:leads!lead_stage_events_lead_id_fkey(name, phone, ad_name)`
+       lead:leads!lead_stage_events_lead_id_fkey(id, stage_id, assigned_to, name, phone, ad_name)`
     )
     .order("sent_at", { ascending: false })
     .limit(200);
 
   const disparos = (data ?? []) as unknown as Disparo[];
+
+  // Etapas disponíveis para mover o lead. O funil é por vendedor, então
+  // buscamos todas as da loja e escolhemos o board do dono de cada lead.
+  const { data: todasEtapas } = await supabase
+    .from("pipeline_stages")
+    .select("id, name, meta_event_name, user_id")
+    .order("position", { ascending: true });
+
+  const etapasPorBoard = new Map<string, Array<{ id: string; name: string; meta_event_name: string | null }>>();
+  for (const e of todasEtapas ?? []) {
+    const chave = e.user_id ?? "loja";
+    const lista = etapasPorBoard.get(chave) ?? [];
+    lista.push({ id: e.id, name: e.name, meta_event_name: e.meta_event_name });
+    etapasPorBoard.set(chave, lista);
+  }
   const enviados = disparos.filter((d) => d.ok).length;
   const falhas = disparos.length - enviados;
 
@@ -47,7 +71,9 @@ export default async function DisparosPage() {
         <header className="space-y-1">
           <h1 className="text-xl font-semibold text-wa-textPrimary">Jornada de compra</h1>
           <p className="text-sm text-wa-textSecondary max-w-2xl">
-            Tudo que o CRM já enviou ao Meta Ads, com o resultado de cada envio.
+            Tudo que o CRM já enviou ao Meta Ads, com o resultado de cada envio e para qual
+            pixel foi. Dá para avançar o lead por aqui — ao trocar a etapa, o evento dela
+            dispara na hora.
           </p>
         </header>
 
@@ -76,9 +102,9 @@ export default async function DisparosPage() {
           <div className="rounded-lg border border-wa-border bg-wa-panel p-8 text-center space-y-2">
             <p className="text-wa-textPrimary font-medium">Nenhum disparo ainda</p>
             <p className="text-sm text-wa-textSecondary max-w-md mx-auto">
-              Os eventos aparecem aqui quando um lead <strong>vindo de anúncio</strong> for movido
-              para uma etapa que tenha evento configurado. Leads que chegaram por outro caminho
-              não disparam nada — o Meta precisa do clique no anúncio para saber a quem creditar.
+              Os eventos aparecem aqui quando um lead é movido para uma etapa que tenha evento
+              configurado. Quem veio de anúncio é creditado à campanha; quem chegou por outro
+              caminho entra pelo telefone e alimenta seu público.
             </p>
           </div>
         ) : (
@@ -88,9 +114,10 @@ export default async function DisparosPage() {
                 <tr className="text-left text-[11px] uppercase tracking-wider text-wa-textTertiary border-b border-wa-border">
                   <th className="px-4 py-3 font-medium">Quando</th>
                   <th className="px-4 py-3 font-medium">Cliente</th>
-                  <th className="px-4 py-3 font-medium">Etapa</th>
+                  <th className="px-4 py-3 font-medium">Etapa atual</th>
                   <th className="px-4 py-3 font-medium">Evento</th>
                   <th className="px-4 py-3 font-medium">Anúncio</th>
+                  <th className="px-4 py-3 font-medium">Pixel</th>
                   <th className="px-4 py-3 font-medium">Resultado</th>
                 </tr>
               </thead>
@@ -103,7 +130,17 @@ export default async function DisparosPage() {
                     <td className="px-4 py-3 text-wa-textPrimary">
                       {d.lead?.name ?? d.lead?.phone ?? "—"}
                     </td>
-                    <td className="px-4 py-3 text-wa-textSecondary">{d.stage?.name ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      {d.lead ? (
+                        <SeletorEtapa
+                          leadId={d.lead.id}
+                          etapaAtualId={d.lead.stage_id}
+                          etapas={etapasPorBoard.get(d.lead.assigned_to ?? "loja") ?? []}
+                        />
+                      ) : (
+                        <span className="text-wa-textSecondary">{d.stage?.name ?? "—"}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <span className="inline-flex text-xs px-2 py-1 rounded-full bg-blue-500/15 text-blue-300">
                         {d.event_name}
@@ -111,6 +148,9 @@ export default async function DisparosPage() {
                     </td>
                     <td className="px-4 py-3 text-wa-textSecondary text-xs max-w-[220px] truncate">
                       {d.lead?.ad_name ?? "—"}
+                    </td>
+                    <td className="px-4 py-3 text-wa-textSecondary text-xs tabular-nums">
+                      {d.dataset_id ?? "—"}
                     </td>
                     <td className="px-4 py-3">
                       {d.ok ? (
