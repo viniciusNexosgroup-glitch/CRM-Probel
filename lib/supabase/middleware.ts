@@ -4,6 +4,9 @@ import type { Database } from "@/types/database";
 
 type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
+/** Tempo máximo esperando o Supabase validar a sessão. */
+const AUTH_TIMEOUT_MS = 3000;
+
 const PUBLIC_PATHS = [
   "/login",
   "/register",
@@ -37,12 +40,37 @@ export async function updateSession(request: NextRequest) {
   );
 
   // IMPORTANT: getUser() revalida o token a cada request (não confiar em getSession).
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  //
+  // Essa é uma ida à rede, do edge da Vercel até o Supabase na VPS, em TODA
+  // página. Sem tempo limite, qualquer travada lá (reinício de container,
+  // pressão de memória, oscilação de rede) derrubava o app inteiro com
+  // "504 MIDDLEWARE_INVOCATION_TIMEOUT" — em vez de afetar só aquela chamada.
+  //
+  // Com o limite, uma oscilação deixa de ser tela de erro: seguimos adiante e
+  // a própria página confere a sessão (todas usam getCachedUser e redirecionam
+  // pro login se não houver usuário). Ou seja, não afrouxa o acesso.
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
+  let authIndisponivel = false;
+  try {
+    const resultado = await Promise.race([
+      supabase.auth.getUser(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("timeout ao validar a sessão")), AUTH_TIMEOUT_MS)
+      ),
+    ]);
+    user = resultado.data.user;
+  } catch (e) {
+    authIndisponivel = true;
+    console.error("[middleware] sessão não validada:", (e as Error).message);
+  }
 
   const { pathname } = request.nextUrl;
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+
+  // Se a validação não respondeu, não dá para afirmar que o usuário está
+  // deslogado — mandar pro login nesse caso expulsaria quem está trabalhando.
+  // Deixa passar; a página decide.
+  if (authIndisponivel) return response;
 
   // Não autenticado em rota privada → /login
   if (!user && !isPublic) {
