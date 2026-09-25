@@ -84,6 +84,41 @@ export async function getDashboardData(): Promise<DashboardData> {
         .gte("created_at", startOfMonth()),
     ]);
 
+  // As consultas abaixo não dependem umas das outras, então vão juntas: em
+  // série eram 5 idas à rede esperando uma pela outra, e é o que fazia o
+  // dashboard ser a tela mais lenta (o banco responde em milissegundos).
+  const trintaDiasAtras = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const paradosDesde = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const [
+    { data: stalledConvs },
+    { data: srcSetting },
+    { data: msgs },
+    { data: profiles },
+    { data: assignedConvs },
+  ] = await Promise.all([
+    supabase
+      .from("conversations")
+      .select(
+        "id, last_message_at, last_message_text, contact:contacts!conversations_contact_id_fkey(name, push_name, phone)"
+      )
+      .eq("last_message_from_me", false)
+      .eq("is_archived", false)
+      .lt("last_message_at", paradosDesde)
+      .order("last_message_at", { ascending: true })
+      .limit(100),
+    supabase.from("settings").select("value").eq("key", "lead_sources").maybeSingle(),
+    supabase
+      .from("messages")
+      .select("conversation_id, from_me, timestamp")
+      .gte("timestamp", trintaDiasAtras)
+      .order("conversation_id", { ascending: true })
+      .order("timestamp", { ascending: true })
+      .limit(5000),
+    supabase.from("profiles").select("id, full_name, email"),
+    supabase.from("conversations").select("assigned_to").not("assigned_to", "is", null),
+  ]);
+
+
   const stages = stagesRes.data ?? [];
   const leads = (leadsRes.data ?? []) as unknown as DashboardData["topLeads"];
 
@@ -156,24 +191,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     .sort((a, b) => b.count - a.count);
 
   // #20 Leads parados: conversas onde o cliente foi o último a falar há +24h
-  const stalledCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { data: stalledConvs } = await supabase
-    .from("conversations")
-    .select(
-      "id, last_message_at, last_message_text, contact:contacts!conversations_contact_id_fkey(name, push_name, phone)"
-    )
-    .eq("last_message_from_me", false)
-    .eq("is_archived", false)
-    .lt("last_message_at", stalledCutoff)
-    .order("last_message_at", { ascending: true })
-    .limit(100);
-
   // Labels de origem (customizáveis #25)
-  const { data: srcSetting } = await supabase
-    .from("settings")
-    .select("value")
-    .eq("key", "lead_sources")
-    .maybeSingle();
   const sourceLabels = sourceLabelMap(parseLeadSources(srcSetting?.value));
 
   const stalled = {
@@ -208,15 +226,6 @@ export async function getDashboardData(): Promise<DashboardData> {
   // ============================================================
   // Tempo médio de resposta (últimos 30 dias)
   // ============================================================
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const { data: msgs } = await supabase
-    .from("messages")
-    .select("conversation_id, from_me, timestamp")
-    .gte("timestamp", thirtyDaysAgo)
-    .order("conversation_id", { ascending: true })
-    .order("timestamp", { ascending: true })
-    .limit(5000);
-
   let totalDiffMs = 0;
   let pairs = 0;
   if (msgs && msgs.length > 0) {
@@ -244,15 +253,6 @@ export async function getDashboardData(): Promise<DashboardData> {
   // ============================================================
   // Ranking por atendente
   // ============================================================
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, full_name, email");
-
-  const { data: assignedConvs } = await supabase
-    .from("conversations")
-    .select("assigned_to")
-    .not("assigned_to", "is", null);
-
   const convsByUser = new Map<string, number>();
   for (const c of assignedConvs ?? []) {
     if (c.assigned_to) {

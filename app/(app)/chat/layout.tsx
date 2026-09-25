@@ -56,14 +56,17 @@ async function getAssignees() {
  * montado entre navegações; só a page (painel da conversa) recarrega.
  */
 export default async function ChatLayout({ children }: { children: React.ReactNode }) {
-  const profile = await getCurrentProfile();
-  if (!profile) redirect("/login");
-
-  const [conversations, allTags, assignees] = await Promise.all([
+  // O perfil entra no mesmo lote das consultas: as listas dependem da sessão
+  // (que vem do cookie), não do perfil, então esperar por ele antes só somava
+  // uma ida à rede na frente de todas as outras.
+  const [profile, conversations, allTags, assignees] = await Promise.all([
+    getCurrentProfile(),
     getConversations(),
     getAllTags(),
     getAssignees(),
   ]);
+
+  if (!profile) redirect("/login");
 
   return (
     <div className="h-full flex bg-wa-bg overflow-hidden">
