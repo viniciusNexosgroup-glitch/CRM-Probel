@@ -26,17 +26,39 @@ export const getCachedUser = cache(async () => {
   return user;
 });
 
-/** Perfil (id, papel, nome) do usuário logado — também memorizado por requisição. */
+/**
+ * Perfil (id, papel, loja) do usuário logado — memorizado por requisição.
+ *
+ * Buscar o perfil só DEPOIS de validar a sessão custava duas idas à rede em
+ * fila, em toda página. Aqui as duas saem juntas: o id vem do cookie (leitura
+ * local, sem rede) e serve para disparar a busca do perfil, enquanto a
+ * validação da sessão corre em paralelo.
+ *
+ * A validação continua mandando: se ela não confirmar o usuário, ou confirmar
+ * outro, devolvemos null. Ou seja, ganha-se tempo sem afrouxar a checagem.
+ */
 export const getCachedProfile = cache(async (): Promise<CurrentProfile | null> => {
-  const user = await getCachedUser();
-  if (!user) return null;
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("profiles")
-    .select("id, role, full_name, email, instance_id")
-    .eq("id", user.id)
-    .single();
-  return (data as CurrentProfile) ?? null;
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const idDoCookie = session?.user?.id ?? null;
+  if (!idDoCookie) return null;
+
+  const [user, perfil] = await Promise.all([
+    getCachedUser(),
+    supabase
+      .from("profiles")
+      .select("id, role, full_name, email, instance_id")
+      .eq("id", idDoCookie)
+      .single(),
+  ]);
+
+  // A sessão do cookie não basta: só vale o que o servidor de autenticação
+  // confirmou.
+  if (!user || user.id !== idDoCookie) return null;
+  return (perfil.data as CurrentProfile) ?? null;
 });
 
 /** Id da loja do usuário logado — usado para gravar dados na loja certa. */
