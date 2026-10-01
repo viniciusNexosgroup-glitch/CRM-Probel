@@ -93,6 +93,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     { data: srcSetting },
     { data: profiles },
     { data: assignedConvs },
+    { data: tempoRespostaSalvo },
   ] = await Promise.all([
     supabase
       .from("conversations")
@@ -107,6 +108,9 @@ export async function getDashboardData(): Promise<DashboardData> {
     supabase.from("settings").select("value").eq("key", "lead_sources").maybeSingle(),
     supabase.from("profiles").select("id, full_name, email"),
     supabase.from("conversations").select("assigned_to").not("assigned_to", "is", null),
+    // Calculado pela rotina diária. A regra de acesso já limita à loja do
+    // usuário, então não precisa descobrir a loja antes de buscar.
+    supabase.from("settings").select("value").eq("key", "tempo_resposta_cache").maybeSingle(),
   ]);
 
 
@@ -217,13 +221,11 @@ export async function getDashboardData(): Promise<DashboardData> {
   // ============================================================
   // Tempo médio de resposta (últimos 30 dias)
   // ============================================================
-  // O tempo médio de resposta vem pronto: a rotina diária calcula e guarda.
-  // Antes, cada abertura do Dashboard puxava milhares de mensagens só para
-  // reduzir tudo a este número.
-  const { lerTempoResposta } = await import("@/lib/metricas/tempo-resposta");
-  const { getCurrentInstanceId } = await import("@/lib/auth/current-user");
-  const lojaAtual = await getCurrentInstanceId();
-  const avgResponseMinutes = lojaAtual ? await lerTempoResposta(lojaAtual) : null;
+  // Vem pronto do lote acima: a rotina diária calcula e guarda. Antes, cada
+  // abertura do Dashboard puxava milhares de mensagens só para chegar a este
+  // número.
+  const avgResponseMinutes =
+    (tempoRespostaSalvo?.value as { minutos?: number | null } | null)?.minutos ?? null;
 
   // ============================================================
   // Ranking por atendente
