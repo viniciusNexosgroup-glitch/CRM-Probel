@@ -42,7 +42,7 @@ ENV NODE_OPTIONS=--max-old-space-size=384
 
 RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 
-COPY --from=builder /app/public ./public
+# O projeto não tem pasta public/ — se vier a ter, basta recriá-la que entra.
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
