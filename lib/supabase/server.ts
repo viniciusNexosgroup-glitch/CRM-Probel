@@ -2,7 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { Database } from "@/types/database";
-import { urlDoServidor, nomeDoCookie } from "./endereco";
+import { urlDoServidor } from "./endereco";
 
 type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
@@ -13,10 +13,6 @@ export async function createClient() {
     urlDoServidor(),
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      // Fixa o nome do cookie: a biblioteca o derivaria do endereço, e como o
-      // servidor usa a rede interna e o navegador o endereço público, cada lado
-      // criaria um cookie diferente e a sessão se perderia.
-      cookieOptions: { name: nomeDoCookie() },
       cookies: {
         getAll() {
           return cookieStore.getAll();
