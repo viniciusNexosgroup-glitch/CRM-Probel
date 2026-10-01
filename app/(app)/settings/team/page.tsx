@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Users } from "lucide-react";
+import { KeyRound, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { TeamList } from "./_components/team-list";
 import { InviteWelcomeEditor } from "./_components/invite-welcome-editor";
@@ -39,7 +39,9 @@ export default async function TeamPage() {
       <div className="flex-1 overflow-y-auto wa-scroll">
         <div className="container max-w-4xl py-6">
           <p className="text-sm text-muted-foreground mb-6">
-            Gerencie quem tem acesso ao CRM. Atendentes convidados recebem email pra definir senha.
+            Gerencie quem tem acesso ao CRM. Use a chave{" "}
+            <KeyRound className="h-3 w-3 inline-block align-text-top text-primary" /> pra trocar o
+            email de login ou definir uma senha nova pra alguém que perdeu o acesso.
           </p>
           <TeamList profiles={profiles ?? []} currentUserId={user.id} isAdmin={isAdmin} />
           {isAdmin && <InviteWelcomeEditor initial={inviteWelcome} />}

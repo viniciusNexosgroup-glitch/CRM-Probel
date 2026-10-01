@@ -3,12 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2, Shield, ShieldOff, Loader2, User } from "lucide-react";
+import { Plus, Trash2, Shield, Loader2, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { getInitials } from "@/lib/format/avatar";
 import { InviteDialog } from "./invite-dialog";
+import { CredentialsDialog } from "./credentials-dialog";
 import { updateUserRoleAction, removeUserAction } from "../actions";
 import type { Database } from "@/types/database";
 
@@ -26,6 +27,7 @@ export function TeamList({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [credenciaisDe, setCredenciaisDe] = useState<Profile | null>(null);
   const [, startTransition] = useTransition();
 
   function onChangeRole(userId: string, role: "admin" | "user") {
@@ -82,7 +84,7 @@ export function TeamList({
               <th className="text-left px-4 py-2 font-medium">Atendente</th>
               <th className="text-left px-4 py-2 font-medium">Email</th>
               <th className="text-left px-4 py-2 font-medium">Permissão</th>
-              <th className="text-right px-4 py-2 font-medium w-12"></th>
+              <th className="text-right px-4 py-2 font-medium w-24"></th>
             </tr>
           </thead>
           <tbody className="bg-card">
@@ -128,21 +130,34 @@ export function TeamList({
                   </td>
                   <td className="px-4 py-3 text-right">
                     {isAdmin && (
-                      <button
-                        onClick={() => onRemove(p)}
-                        disabled={busy || isCurrent}
-                        title={isCurrent ? "Você não pode remover a si mesmo" : "Remover"}
-                        className={cn(
-                          "p-1.5 rounded-full text-wa-textSecondary hover:text-red-400 hover:bg-red-500/10 transition-colors",
-                          (busy || isCurrent) && "opacity-30 cursor-not-allowed"
-                        )}
-                      >
-                        {busy ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
-                        )}
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => setCredenciaisDe(p)}
+                          disabled={busy}
+                          title="Trocar email de login ou definir senha"
+                          className={cn(
+                            "p-1.5 rounded-full text-wa-textSecondary hover:text-primary hover:bg-primary/10 transition-colors",
+                            busy && "opacity-30 cursor-not-allowed"
+                          )}
+                        >
+                          <KeyRound className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => onRemove(p)}
+                          disabled={busy || isCurrent}
+                          title={isCurrent ? "Você não pode remover a si mesmo" : "Remover"}
+                          className={cn(
+                            "p-1.5 rounded-full text-wa-textSecondary hover:text-red-400 hover:bg-red-500/10 transition-colors",
+                            (busy || isCurrent) && "opacity-30 cursor-not-allowed"
+                          )}
+                        >
+                          {busy ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -161,6 +176,10 @@ export function TeamList({
       </p>
 
       <InviteDialog open={open} onClose={() => setOpen(false)} />
+      <CredentialsDialog
+        profile={credenciaisDe}
+        onClose={() => setCredenciaisDe(null)}
+      />
     </>
   );
 }

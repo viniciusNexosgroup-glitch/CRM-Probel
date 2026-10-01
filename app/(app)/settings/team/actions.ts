@@ -137,3 +137,120 @@ export async function removeUserAction(userId: string): Promise<Result> {
   revalidatePath("/settings/team");
   return { ok: true };
 }
+
+/**
+ * Confere se o admin logado pode mexer na conta `userId`.
+ *
+ * As duas ações abaixo usam o service client (só ele fala com a API de
+ * autenticação), e service client ignora RLS. Então a checagem de loja que o
+ * banco faria sozinho precisa ser feita aqui na mão: sem isso, um admin da
+ * Vivence conseguiria trocar a senha de alguém da Probel.
+ */
+async function autorizarAlvo(
+  userId: string
+): Promise<{ ok: true; alvoNome: string; atorId: string | null } | { ok: false; error: string }> {
+  const ator = await getCurrentProfile();
+  if (ator?.role !== "admin") return { ok: false, error: ADMIN_ONLY };
+
+  const service = createServiceClient();
+  const { data: alvo, error } = await service
+    .from("profiles")
+    .select("id, full_name, email, instance_id")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) return { ok: false, error: error.message };
+  if (!alvo) return { ok: false, error: "Atendente não encontrado." };
+  if (alvo.instance_id !== ator.instance_id) {
+    return { ok: false, error: "Esse atendente é de outra loja." };
+  }
+
+  return { ok: true, alvoNome: alvo.full_name ?? alvo.email ?? "o atendente", atorId: ator.id };
+}
+
+/**
+ * Troca o email de login de um atendente.
+ *
+ * Grava nos dois lugares: `auth.users` (que é o login de verdade) e
+ * `profiles.email` (que é o que a tela de Equipe mostra). Mudar só um deixaria
+ * a tela exibindo um email com o qual ninguém consegue entrar.
+ *
+ * `email_confirm: true` é obrigatório aqui: o Supabase da VPS não tem SMTP, o
+ * email de confirmação nunca sairia e a pessoa ficaria trancada do lado de fora.
+ */
+export async function updateUserEmailAction(userId: string, email: string): Promise<Result> {
+  const permissao = await autorizarAlvo(userId);
+  if (!permissao.ok) return permissao;
+
+  const novoEmail = email.trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(novoEmail)) {
+    return { ok: false, error: "Email inválido" };
+  }
+
+  const service = createServiceClient();
+  const { error } = await service.auth.admin.updateUserById(userId, {
+    email: novoEmail,
+    email_confirm: true,
+  });
+  if (error) {
+    if (error.message.toLowerCase().includes("already")) {
+      return { ok: false, error: "Esse email já está em uso por outra conta." };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  const { error: erroPerfil } = await service
+    .from("profiles")
+    .update({ email: novoEmail })
+    .eq("id", userId);
+  if (erroPerfil) {
+    return {
+      ok: false,
+      error: `Login trocado, mas a lista ficou com o email antigo: ${erroPerfil.message}`,
+    };
+  }
+
+  await logAudit({
+    actorId: permissao.atorId,
+    action: "team_email_change",
+    entityType: "profile",
+    entityId: userId,
+    summary: `Email de login de ${permissao.alvoNome} mudou para ${novoEmail}`,
+  });
+
+  revalidatePath("/settings/team");
+  return { ok: true };
+}
+
+/**
+ * Define uma senha nova para um atendente.
+ *
+ * Existe porque não há como recuperar a senha de ninguém — o banco guarda só o
+ * hash — e o fluxo de "esqueci minha senha" depende de email, que o Supabase da
+ * VPS não consegue enviar. Sem isso, repor o acesso de um atendente exigia SSH.
+ *
+ * A senha nunca entra no audit_log.
+ */
+export async function setUserPasswordAction(userId: string, password: string): Promise<Result> {
+  const permissao = await autorizarAlvo(userId);
+  if (!permissao.ok) return permissao;
+
+  if (password.length < 8) {
+    return { ok: false, error: "A senha precisa de pelo menos 8 caracteres." };
+  }
+
+  const service = createServiceClient();
+  const { error } = await service.auth.admin.updateUserById(userId, { password });
+  if (error) return { ok: false, error: error.message };
+
+  await logAudit({
+    actorId: permissao.atorId,
+    action: "team_password_set",
+    entityType: "profile",
+    entityId: userId,
+    summary: `Senha de ${permissao.alvoNome} foi redefinida por um administrador`,
+  });
+
+  revalidatePath("/settings/team");
+  return { ok: true };
+}

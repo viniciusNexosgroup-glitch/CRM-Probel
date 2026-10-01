@@ -4,6 +4,8 @@ export type AuditAction =
   | "team_invite"
   | "team_remove"
   | "team_role_change"
+  | "team_email_change"
+  | "team_password_set"
   | "conversation_assign"
   | "lead_stage_change"
   | "lead_won"
