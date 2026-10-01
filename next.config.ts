@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Gera um pacote mínimo e autossuficiente para rodar fora da Vercel: leva só
+  // o que o app usa, em vez de toda a node_modules. Importa numa VPS com pouca
+  // memória, onde cada MB conta.
+  output: "standalone",
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "*.supabase.co" },
