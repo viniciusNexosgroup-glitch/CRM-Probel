@@ -87,12 +87,10 @@ export async function getDashboardData(): Promise<DashboardData> {
   // As consultas abaixo não dependem umas das outras, então vão juntas: em
   // série eram 5 idas à rede esperando uma pela outra, e é o que fazia o
   // dashboard ser a tela mais lenta (o banco responde em milissegundos).
-  const trintaDiasAtras = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const paradosDesde = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const [
     { data: stalledConvs },
     { data: srcSetting },
-    { data: msgs },
     { data: profiles },
     { data: assignedConvs },
   ] = await Promise.all([
@@ -107,13 +105,6 @@ export async function getDashboardData(): Promise<DashboardData> {
       .order("last_message_at", { ascending: true })
       .limit(100),
     supabase.from("settings").select("value").eq("key", "lead_sources").maybeSingle(),
-    supabase
-      .from("messages")
-      .select("conversation_id, from_me, timestamp")
-      .gte("timestamp", trintaDiasAtras)
-      .order("conversation_id", { ascending: true })
-      .order("timestamp", { ascending: true })
-      .limit(5000),
     supabase.from("profiles").select("id, full_name, email"),
     supabase.from("conversations").select("assigned_to").not("assigned_to", "is", null),
   ]);
@@ -226,29 +217,13 @@ export async function getDashboardData(): Promise<DashboardData> {
   // ============================================================
   // Tempo médio de resposta (últimos 30 dias)
   // ============================================================
-  let totalDiffMs = 0;
-  let pairs = 0;
-  if (msgs && msgs.length > 0) {
-    const byConv = new Map<string, typeof msgs>();
-    for (const m of msgs) {
-      const list = byConv.get(m.conversation_id) ?? [];
-      list.push(m);
-      byConv.set(m.conversation_id, list);
-    }
-    for (const list of byConv.values()) {
-      let lastReceived: string | null = null;
-      for (const m of list) {
-        if (!m.from_me) {
-          if (lastReceived === null) lastReceived = m.timestamp;
-        } else if (lastReceived) {
-          totalDiffMs += new Date(m.timestamp).getTime() - new Date(lastReceived).getTime();
-          pairs += 1;
-          lastReceived = null;
-        }
-      }
-    }
-  }
-  const avgResponseMinutes = pairs > 0 ? Math.round(totalDiffMs / pairs / 60000) : null;
+  // O tempo médio de resposta vem pronto: a rotina diária calcula e guarda.
+  // Antes, cada abertura do Dashboard puxava milhares de mensagens só para
+  // reduzir tudo a este número.
+  const { lerTempoResposta } = await import("@/lib/metricas/tempo-resposta");
+  const { getCurrentInstanceId } = await import("@/lib/auth/current-user");
+  const lojaAtual = await getCurrentInstanceId();
+  const avgResponseMinutes = lojaAtual ? await lerTempoResposta(lojaAtual) : null;
 
   // ============================================================
   // Ranking por atendente

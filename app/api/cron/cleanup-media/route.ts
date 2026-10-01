@@ -21,6 +21,12 @@ export const maxDuration = 60;
 
 const RETENTION_DAYS = 5;
 const WEBHOOK_LOG_DAYS = 7;
+/**
+ * Dias que mantemos a cópia bruta do que o WhatsApp enviou em cada mensagem.
+ * Serve só para investigar problema recente; eram 100MB dos 131MB da tabela de
+ * mensagens, pesando no backup diário e na memória que o banco usaria para cache.
+ */
+const RAW_PAYLOAD_DAYS = 7;
 const STORAGE_MARKER = "/object/public/contact-media/";
 
 async function authorize(request: NextRequest) {
@@ -95,12 +101,40 @@ async function cleanupWebhookLog() {
   return { deleted: count ?? 0, cutoff };
 }
 
-// Manutenção diária: limpeza de mídia antiga + poda do log + backup do CRM (#35).
+/**
+ * Descarta a cópia bruta do WhatsApp em mensagens antigas. Só esse campo é
+ * apagado — a mensagem, a mídia e todo o histórico continuam intactos.
+ */
+async function cleanupRawPayload() {
+  const supabase = createServiceClient();
+  const cutoff = new Date(Date.now() - RAW_PAYLOAD_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const { error, count } = await supabase
+    .from("messages")
+    .update({ raw_payload: null }, { count: "exact" })
+    .lt("timestamp", cutoff)
+    .not("raw_payload", "is", null);
+  if (error) return { limpas: 0, error: error.message };
+  return { limpas: count ?? 0, cutoff };
+}
+
+// Manutenção diária: limpeza de mídia + poda dos dados de diagnóstico +
+// recálculo das métricas pesadas + backup do CRM (#35).
 async function run() {
   const cleanup = await cleanupMedia();
   const webhookLog = await cleanupWebhookLog();
+  const rawPayload = await cleanupRawPayload();
+
+  // O Dashboard lê este número pronto em vez de recalcular a cada abertura.
+  let tempoResposta: unknown = null;
+  try {
+    const { recalcularTempoResposta } = await import("@/lib/metricas/tempo-resposta");
+    tempoResposta = await recalcularTempoResposta();
+  } catch (e) {
+    tempoResposta = { error: (e as Error).message };
+  }
+
   const backup = await runBackup();
-  return { cleanup, webhookLog, backup };
+  return { cleanup, webhookLog, rawPayload, tempoResposta, backup };
 }
 
 export async function GET(request: NextRequest) {
