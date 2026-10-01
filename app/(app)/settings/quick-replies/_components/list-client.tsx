@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, MessageCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, MessageCircle, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { QuickReplyDialog } from "./quick-reply-dialog";
-import { deleteQuickReplyAction } from "../actions";
+import { deleteQuickReplyAction, reordenarRespostasAction } from "../actions";
 import type { Database } from "@/types/database";
 
 type QuickReplyRow = Database["public"]["Tables"]["quick_replies"]["Row"];
@@ -15,6 +15,22 @@ export function QuickReplyList({ initial }: { initial: QuickReplyRow[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<QuickReplyRow | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  // A ordem vale para a lista inteira (é a mesma que aparece no chat), então
+  // mover considera a posição geral, não a posição dentro da categoria.
+  function mover(id: string, direcao: -1 | 1) {
+    const ordem = initial.map((r) => r.id);
+    const i = ordem.indexOf(id);
+    const destino = i + direcao;
+    if (i < 0 || destino < 0 || destino >= ordem.length) return;
+    [ordem[i], ordem[destino]] = [ordem[destino], ordem[i]];
+    startTransition(async () => {
+      const res = await reordenarRespostasAction(ordem);
+      if (res.ok) router.refresh();
+      else toast.error("Não deu para reordenar", { description: res.error });
+    });
+  }
 
   function onNew() {
     setEditing(null);
@@ -88,7 +104,25 @@ export function QuickReplyList({ initial }: { initial: QuickReplyRow[] }) {
                           {r.content}
                         </p>
                       </div>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="flex flex-col mr-1">
+                          <button
+                            onClick={() => mover(r.id, -1)}
+                            disabled={pending || initial[0]?.id === r.id}
+                            className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground disabled:opacity-25 disabled:hover:bg-transparent"
+                            aria-label={`Subir ${r.title}`}
+                          >
+                            <ArrowUp className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={() => mover(r.id, 1)}
+                            disabled={pending || initial[initial.length - 1]?.id === r.id}
+                            className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground disabled:opacity-25 disabled:hover:bg-transparent"
+                            aria-label={`Descer ${r.title}`}
+                          >
+                            <ArrowDown className="h-3 w-3" />
+                          </button>
+                        </span>
                         <button
                           onClick={() => onEdit(r)}
                           className="p-1.5 hover:bg-accent rounded text-muted-foreground hover:text-foreground"

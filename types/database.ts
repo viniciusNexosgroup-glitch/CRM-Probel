@@ -613,6 +613,7 @@ export type Database = {
         Row: {
           id: string;
           instance_id: string;
+          position: number;
           shortcut: string;
           title: string;
           content: string;
@@ -624,6 +625,7 @@ export type Database = {
         Insert: {
           id?: string;
           instance_id?: string;
+          position?: number;
           shortcut: string;
           title: string;
           content: string;
@@ -635,6 +637,7 @@ export type Database = {
         Update: {
           id?: string;
           instance_id?: string;
+          position?: number;
           shortcut?: string;
           title?: string;
           content?: string;

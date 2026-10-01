@@ -84,3 +84,24 @@ export async function deleteQuickReplyAction(id: string): Promise<Result> {
   revalidatePath("/chat");
   return { ok: true };
 }
+
+/**
+ * Salva a ordem em que as respostas aparecem.
+ *
+ * A lista saía em ordem alfabética do atalho, que não acompanha o roteiro do
+ * atendimento (a saudação vinha depois de "conforto"). Aqui a ordem é a que o
+ * usuário montar, na tela e no seletor do chat.
+ */
+export async function reordenarRespostasAction(idsEmOrdem: string[]): Promise<Result> {
+  const supabase = await createClient();
+  for (let i = 0; i < idsEmOrdem.length; i++) {
+    const { error } = await supabase
+      .from("quick_replies")
+      .update({ position: i + 1 })
+      .eq("id", idsEmOrdem[i]);
+    if (error) return { ok: false, error: error.message };
+  }
+  revalidatePath("/settings/quick-replies");
+  revalidatePath("/chat");
+  return { ok: true };
+}

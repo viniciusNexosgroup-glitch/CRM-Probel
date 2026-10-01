@@ -154,7 +154,7 @@ export default async function ChatPage({
     await Promise.all([
       getMessages(selected.id),
       getContactPanelData(selected.contact.id),
-      supabase.from("quick_replies").select("*").order("shortcut", { ascending: true }),
+      supabase.from("quick_replies").select("*").order("position", { ascending: true }),
       supabase.from("media_library").select("*").order("created_at", { ascending: false }),
       supabase.from("media_categories").select("*").order("position", { ascending: true }),
       getInternalNotes(selected.id),

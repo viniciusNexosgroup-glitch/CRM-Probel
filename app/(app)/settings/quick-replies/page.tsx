@@ -9,7 +9,7 @@ export default async function QuickRepliesPage() {
   const { data: replies } = await supabase
     .from("quick_replies")
     .select("*")
-    .order("shortcut", { ascending: true });
+    .order("position", { ascending: true });
 
   return (
     <div className="h-full bg-wa-bg flex flex-col overflow-hidden">
