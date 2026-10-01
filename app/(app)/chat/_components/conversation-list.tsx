@@ -59,9 +59,13 @@ export function ConversationList({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  // Lê a conversa selecionada da URL (a lista vive no layout, sem prop do servidor).
-  // Assim o destaque muda na hora do clique, sem esperar o servidor.
-  const selectedId = searchParams.get("c") ?? undefined;
+  // A conversa selecionada vem da URL — mas a URL só muda quando o servidor
+  // responde (~350ms). Nesse intervalo o clique parecia não ter efeito. O
+  // `clicada` marca a escolha na hora; a URL confirma logo depois.
+  const selecionadaNaUrl = searchParams.get("c") ?? undefined;
+  const [clicada, setClicada] = useState<string | undefined>(undefined);
+  const selectedId = clicada ?? selecionadaNaUrl;
+  useEffect(() => setClicada(undefined), [selecionadaNaUrl]);
   const [conversations, setConversations] = useState(initial);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<QuickFilter>("all");
@@ -442,6 +446,11 @@ export function ConversationList({
                 <li key={c.id}>
                   <Link
                     href={hrefForConversation(c.id)}
+                    onClick={() => setClicada(c.id)}
+                    // Busca a conversa já ao passar o mouse, para o clique
+                    // encontrar o conteúdo pronto.
+                    onMouseEnter={() => router.prefetch(hrefForConversation(c.id))}
+                    onTouchStart={() => router.prefetch(hrefForConversation(c.id))}
                     className={cn(
                       "flex items-center gap-3 px-3 py-3 border-b border-wa-border/40 hover:bg-wa-hover transition-colors",
                       selectedId === c.id && "bg-wa-active"
