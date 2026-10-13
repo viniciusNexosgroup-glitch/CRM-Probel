@@ -884,7 +884,7 @@ export async function sendUploadedMediaAction(
     from_me: true,
     message_type: payload.fileType,
     content: caption ?? null,
-    media_url: payload.fileUrl,
+    media_url: fileUrl,
     media_mimetype: payload.mimetype,
     media_filename: payload.fileName,
     media_caption: caption ?? null,

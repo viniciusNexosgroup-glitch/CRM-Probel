@@ -9,6 +9,7 @@ import { sendTextMessageAction, createInternalNoteAction } from "../actions";
 import { QuickReplyPicker } from "./quick-reply-picker";
 import { MediaPopup } from "./media-popup";
 import { AudioRecorder } from "./audio-recorder";
+import { VideoRecorder } from "./video-recorder";
 import { EmojiPickerPopup } from "./emoji-picker-popup";
 import { ScheduleDialog } from "./schedule-dialog";
 import { resolveTemplate, type TemplateContext } from "@/lib/format/template";
@@ -429,14 +430,17 @@ export function ComposeBar({
             </Button>
           </>
         ) : (
-          <button
-            onClick={() => setRecordingAudio(true)}
-            className="p-2 rounded text-wa-textSecondary hover:bg-wa-hover hover:text-primary transition-colors"
-            title="Gravar áudio"
-            aria-label="Gravar áudio"
-          >
-            <Mic className="h-5 w-5" />
-          </button>
+          <>
+            <VideoRecorder conversationId={conversationId} />
+            <button
+              onClick={() => setRecordingAudio(true)}
+              className="p-2 rounded text-wa-textSecondary hover:bg-wa-hover hover:text-primary transition-colors shrink-0"
+              title="Gravar áudio"
+              aria-label="Gravar áudio"
+            >
+              <Mic className="h-5 w-5" />
+            </button>
+          </>
         )}
       </div>
 
