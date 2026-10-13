@@ -63,13 +63,38 @@ export async function inviteUserAction(
     return { ok: false, error: error.message };
   }
 
-  // Define a role e nome no profile (o trigger handle_new_user já cria com role=user)
+  // Cria o profile na mão, sem depender do gatilho on_auth_user_created.
+  //
+  // Esse gatilho se perdeu na migração pro Supabase self-hosted (o schema `auth`
+  // é recriado pelo GoTrue, e gatilhos em auth.users não sobrevivem). Resultado:
+  // o convidado entrava sem perfil nenhum e via o CRM vazio.
+  //
+  // O instance_id também precisa vir daqui: nem o gatilho original definia loja,
+  // e sem loja as regras do banco não deixam a pessoa ver nada. Herda a loja de
+  // quem convidou, que é a única que esse admin enxerga.
   if (data?.user) {
+    const instanceId = await getCurrentInstanceId();
+    if (!instanceId) {
+      return { ok: false, error: "Seu usuário não tem loja vinculada." };
+    }
+
     const adminClient = createServiceClient();
-    await adminClient
-      .from("profiles")
-      .update({ role, full_name: fullName.trim() })
-      .eq("id", data.user.id);
+    const { error: erroPerfil } = await adminClient.from("profiles").upsert(
+      {
+        id: data.user.id,
+        email: cleanEmail,
+        full_name: fullName.trim(),
+        role,
+        instance_id: instanceId,
+      },
+      { onConflict: "id" }
+    );
+    if (erroPerfil) {
+      return {
+        ok: false,
+        error: `Conta criada, mas sem perfil: ${erroPerfil.message}`,
+      };
+    }
   }
 
   const actor = await getCurrentProfile();
