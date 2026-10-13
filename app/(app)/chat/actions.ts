@@ -851,17 +851,18 @@ export async function sendUploadedMediaAction(
   if (!conv) return { ok: false, error: "Conversa não encontrada" };
 
   const caption = payload.caption?.trim() || undefined;
+  const fileUrl = urlPublica(payload.fileUrl);
 
   let sent;
   try {
     if (payload.fileType === "audio") {
-      sent = await (await evoFor(conv.instance_id)).sendAudio(conv.remote_jid, payload.fileUrl);
+      sent = await (await evoFor(conv.instance_id)).sendAudio(conv.remote_jid, fileUrl);
     } else if (payload.fileType === "sticker") {
-      sent = await (await evoFor(conv.instance_id)).sendSticker(conv.remote_jid, payload.fileUrl);
+      sent = await (await evoFor(conv.instance_id)).sendSticker(conv.remote_jid, fileUrl);
     } else {
       sent = await (await evoFor(conv.instance_id)).sendMedia(conv.remote_jid, {
         mediatype: payload.fileType === "image" ? "image" : payload.fileType === "video" ? "video" : "document",
-        media: payload.fileUrl,
+        media: fileUrl,
         mimetype: payload.mimetype,
         caption,
         fileName: payload.fileName,
@@ -1336,7 +1337,9 @@ export async function sendAudioMessageAction(
   const { data: publicData } = supabase.storage
     .from("contact-media")
     .getPublicUrl(audioPath);
-  const audioUrl = publicData.publicUrl;
+  // Precisa ser o endereço público: a Evolution roda noutra rede Docker e não
+  // resolve o apelido interno — ver urlPublica().
+  const audioUrl = urlPublica(publicData.publicUrl);
   if (!audioUrl) return { ok: false, error: "Falha ao obter URL do áudio" };
 
   let sent;
@@ -1387,6 +1390,7 @@ export async function sendAudioMessageAction(
 import type { EvolutionMediaType } from "@/lib/evolution/types";
 import { defaultMimeType, suggestedFileName, EXTERNAL_PREFIX } from "@/app/(app)/settings/media-library/lib";
 
+import { urlPublica } from "@/lib/supabase/endereco";
 /** Mapeia file_type do banco pro mediatype da Evolution */
 function evolutionMediaType(fileType: string): EvolutionMediaType {
   if (fileType === "image") return "image";

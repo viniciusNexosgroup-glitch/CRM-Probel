@@ -15,6 +15,7 @@ import {
 } from "@/lib/business-hours";
 import { resolveTemplate } from "@/lib/format/template";
 import { runSalesbotForMessage } from "@/lib/salesbot/engine";
+import { urlPublica } from "@/lib/supabase/endereco";
 import type {
   MessagesUpsertData,
   MessagesUpdateData,
@@ -482,7 +483,7 @@ async function persistIncomingMedia(
     const { data: pub } = supabase.storage.from("contact-media").getPublicUrl(path);
     await supabase
       .from("messages")
-      .update({ media_url: pub.publicUrl, media_mimetype: mimetype })
+      .update({ media_url: urlPublica(pub.publicUrl), media_mimetype: mimetype })
       .eq("instance_id", instanceId)
       .eq("evolution_message_id", evolutionMessageId);
   } catch (e) {

@@ -25,3 +25,26 @@ export function nomeDoCookie(): string {
   const host = publico.replace(/^https?:\/\//, "").split(/[.:/]/)[0];
   return `sb-${host || "localhost"}-auth-token`;
 }
+
+/**
+ * Reescreve uma URL do Supabase para o endereço público.
+ *
+ * `getPublicUrl` monta o link a partir do endereço que o cliente está usando —
+ * e no servidor esse endereço é o interno (`http://supabase:8000`), um apelido
+ * que só existe dentro da rede Docker do CRM.
+ *
+ * Um link desses é inútil para quem está de fora. O navegador do atendente não
+ * resolve esse nome, e a Evolution — que roda noutra rede Docker — também não:
+ * ela tenta buscar o arquivo, não acha, e responde 400. Era o motivo de o envio
+ * de áudio falhar só no CRM da VPS; na Vercel a variável não existe e o link já
+ * saía público.
+ *
+ * Então tudo que deixa o servidor (vai pra Evolution, pro banco, pro navegador)
+ * passa por aqui.
+ */
+export function urlPublica(url: string): string {
+  const interno = process.env.SUPABASE_INTERNAL_URL?.replace(/\/+$/, "");
+  const publico = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/+$/, "");
+  if (!interno || !publico || !url.startsWith(interno)) return url;
+  return publico + url.slice(interno.length);
+}

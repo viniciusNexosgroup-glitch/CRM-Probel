@@ -23,6 +23,24 @@ function jidToNumber(jid: string): string {
   return jid.replace(/@s\.whatsapp\.net$/, "").replace(/@c\.us$/, "");
 }
 
+/** Procura a explicação do erro nos formatos que a Evolution usa. */
+function extrairMensagem(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const obj = body as Record<string, unknown>;
+  const candidatos: unknown[] = [obj.message];
+  const resposta = obj.response;
+  if (resposta && typeof resposta === "object") {
+    candidatos.push((resposta as Record<string, unknown>).message);
+  }
+  candidatos.push(obj.error);
+
+  for (const c of candidatos) {
+    if (typeof c === "string" && c.trim()) return c;
+    if (Array.isArray(c) && c.length) return c.map(String).join("; ");
+  }
+  return null;
+}
+
 export class EvolutionError extends Error {
   constructor(
     message: string,
@@ -78,10 +96,11 @@ async function evoFetch<T>(
   }
 
   if (!res.ok) {
-    const msg =
-      (body && typeof body === "object" && "message" in body
-        ? String((body as { message: unknown }).message)
-        : null) ?? res.statusText;
+    // A Evolution devolve o motivo em lugares diferentes conforme o erro: às
+    // vezes em `message`, às vezes aninhado em `response.message` (e aí como
+    // lista). Sem olhar os dois, sobrava só o `statusText` — "Bad Request" —
+    // que não diz nada a quem está atendendo.
+    const msg = extrairMensagem(body) ?? res.statusText;
     throw new EvolutionError(`Evolution API ${res.status}: ${msg}`, res.status, body);
   }
   return body as T;
