@@ -208,7 +208,25 @@ async function resolveAutomaticAssignee(
     .in("role", ["user", "admin"]);
   if (error || !profiles?.length) return null;
 
-  const candidateIds = (profiles as Array<{ id: string }>).map((profile) => profile.id);
+  const naLoja = (profiles as Array<{ id: string }>).map((profile) => profile.id);
+
+  // Quem o fluxo escolheu para o rodízio. Sem escolha, entra a loja inteira —
+  // que é o comportamento antigo, mantido para os fluxos já existentes.
+  //
+  // Com lista, ela manda: dono da loja e administradores normalmente não devem
+  // receber lead, e sem isso o rodízio os incluiria junto com os vendedores.
+  const escolhidos = Array.isArray(config.assignee_ids)
+    ? config.assignee_ids.filter((v): v is string => typeof v === "string")
+    : [];
+  const candidateIds = escolhidos.length
+    ? naLoja.filter((id) => escolhidos.includes(id))
+    : naLoja;
+
+  // Escolhidos que saíram da loja (ou do CRM) somem do filtro. Preferimos não
+  // atribuir a ninguém — e deixar o aviso no log — a mandar o lead para alguém
+  // que o fluxo não elegeu.
+  if (!candidateIds.length) return null;
+
   const strategy = textValue(config.distribution_strategy) || "least_active";
 
   // Rodízio real: alterna os NOVOS leads entre os vendedores ignorando o volume

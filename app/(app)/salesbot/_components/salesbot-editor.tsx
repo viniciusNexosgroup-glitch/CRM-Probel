@@ -31,6 +31,7 @@ import type {
   SalesbotTrigger,
   SalesbotTriggerType,
 } from "@/lib/salesbot/types";
+import type { Json } from "@/types/database";
 import {
   saveSalesbotGraphAction,
   updateSalesbotFlowStatusAction,
@@ -88,7 +89,7 @@ const TRIGGER_TYPES: Array<{
   { type: "instagram_comment", label: "Coment\u00e1rio Instagram", description: "Preparado para coment\u00e1rios e DMs do Instagram.", icon: MessageSquare },
 ];
 
-const DEFAULT_NODE_CONFIG: Record<SalesbotNodeType, Record<string, string>> = {
+const DEFAULT_NODE_CONFIG: Record<SalesbotNodeType, Record<string, Json>> = {
   send_message: { message: "Ol\u00e1! Como posso ajudar?" },
   ask_question: { question: "Qual produto voc\u00ea procura?", save_as: "interest" },
   capture_response: { field: "notes" },
@@ -98,7 +99,7 @@ const DEFAULT_NODE_CONFIG: Record<SalesbotNodeType, Record<string, string>> = {
   add_tag: { tag_id: "" },
   remove_tag: { tag_id: "" },
   change_stage: { stage_id: "" },
-  assign_user: { user_id: "", distribution_strategy: "least_active" },
+  assign_user: { user_id: "", distribution_strategy: "least_active", assignee_ids: [] },
   create_task: { title: "Retornar contato", due_in_minutes: "60" },
   send_media: { media_id: "", caption: "" },
   handoff: { reason: "Solicitou atendimento humano" },
@@ -208,7 +209,7 @@ export function SalesbotEditor({
     );
   }
 
-  function updateSelectedConfig(key: string, value: string) {
+  function updateSelectedConfig(key: string, value: Json) {
     if (!selectedNode) return;
     updateSelected({ config: { ...selectedNode.config, [key]: value } });
   }
@@ -699,6 +700,45 @@ export function SalesbotEditor({
                       <option value="round_robin">Distribui\u00e7\u00e3o por igual</option>
                     </Select>
                   </label>
+                )}
+                {selectedNode.type === "assign_user" && !selectedNode.config.user_id && (
+                  <div className="space-y-1">
+                    <span className="text-xs text-wa-textSecondary block">
+                      Quem entra no rodízio
+                    </span>
+                    <div className="rounded border border-wa-border divide-y divide-wa-border">
+                      {profiles.map((profile) => {
+                        const escolhidos = Array.isArray(selectedNode.config.assignee_ids)
+                          ? (selectedNode.config.assignee_ids as string[])
+                          : [];
+                        const marcado = escolhidos.includes(profile.id);
+                        return (
+                          <label
+                            key={profile.id}
+                            className="flex items-center gap-2 px-2 py-1.5 text-xs cursor-pointer hover:bg-wa-hover"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={marcado}
+                              onChange={() =>
+                                updateSelectedConfig(
+                                  "assignee_ids",
+                                  marcado
+                                    ? escolhidos.filter((id) => id !== profile.id)
+                                    : [...escolhidos, profile.id]
+                                )
+                              }
+                            />
+                            <span>{profile.full_name ?? profile.email}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] text-wa-textSecondary">
+                      Sem ninguém marcado, o lead pode ir para qualquer pessoa da loja,
+                      inclusive administradores.
+                    </p>
+                  </div>
                 )}
               </div>
             )}
