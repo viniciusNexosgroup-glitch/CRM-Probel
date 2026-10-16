@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Smile, Paperclip, SendHorizonal, Loader2, Zap, Reply, X, Mic, StickyNote, Calendar, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { acaoSegura } from "@/lib/ui/acao-segura";
 import { sendTextMessageAction, createInternalNoteAction } from "../actions";
 import { QuickReplyPicker } from "./quick-reply-picker";
 import { MediaPopup } from "./media-popup";
@@ -142,9 +143,11 @@ export function ComposeBar({
     const replyToCapture = replyingTo?.id ?? null;
     onCancelReply?.();
     startTransition(async () => {
-      const res = wasInternal
-        ? await createInternalNoteAction(conversationId, value)
-        : await sendTextMessageAction(conversationId, value, replyToCapture);
+      const res = await acaoSegura(() =>
+        wasInternal
+          ? createInternalNoteAction(conversationId, value)
+          : sendTextMessageAction(conversationId, value, replyToCapture)
+      );
       if (!res.ok) {
         // Agora da pra escrever enquanto a anterior viaja, entao devolver o
         // texto que falhou so e seguro com o campo vazio -- caso contrario

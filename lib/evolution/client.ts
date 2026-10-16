@@ -65,6 +65,20 @@ function getConfig() {
   return { baseUrl: baseUrl.replace(/\/+$/, ""), apiKey, instanceName };
 }
 
+/**
+ * Teto de espera por uma resposta da Evolution.
+ *
+ * Sem isso a chamada podia ficar pendurada para sempre: a ação do servidor
+ * nunca terminava, o atendente via o botão girando sem fim e, quando o proxy
+ * enfim cortava a conexão, a falha chegava como erro genérico.
+ *
+ * Generoso de propósito. Enviar vídeo faz a Evolution baixar o arquivo,
+ * converter com ffmpeg e subir para o WhatsApp -- numa máquina de um núcleo
+ * isso leva tempo. Cortar cedo seria pior que esperar: a mensagem iria ao
+ * cliente mesmo assim e o CRM registraria falha, levando a um reenvio duplicado.
+ */
+const TEMPO_LIMITE_MS = 90_000;
+
 async function evoFetch<T>(
   path: string,
   init?: RequestInit & { searchParams?: Record<string, string> }
@@ -77,15 +91,31 @@ async function evoFetch<T>(
     }
   }
 
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      apikey: apiKey,
-      ...(init?.headers ?? {}),
-    },
-    cache: "no-store",
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        apikey: apiKey,
+        ...(init?.headers ?? {}),
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(TEMPO_LIMITE_MS),
+    });
+  } catch (e) {
+    const nome = e instanceof Error ? e.name : "";
+    if (nome === "TimeoutError" || nome === "AbortError") {
+      throw new EvolutionError(
+        "O WhatsApp demorou demais para responder. Confira no celular se a mensagem saiu antes de enviar de novo.",
+        504
+      );
+    }
+    throw new EvolutionError(
+      `Não foi possível falar com o WhatsApp: ${e instanceof Error ? e.message : String(e)}`,
+      502
+    );
+  }
 
   const text = await res.text();
   let body: unknown = text;

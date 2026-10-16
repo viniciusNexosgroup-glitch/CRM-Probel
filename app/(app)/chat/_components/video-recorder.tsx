@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Camera, Loader2, SendHorizonal, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Input } from "@/components/ui/input";
+import { acaoSegura } from "@/lib/ui/acao-segura";
 import { sendUploadedMediaAction } from "../actions";
 
 /**
@@ -73,34 +74,48 @@ export function VideoRecorder({ conversationId }: { conversationId: string }) {
     const ext = arquivo.name.split(".").pop()?.toLowerCase() || "mp4";
     const path = `video/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
 
-    const { error: erroUpload } = await supabase.storage
-      .from("contact-media")
-      .upload(path, arquivo, {
+    let erroUpload: { message: string } | null = null;
+    try {
+      const r = await supabase.storage.from("contact-media").upload(path, arquivo, {
         contentType: arquivo.type || "video/mp4",
         cacheControl: "31536000",
         upsert: false,
       });
+      erroUpload = r.error;
+    } catch (e) {
+      erroUpload = { message: e instanceof Error ? e.message : String(e) };
+    }
 
     if (erroUpload) {
-      toast.error("Falha ao subir o vídeo", { description: erroUpload.message });
+      toast.error("Falha ao subir o vídeo", {
+        description: `${erroUpload.message} — o vídeo continua aqui, tente de novo.`,
+      });
       setEnviando(false);
       return;
     }
 
     const { data: pub } = supabase.storage.from("contact-media").getPublicUrl(path);
 
-    const res = await sendUploadedMediaAction(conversationId, {
-      fileUrl: pub.publicUrl,
-      fileType: "video",
-      mimetype: arquivo.type || "video/mp4",
-      fileName: arquivo.name || `video.${ext}`,
-      caption: legenda.trim() || undefined,
-    });
+    const res = await acaoSegura(() =>
+      sendUploadedMediaAction(conversationId, {
+        fileUrl: pub.publicUrl,
+        fileType: "video",
+        mimetype: arquivo.type || "video/mp4",
+        fileName: arquivo.name || `video.${ext}`,
+        caption: legenda.trim() || undefined,
+      })
+    );
 
     if (!res.ok) {
       toast.error("Falha ao enviar", { description: res.error });
-      // Não deixa lixo no storage: o vídeo não chegou ao cliente.
-      await supabase.storage.from("contact-media").remove([path]);
+      // Não deixa lixo no storage: o vídeo não chegou ao cliente. Se a própria
+      // limpeza falhar (servidor fora do ar), ela não pode derrubar a tela --
+      // sobra um arquivo órfão, que é o menor dos males.
+      try {
+        await supabase.storage.from("contact-media").remove([path]);
+      } catch {
+        /* arquivo órfão: o aviso de falha já foi dado ao atendente */
+      }
       setEnviando(false);
       return;
     }

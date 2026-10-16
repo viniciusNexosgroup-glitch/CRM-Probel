@@ -5,9 +5,19 @@ import { toast } from "sonner";
 import { X, SendHorizonal, Loader2, Mic, Pause, Play } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { acaoSegura } from "@/lib/ui/acao-segura";
 import { sendAudioMessageAction } from "../actions";
 
 type Mode = "idle" | "recording" | "preview" | "sending";
+
+/**
+ * Teto do áudio. O WhatsApp recusa acima de 16 MB, e sem limite aqui o
+ * atendente só descobria depois de esperar o envio inteiro. Em voz comprimida
+ * isso dá muito mais que 10 minutos, então o corte por tempo é o que pega
+ * primeiro -- e é o que protege de um botão esquecido gravando.
+ */
+const LIMITE_SEGUNDOS = 10 * 60;
+const LIMITE_BYTES = 16 * 1024 * 1024;
 
 function formatDuration(s: number): string {
   const m = Math.floor(s / 60);
@@ -81,7 +91,15 @@ export function AudioRecorder({
       recorder.start();
       setMode("recording");
       setDuration(0);
-      timerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
+      timerRef.current = setInterval(() => {
+        setDuration((d) => {
+          if (d + 1 >= LIMITE_SEGUNDOS) {
+            toast.info("Gravação encerrada no limite de 10 minutos");
+            stopRecording();
+          }
+          return d + 1;
+        });
+      }, 1000);
     } catch (e) {
       toast.error("Não foi possível acessar o microfone", {
         description: e instanceof Error ? e.message : String(e),
@@ -112,32 +130,54 @@ export function AudioRecorder({
 
   async function send() {
     if (!blobRef.current) return;
+
+    if (blobRef.current.size > LIMITE_BYTES) {
+      toast.error("Áudio muito grande", {
+        description: `${(blobRef.current.size / 1024 / 1024).toFixed(1)} MB — o WhatsApp aceita até 16 MB. Grave um trecho mais curto.`,
+      });
+      return;
+    }
+
     setMode("sending");
 
     const supabase = createClient();
     const ext = blobRef.current.type.includes("ogg") ? "ogg" : "webm";
     const path = `audio/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
 
-    const { error: uploadErr } = await supabase.storage
-      .from("contact-media")
-      .upload(path, blobRef.current, {
+    let uploadErr: { message: string } | null = null;
+    try {
+      const r = await supabase.storage.from("contact-media").upload(path, blobRef.current, {
         contentType: blobRef.current.type,
         cacheControl: "31536000",
         upsert: false,
       });
+      uploadErr = r.error;
+    } catch (e) {
+      uploadErr = { message: e instanceof Error ? e.message : String(e) };
+    }
 
     if (uploadErr) {
-      toast.error("Falha ao subir áudio", { description: uploadErr.message });
+      toast.error("Falha ao subir o áudio", {
+        description: `${uploadErr.message} — o áudio continua aqui, tente enviar de novo.`,
+      });
       setMode("preview");
       return;
     }
 
-    const res = await sendAudioMessageAction(conversationId, path, duration);
+    const res = await acaoSegura(() =>
+      sendAudioMessageAction(conversationId, path, duration)
+    );
     if (!res.ok) {
       toast.error("Falha ao enviar", { description: res.error });
       setMode("preview");
-      // Tenta limpar o arquivo do storage já que não enviamos
-      await supabase.storage.from("contact-media").remove([path]);
+      // Tenta limpar o arquivo do storage já que não enviamos. A limpeza não
+      // pode derrubar a tela se o servidor estiver fora: um arquivo órfão é o
+      // menor dos males, e o atendente ainda tem o áudio para reenviar.
+      try {
+        await supabase.storage.from("contact-media").remove([path]);
+      } catch {
+        /* arquivo órfão: o aviso de falha já foi dado ao atendente */
+      }
       return;
     }
 
