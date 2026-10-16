@@ -49,7 +49,16 @@ export function ComposeBar({
   templateCtx?: TemplateContext;
 }) {
   const [pending, startTransition] = useTransition();
-  const [text, setText] = useState("");
+  const [text, setTextState] = useState("");
+  // Espelho do texto atualizado na hora, sem esperar o React redesenhar.
+  // Dois Enter em sequencia rapida leem daqui: o segundo ja ve o campo vazio e
+  // nao reenvia a mesma mensagem.
+  const textRef = useRef("");
+
+  function setText(value: string) {
+    textRef.current = value;
+    setTextState(value);
+  }
   const [pickerSelectedIdx, setPickerSelectedIdx] = useState(0);
   const [manualOpen, setManualOpen] = useState(false);
   const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
@@ -82,7 +91,7 @@ export function ComposeBar({
   function insertAtCursor(snippet: string) {
     const el = inputRef.current;
     if (!el) {
-      setText((t) => t + snippet);
+      setText(textRef.current + snippet);
       return;
     }
     const start = el.selectionStart ?? text.length;
@@ -122,7 +131,10 @@ export function ComposeBar({
   }, [manualOpen]);
 
   function sendNow(value: string) {
-    if (!value || pending) return;
+    // Sem travar por `pending`: enquanto a mensagem anterior viaja, o atendente
+    // precisa poder escrever e mandar a proxima. O campo ja foi esvaziado, entao
+    // um clique duplo cai no `!value` e nao duplica a mensagem.
+    if (!value) return;
     setText("");
     if (typeof window !== "undefined") window.localStorage.removeItem(draftKey);
     setManualOpen(false);
@@ -134,19 +146,36 @@ export function ComposeBar({
         ? await createInternalNoteAction(conversationId, value)
         : await sendTextMessageAction(conversationId, value, replyToCapture);
       if (!res.ok) {
+        // Agora da pra escrever enquanto a anterior viaja, entao devolver o
+        // texto que falhou so e seguro com o campo vazio -- caso contrario
+        // apagaria o que o atendente acabou de digitar. Com o campo ocupado,
+        // o texto perdido vai no proprio aviso, para poder ser copiado.
+        const campoOcupado = textRef.current.trim().length > 0;
         toast.error(wasInternal ? "Falha ao salvar nota" : "Falha ao enviar", {
-          description: res.error,
+          description: campoOcupado ? `${res.error} — não enviado: "${value}"` : res.error,
         });
-        setTextWithDraft(value);
+        if (!campoOcupado) setTextWithDraft(value);
       } else if (wasInternal) {
         toast.success("Nota interna salva");
       }
-      requestAnimationFrame(() => inputRef.current?.focus());
+      // Devolve o cursor ao campo (quem clicou em "enviar" quer seguir
+      // escrevendo), mas nao rouba o foco de outro campo de texto -- a busca,
+      // por exemplo, que o atendente pode ter aberto enquanto a mensagem ia.
+      const focado = document.activeElement;
+      const digitandoEmOutroCampo =
+        focado instanceof HTMLElement &&
+        focado !== inputRef.current &&
+        (focado.tagName === "INPUT" ||
+          focado.tagName === "TEXTAREA" ||
+          focado.isContentEditable);
+      if (!digitandoEmOutroCampo) {
+        requestAnimationFrame(() => inputRef.current?.focus());
+      }
     });
   }
 
   function onSend() {
-    sendNow(text.trim());
+    sendNow(textRef.current.trim());
   }
 
   function selectQuickReply(r: QuickReplyRow, immediate = false) {
@@ -396,7 +425,6 @@ export function ComposeBar({
                 ? "Digite uma mensagem ou / para usar uma resposta rápida…"
                 : "Digite uma mensagem"
           }
-          disabled={pending}
           className={cn(
             "border-0 text-base md:text-sm h-10",
             internalMode ? "bg-amber-500/10 text-amber-100 placeholder:text-amber-300/60" : "bg-wa-panel"
@@ -417,7 +445,6 @@ export function ComposeBar({
             )}
             <Button
               onClick={onSend}
-              disabled={pending}
               size="icon"
               variant="ghost"
               aria-label="Enviar"
