@@ -162,6 +162,7 @@ function FavoritePinArchive({
 export function ChatWindow({
   conversation,
   initialMessages,
+  quotedExtras = [],
   internalNotes = [],
   panelData,
   quickReplies = [],
@@ -172,6 +173,8 @@ export function ChatWindow({
 }: {
   conversation: ConversationWithContact;
   initialMessages: MessageRow[];
+  /** Mensagens citadas que caíram fora da janela carregada — só para consulta. */
+  quotedExtras?: MessageRow[];
   internalNotes?: InternalNoteWithAuthor[];
   allProfiles?: AssigneeProfile[];
   currentUserId?: string;
@@ -496,7 +499,9 @@ export function ChatWindow({
         ) : (
           (() => {
             // Merge messages + internal notes ordenados por timestamp
-            const map = new Map(messages.map((m) => [m.id, m]));
+            const map = new Map(
+              [...quotedExtras, ...messages].map((m) => [m.id, m])
+            );
             type Item =
               | { kind: "msg"; ts: string; id: string; data: MessageRow }
               | { kind: "note"; ts: string; id: string; data: InternalNoteWithAuthor };

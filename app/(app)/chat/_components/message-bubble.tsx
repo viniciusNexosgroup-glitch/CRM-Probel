@@ -262,6 +262,14 @@ export function MessageBubble({
             <p className="truncate">{previewOf(quotedMessage)}</p>
           </div>
         )}
+        {!quotedMessage && msg.reply_to_id && (
+          // A mensagem citada não veio junto (muito antiga, ou apagada). Mesmo
+          // assim é importante marcar que isto é uma resposta — sem a marca, o
+          // atendente lê a frase solta e perde o contexto.
+          <div className="mb-1.5 px-2 py-1 rounded border-l-2 text-xs bg-black/15 border-wa-border text-wa-textSecondary italic">
+            Respondendo a uma mensagem anterior
+          </div>
+        )}
         {msg.is_deleted ? (
           <p className="italic text-wa-textSecondary flex items-center gap-1 pr-12">
             <Ban className="h-3.5 w-3.5 shrink-0" /> Mensagem apagada

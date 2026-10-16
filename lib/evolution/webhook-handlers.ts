@@ -350,6 +350,35 @@ function extractAdReferral(payload: unknown): AdReferral | null {
   };
 }
 
+/**
+ * Id (na Evolution) da mensagem que o cliente citou ao responder.
+ *
+ * O WhatsApp guarda isso em `contextInfo.stanzaId`, mas o contextInfo aparece
+ * em lugar diferente conforme o tipo da mensagem: dentro de
+ * extendedTextMessage, de imageMessage, ou solto como irmão de `message`.
+ * Procurar em qualquer profundidade evita depender desse detalhe -- mesma
+ * abordagem usada para os dados de anúncio.
+ */
+function extractQuotedId(payload: unknown): string | null {
+  // Busca em largura, e nunca entra em `quotedMessage`: lá dentro vem uma cópia
+  // da mensagem citada, com o contextInfo DELA. Descer ali faria a resposta
+  // apontar para a mensagem errada -- a que o cliente citou da vez anterior.
+  const fila: Array<{ no: unknown; prof: number }> = [{ no: payload, prof: 0 }];
+  while (fila.length > 0) {
+    const atual = fila.shift();
+    if (!atual) break;
+    const { no, prof } = atual;
+    if (!no || typeof no !== "object" || prof > 6) continue;
+    const rec = no as Record<string, unknown>;
+    if (typeof rec.stanzaId === "string" && rec.stanzaId) return rec.stanzaId;
+    for (const k of Object.keys(rec)) {
+      if (k === "quotedMessage") continue;
+      fila.push({ no: rec[k], prof: prof + 1 });
+    }
+  }
+  return null;
+}
+
 async function ensureLeadForContact(
   instanceId: string,
   contactId: string,
@@ -551,6 +580,21 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
   const supabase = createServiceClient();
 
   // Insert da mensagem (idempotente via unique constraint instance_id + evolution_message_id)
+  // Mensagem citada: liga a resposta do cliente ao que ele citou, pra a tela
+  // mostrar o trecho acima do balão -- como no WhatsApp. Sem isso o atendente
+  // lê "pode ser esse" sem saber a que se refere.
+  let replyToId: string | null = null;
+  const citadaId = extractQuotedId(data);
+  if (citadaId) {
+    const { data: citada } = await supabase
+      .from("messages")
+      .select("id")
+      .eq("instance_id", instanceId)
+      .eq("evolution_message_id", citadaId)
+      .maybeSingle();
+    replyToId = citada?.id ?? null;
+  }
+
   const { error: msgErr } = await supabase.from("messages").upsert(
     {
       conversation_id: conversationId,
@@ -567,6 +611,7 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
       media_size: extracted.mediaSize,
       media_caption: extracted.mediaCaption,
       duration: extracted.duration,
+      ...(replyToId ? { reply_to_id: replyToId } : {}),
       status: data.key.fromMe ? "sent" : "delivered",
       timestamp,
       raw_payload: sanitizeRawPayload(data) as Json,

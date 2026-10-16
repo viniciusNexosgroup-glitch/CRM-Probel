@@ -125,6 +125,33 @@ async function getMessages(conversationId: string): Promise<MessageRow[]> {
   return ((data ?? []) as MessageRow[]).reverse();
 }
 
+/**
+ * Mensagens citadas que ficaram fora da janela carregada.
+ *
+ * A tela carrega as últimas N mensagens e monta a citação olhando só para
+ * essas. Quando o cliente responde a algo mais antigo, a citação não teria o
+ * que mostrar. Estas vão à parte, só para consulta -- não entram na timeline,
+ * senão mensagens velhas reapareceriam no meio da conversa.
+ */
+async function getQuotedExtras(messages: MessageRow[]): Promise<MessageRow[]> {
+  const carregadas = new Set(messages.map((m) => m.id));
+  const faltando = [
+    ...new Set(
+      messages
+        .map((m) => m.reply_to_id)
+        .filter((id): id is string => !!id && !carregadas.has(id))
+    ),
+  ];
+  if (faltando.length === 0) return [];
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("messages")
+    .select(MESSAGE_COLUMNS)
+    .in("id", faltando);
+  return (data ?? []) as MessageRow[];
+}
+
 async function getInternalNotes(conversationId: string) {
   const supabase = await createClient();
   const { data } = await supabase
@@ -161,10 +188,13 @@ export default async function ChatPage({
       getAllProfiles(),
     ]);
 
+  const quotedExtras = await getQuotedExtras(messages);
+
   return (
     <ChatWindow
       conversation={selected}
       initialMessages={messages}
+      quotedExtras={quotedExtras}
       internalNotes={internalNotes ?? []}
       panelData={panelData}
       quickReplies={quickRepliesRes?.data ?? []}
