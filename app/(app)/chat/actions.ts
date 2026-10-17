@@ -192,6 +192,8 @@ export async function sendTextMessageAction(
     })
     .eq("id", conv.id);
 
+  await assumirSeSemDono(conv.id, user.id);
+
   revalidatePath("/chat");
   return { ok: true };
 }
@@ -579,6 +581,45 @@ export async function toggleArchivedAction(
   return { ok: true };
 }
 
+/**
+ * Primeiro a responder vira o dono da conversa.
+ *
+ * Conversa sem atendente aparece para todos da loja -- é assim que um lead novo
+ * não fica invisível. O problema é depois: respondida e ainda sem dono, ela
+ * continua na lista de todo mundo, e dois vendedores acabam falando com o mesmo
+ * cliente sem saber. Foi o que encheu a Vivence de 149 conversas de ninguém.
+ *
+ * Vale só para mensagem enviada pelo CRM. O eco do celular também chega como
+ * `from_me`, mas não diz qual atendente escreveu -- atribuir ali seria chute.
+ *
+ * O `is("assigned_to", null)` faz a tomada ser atômica: se dois vendedores
+ * responderem ao mesmo tempo, o segundo não encontra linha para atualizar e a
+ * conversa fica com quem chegou primeiro, em vez de trocar de dono no meio.
+ */
+async function assumirSeSemDono(conversationId: string, userId: string): Promise<void> {
+  try {
+    const service = createServiceClient();
+    const { data } = await service
+      .from("conversations")
+      .update({ assigned_to: userId })
+      .eq("id", conversationId)
+      .is("assigned_to", null)
+      .select("id")
+      .maybeSingle();
+
+    if (!data) return; // já tinha dono — nada a fazer
+
+    await service
+      .from("leads")
+      .update({ assigned_to: userId })
+      .eq("conversation_id", conversationId)
+      .is("assigned_to", null);
+  } catch (e) {
+    // Nunca derruba o envio: a mensagem já foi para o cliente.
+    console.warn("[assumirSeSemDono] falhou:", e instanceof Error ? e.message : e);
+  }
+}
+
 export async function assignConversationAction(
   conversationId: string,
   userId: string | null
@@ -912,6 +953,8 @@ export async function sendUploadedMediaAction(
       unread_count: 0,
     })
     .eq("id", conv.id);
+
+  await assumirSeSemDono(conv.id, user.id);
 
   revalidatePath("/chat");
   return { ok: true };
@@ -1378,6 +1421,8 @@ export async function sendAudioMessageAction(
       unread_count: 0,
     })
     .eq("id", conv.id);
+
+  await assumirSeSemDono(conv.id, user.id);
 
   revalidatePath("/chat");
   return { ok: true };
