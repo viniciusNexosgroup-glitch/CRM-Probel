@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { formatPhone } from "@/lib/format/avatar";
 import { formatRelativeTime } from "@/lib/format/date";
 import { createClient } from "@/lib/supabase/client";
+import { acaoSegura } from "@/lib/ui/acao-segura";
 import { forwardMessageAction } from "../actions";
 import type { MessageRow } from "../types";
 
@@ -99,7 +100,9 @@ export function ForwardDialog({
     if (!message || selected.size === 0) return;
     setSending(true);
     startTransition(async () => {
-      const res = await forwardMessageAction(message.id, Array.from(selected));
+      const res = await acaoSegura(() =>
+        forwardMessageAction(message.id, Array.from(selected))
+      );
       setSending(false);
       if (res.ok) {
         if (res.data.failed > 0) {

@@ -49,6 +49,7 @@ import type {
 import { InternalNoteBubble } from "./internal-note-bubble";
 import { EditMessageDialog, DeleteMessageDialog } from "./message-actions-dialogs";
 import { ViewingIndicator } from "./viewing-indicator";
+import { ForwardDialog } from "./forward-dialog";
 import type { Database } from "@/types/database";
 
 type QuickReplyRow = Database["public"]["Tables"]["quick_replies"]["Row"];
@@ -191,6 +192,7 @@ export function ChatWindow({
   const [replyingTo, setReplyingTo] = useState<MessageRow | null>(null);
   const [editingMsg, setEditingMsg] = useState<MessageRow | null>(null);
   const [deletingMsg, setDeletingMsg] = useState<MessageRow | null>(null);
+  const [forwardingMsg, setForwardingMsg] = useState<MessageRow | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(initialMessages.length >= MESSAGES_PAGE);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -201,6 +203,7 @@ export function ChatWindow({
     setReplyingTo(null);
     setEditingMsg(null);
     setDeletingMsg(null);
+    setForwardingMsg(null);
   }, [conversation.id]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -537,6 +540,7 @@ export function ChatWindow({
                         onReply={setReplyingTo}
                         onEdit={setEditingMsg}
                         onDelete={setDeletingMsg}
+                        onForward={setForwardingMsg}
                       />
                     </div>
                   </div>
@@ -578,6 +582,11 @@ export function ChatWindow({
       {panelOpen && panelData && (
         <ContactPanel data={panelData} onClose={() => setPanelOpen(false)} />
       )}
+      <ForwardDialog
+        message={forwardingMsg}
+        open={!!forwardingMsg}
+        onClose={() => setForwardingMsg(null)}
+      />
       <EditMessageDialog
         message={editingMsg}
         onClose={() => setEditingMsg(null)}
