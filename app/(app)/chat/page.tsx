@@ -32,11 +32,7 @@ async function getConversationById(id: string): Promise<ConversationWithContact 
       `
       *,
       contact:contacts!conversations_contact_id_fkey (
-        id, name, push_name, phone, profile_pic_url, is_group, is_favorite, whatsapp_id,
-        leads:leads_contact_id_fkey (
-          id,
-          lead_tags ( tag:tags(*) )
-        )
+        id, name, push_name, phone, profile_pic_url, is_group, is_favorite, whatsapp_id
       ),
       assigned_user:profiles!conversations_assigned_to_fkey (
         id, full_name, email, avatar_url
@@ -45,8 +41,15 @@ async function getConversationById(id: string): Promise<ConversationWithContact 
     )
     .eq("id", id)
     .single();
-  if (error) return null;
-  return data as unknown as ConversationWithContact;
+  if (error || !data) return null;
+
+  // As etiquetas do lead não vêm nesta consulta de propósito. Quem as usa é a
+  // lista de conversas, que vive no layout e não recarrega a cada clique --
+  // aqui elas seriam buscadas e descartadas. Pedi-las aninhadas custava 155ms
+  // contra 100ms sem, em toda abertura de conversa, e essa é a primeira ida à
+  // rede: tudo o mais espera por ela.
+  const bruto = data as unknown as ConversationWithContact;
+  return { ...bruto, contact: { ...bruto.contact, leads: null } };
 }
 
 async function getContactPanelData(contactId: string): Promise<ContactPanelData | null> {
@@ -173,22 +176,30 @@ export default async function ChatPage({
 
   const { c: selectedId } = await searchParams;
 
-  const selected = selectedId ? await getConversationById(selectedId) : null;
+  if (!selectedId) return <EmptyState />;
 
-  if (!selected) return <EmptyState />;
-
-  const [messages, panelData, quickRepliesRes, mediasRes, mediaCatsRes, internalNotes, allProfiles] =
+  // Tudo que precisa só do id da conversa sai na mesma leva. Antes, a conversa
+  // era buscada sozinha e só então o resto começava -- uma ida à rede inteira
+  // de espera antes da primeira consulta útil, em cada clique num lead.
+  const [selected, messages, internalNotes, quickRepliesRes, mediasRes, mediaCatsRes, allProfiles] =
     await Promise.all([
-      getMessages(selected.id),
-      getContactPanelData(selected.contact.id),
+      getConversationById(selectedId),
+      getMessages(selectedId),
+      getInternalNotes(selectedId),
       supabase.from("quick_replies").select("*").order("position", { ascending: true }),
       supabase.from("media_library").select("*").order("created_at", { ascending: false }),
       supabase.from("media_categories").select("*").order("position", { ascending: true }),
-      getInternalNotes(selected.id),
       getAllProfiles(),
     ]);
 
-  const quotedExtras = await getQuotedExtras(messages);
+  if (!selected) return <EmptyState />;
+
+  // Só o painel do contato depende da conversa já carregada (precisa do id do
+  // contato). As citações dependem das mensagens, então vão junto com ele.
+  const [panelData, quotedExtras] = await Promise.all([
+    getContactPanelData(selected.contact.id),
+    getQuotedExtras(messages),
+  ]);
 
   return (
     <ChatWindow
