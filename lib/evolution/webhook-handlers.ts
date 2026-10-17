@@ -250,7 +250,11 @@ async function getOrCreateContact(
       whatsapp_id: remoteJid,
       phone,
       push_name: pushName,
-      name: pushName ?? phone,
+      // Sem nome conhecido, fica nulo em vez do telefone: a tela ja mostra o
+      // numero quando nao ha nome, e gravar o telefone aqui o fixaria para
+      // sempre -- quando o cliente escrevesse e revelasse o nome, so o
+      // push_name seria atualizado e a conversa seguiria com o numero.
+      name: pushName,
       is_group: isGroup,
       last_contact_at: new Date().toISOString(),
     })
@@ -558,10 +562,14 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
     return;
   }
 
+  // O `pushName` e o nome de quem ENVIOU. Na mensagem que a loja manda, isso e
+  // o nome do perfil da propria loja -- e era gravado como se fosse o nome do
+  // cliente. Era por isso que apareciam conversas chamadas "Vivence Home
+  // Uberlandia" no lugar do contato.
   const contactId = await getOrCreateContact(
     instanceId,
     data.key.remoteJid,
-    data.pushName ?? null,
+    data.key.fromMe ? null : (data.pushName ?? null),
     data.key.remoteJidAlt ?? null
   );
   const conversation = await getOrCreateConversation(instanceId, contactId, data.key.remoteJid);
