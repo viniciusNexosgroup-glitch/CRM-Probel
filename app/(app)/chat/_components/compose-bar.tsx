@@ -364,23 +364,20 @@ export function ComposeBar({
         >
           <Smile className="h-5 w-5" />
         </button>
+        {/* Não depende mais da biblioteca ter itens: o mesmo painel envia
+            arquivo do computador, e era justamente quem tinha a biblioteca
+            vazia que ficava sem conseguir anexar nada. */}
         <button
           data-media-trigger
           onClick={() => setMediaPickerOpen((o) => !o)}
-          disabled={medias.length === 0}
           className={cn(
             "p-2 rounded transition-colors",
             mediaPickerOpen
               ? "bg-primary/20 text-primary"
-              : "text-wa-textSecondary hover:bg-wa-hover hover:text-primary",
-            medias.length === 0 && "opacity-50 cursor-not-allowed"
+              : "text-wa-textSecondary hover:bg-wa-hover hover:text-primary"
           )}
-          aria-label="Enviar mídia"
-          title={
-            medias.length === 0
-              ? "Nenhuma mídia cadastrada — vá em Mídias no menu"
-              : "Enviar da biblioteca"
-          }
+          aria-label="Anexar arquivo"
+          title="Anexar arquivo do computador ou enviar da biblioteca"
         >
           <Paperclip className="h-5 w-5" />
         </button>

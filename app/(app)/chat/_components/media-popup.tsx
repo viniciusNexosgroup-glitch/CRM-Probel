@@ -6,10 +6,17 @@ import { Search, Loader2, Library, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { MediaThumb } from "@/components/media-thumb";
+import { acaoSegura } from "@/lib/ui/acao-segura";
 import { sendMediaFromLibraryAction, sendUploadedMediaAction } from "../actions";
 import type { Database } from "@/types/database";
 
-const MAX_UPLOAD_MB = 50;
+/**
+ * Tetos de tamanho. O WhatsApp recusa foto, vídeo e áudio acima de 16 MB, mas
+ * aceita documento bem maior. Um teto único de 50 MB fazia um vídeo de 30 MB
+ * subir inteiro para só então falhar na ponta.
+ */
+const MAX_MIDIA_MB = 16;
+const MAX_DOCUMENTO_MB = 50;
 
 function fileTypeFromMime(mime: string): "image" | "video" | "audio" | "document" | "sticker" {
   if (mime === "image/webp") return "sticker"; // webp = figurinha no WhatsApp
@@ -46,8 +53,12 @@ export function MediaPopup({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function onUploadAndSend(file: File) {
-    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
-      toast.error(`Arquivo muito grande (máx ${MAX_UPLOAD_MB}MB)`);
+    const tipo = fileTypeFromMime(file.type);
+    const tetoMb = tipo === "document" ? MAX_DOCUMENTO_MB : MAX_MIDIA_MB;
+    if (file.size > tetoMb * 1024 * 1024) {
+      toast.error("Arquivo muito grande", {
+        description: `${(file.size / 1024 / 1024).toFixed(1)} MB — o WhatsApp aceita até ${tetoMb} MB para este tipo.`,
+      });
       return;
     }
     setUploading(true);
@@ -69,12 +80,14 @@ export function MediaPopup({
 
     const { data: pub } = supabase.storage.from("contact-media").getPublicUrl(path);
 
-    const res = await sendUploadedMediaAction(conversationId, {
-      fileUrl: pub.publicUrl,
-      fileType: fileTypeFromMime(file.type),
-      mimetype: file.type || "application/octet-stream",
-      fileName: file.name,
-    });
+    const res = await acaoSegura(() =>
+      sendUploadedMediaAction(conversationId, {
+        fileUrl: pub.publicUrl,
+        fileType: tipo,
+        mimetype: file.type || "application/octet-stream",
+        fileName: file.name,
+      })
+    );
 
     setUploading(false);
     if (!res.ok) {
@@ -158,7 +171,6 @@ export function MediaPopup({
           ref={fileInputRef}
           type="file"
           className="hidden"
-          accept="image/*,video/*,audio/*,application/pdf"
           onChange={(e) => {
             const f = e.target.files?.[0];
             if (f) onUploadAndSend(f);
