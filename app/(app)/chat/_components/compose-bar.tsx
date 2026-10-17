@@ -11,6 +11,7 @@ import { QuickReplyPicker } from "./quick-reply-picker";
 import { MediaPopup } from "./media-popup";
 import { AudioRecorder } from "./audio-recorder";
 import { VideoRecorder } from "./video-recorder";
+import { ImagemColada } from "./imagem-colada";
 import { EmojiPickerPopup } from "./emoji-picker-popup";
 import { ScheduleDialog } from "./schedule-dialog";
 import { resolveTemplate, type TemplateContext } from "@/lib/format/template";
@@ -306,6 +307,7 @@ export function ComposeBar({
           />
         </div>
       )}
+      <ImagemColada conversationId={conversationId} />
       <ScheduleDialog
         conversationId={conversationId}
         open={scheduleOpen}
