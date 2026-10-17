@@ -9,11 +9,12 @@ import {
   type ContactPanelData,
   type MessageRow,
   type AssigneeProfile,
+  MENSAGENS_INICIAIS,
 } from "./types";
 
 export const dynamic = "force-dynamic";
 
-const MESSAGES_LIMIT = 100;
+const MESSAGES_LIMIT = MENSAGENS_INICIAIS;
 
 async function getAllProfiles(): Promise<AssigneeProfile[]> {
   const supabase = await createClient();

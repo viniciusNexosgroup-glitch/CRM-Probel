@@ -63,3 +63,13 @@ export type ContactPanelData = {
   allStages: PipelineStageRow[];
   activity: LeadActivityRow[];
 };
+
+/**
+ * Mensagens carregadas ao abrir uma conversa.
+ *
+ * Eram 100. Numa conversa movimentada isso são 64 KB de dados e 100 balões
+ * desenhados a cada troca de lead -- e o atendente só olha as últimas. Com 40
+ * cai para ~25 KB, e o resto do histórico continua a um clique em "carregar
+ * mensagens anteriores".
+ */
+export const MENSAGENS_INICIAIS = 40;

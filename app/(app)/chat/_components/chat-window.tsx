@@ -37,8 +37,16 @@ import {
   loadOlderMessagesAction,
 } from "../actions";
 
-const MESSAGES_PAGE = 100;
-import { MESSAGE_COLUMNS } from "../types";
+/**
+ * Intervalo do poll. Era 6s, quando o realtime do banco estava publicando zero
+ * tabelas e esta era a ÚNICA forma de a tela se atualizar. Com o realtime de
+ * volta, o poll vira rede de segurança -- e a cada disparo ele rebuscava as
+ * mensagens da conversa aberta, competindo com o clique que o atendente
+ * estava esperando.
+ */
+const POLL_MS = 20000;
+const POLL_LIMITE = 30;
+import { MESSAGE_COLUMNS, MENSAGENS_INICIAIS } from "../types";
 import type {
   ConversationWithContact,
   ContactPanelData,
@@ -194,7 +202,7 @@ export function ChatWindow({
   const [deletingMsg, setDeletingMsg] = useState<MessageRow | null>(null);
   const [forwardingMsg, setForwardingMsg] = useState<MessageRow | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(initialMessages.length >= MESSAGES_PAGE);
+  const [hasMore, setHasMore] = useState(initialMessages.length >= MENSAGENS_INICIAIS);
   const [loadingOlder, setLoadingOlder] = useState(false);
 
   // Fecha painel + reply ao trocar de conversa
@@ -219,7 +227,7 @@ export function ChatWindow({
   // o histórico carregado via "carregar mais"). Updates chegam por poll/realtime.
   useEffect(() => {
     setMessages(initialMessages);
-    setHasMore(initialMessages.length >= MESSAGES_PAGE);
+    setHasMore(initialMessages.length >= MENSAGENS_INICIAIS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation.id]);
 
@@ -269,7 +277,7 @@ export function ChatWindow({
         .select(MESSAGE_COLUMNS)
         .eq("conversation_id", conversation.id)
         .order("timestamp", { ascending: false })
-        .limit(MESSAGES_PAGE);
+        .limit(POLL_LIMITE);
       if (!mounted || !data) return;
       const incoming = (data as unknown as MessageRow[]).slice().reverse();
       setMessages((prev) => {
@@ -292,7 +300,7 @@ export function ChatWindow({
         return Array.from(map.values()).sort((a, b) => a.timestamp.localeCompare(b.timestamp));
       });
     }
-    const pollInterval = setInterval(pollMessages, 6000);
+    const pollInterval = setInterval(pollMessages, POLL_MS);
 
     const channel = supabase
       .channel(`crm-messages-${conversation.id}`)
