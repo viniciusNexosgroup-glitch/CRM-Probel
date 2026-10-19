@@ -90,9 +90,63 @@ export async function updateSalesbotFlowStatusAction(
 
   const { error } = await db.from("salesbot_flows").update(update).eq("id", flowId);
   if (error) return { ok: false, error: error.message };
+
+  if (status === "active") await pausarConcorrentes(db, flowId);
+
   revalidatePath("/salesbot");
   revalidatePath(`/salesbot/${flowId}`);
   return { ok: true };
+}
+
+/**
+ * Pausa os outros fluxos da mesma loja que disparam no mesmo evento.
+ *
+ * Dois fluxos ativos no mesmo gatilho rodam os dois para o mesmo lead, cada um
+ * atribuindo a um vendedor diferente -- e quem fica com ele depende de qual
+ * terminou por último. A loja tem um fluxo de rodízio e um por vendedor
+ * justamente para alternar entre eles, então ligar um tem que desligar os
+ * concorrentes.
+ */
+async function pausarConcorrentes(
+  db: ReturnType<typeof salesbotDb>,
+  flowId: string
+): Promise<void> {
+  try {
+    const { data: fluxo } = await db
+      .from("salesbot_flows")
+      .select("instance_id")
+      .eq("id", flowId)
+      .maybeSingle();
+    if (!fluxo?.instance_id) return;
+
+    const { data: gatilhos } = await db
+      .from("salesbot_triggers")
+      .select("type")
+      .eq("flow_id", flowId)
+      .eq("is_active", true);
+    const tipos = (gatilhos ?? []).map((g: { type: string }) => g.type);
+    if (tipos.length === 0) return;
+
+    const { data: irmaos } = await db
+      .from("salesbot_flows")
+      .select("id, salesbot_triggers(type, is_active)")
+      .eq("instance_id", fluxo.instance_id)
+      .eq("status", "active")
+      .neq("id", flowId);
+
+    const conflitantes = (irmaos ?? [])
+      .filter((f: { salesbot_triggers?: { type: string; is_active: boolean }[] }) =>
+        (f.salesbot_triggers ?? []).some((g) => g.is_active && tipos.includes(g.type))
+      )
+      .map((f: { id: string }) => f.id);
+
+    if (conflitantes.length > 0) {
+      await db.from("salesbot_flows").update({ status: "paused" }).in("id", conflitantes);
+    }
+  } catch (e) {
+    // Nunca derruba a ativação: o fluxo pedido já está ativo.
+    console.warn("[salesbot] falha ao pausar concorrentes:", e instanceof Error ? e.message : e);
+  }
 }
 
 export async function deleteSalesbotFlowAction(flowId: string): Promise<ActionResult> {
