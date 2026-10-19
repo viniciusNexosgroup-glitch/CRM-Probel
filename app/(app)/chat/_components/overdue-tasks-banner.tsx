@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ChevronRight, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronRight, Loader2, X } from "lucide-react";
+import { toast } from "sonner";
+import { acaoSegura } from "@/lib/ui/acao-segura";
+import { toggleTaskAction } from "../actions";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +36,28 @@ export function OverdueTasksBanner({ currentUserId }: { currentUserId?: string }
   const [tasks, setTasks] = useState<OverdueTask[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [concluindo, setConcluindo] = useState<string | null>(null);
+
+  /**
+   * Conclui a tarefa e tira da lista na hora.
+   *
+   * Some do aviso antes da resposta do servidor: a espera faria o atendente
+   * clicar duas vezes. Se falhar, volta para a lista -- melhor reaparecer do
+   * que o atendente achar que resolveu algo que continua pendente.
+   */
+  async function concluir(id: string) {
+    if (concluindo) return;
+    setConcluindo(id);
+    const antes = tasks;
+    setTasks((lista) => lista.filter((t) => t.id !== id));
+
+    const res = await acaoSegura(() => toggleTaskAction(id, true));
+    setConcluindo(null);
+    if (!res.ok) {
+      setTasks(antes);
+      toast.error("Não consegui concluir a tarefa", { description: res.error });
+    }
+  }
 
   useEffect(() => {
     // Verifica se foi dispensado nas últimas 4 horas
@@ -123,10 +148,10 @@ export function OverdueTasksBanner({ currentUserId }: { currentUserId?: string }
           {tasks.map((t) => {
             const href = t.lead?.conversation_id ? `/chat?c=${t.lead.conversation_id}` : "/leads";
             return (
-              <li key={t.id}>
+              <li key={t.id} className="flex items-stretch gap-1">
                 <Link
                   href={href}
-                  className="flex items-start gap-2 px-2 py-1.5 rounded-md bg-amber-500/10 hover:bg-amber-500/20 transition-colors text-xs"
+                  className="flex-1 min-w-0 flex items-start gap-2 px-2 py-1.5 rounded-md bg-amber-500/10 hover:bg-amber-500/20 transition-colors text-xs"
                 >
                   <AlertTriangle className="h-3 w-3 text-red-400 mt-0.5 shrink-0" />
                   <div className="min-w-0 flex-1">
@@ -136,6 +161,19 @@ export function OverdueTasksBanner({ currentUserId }: { currentUserId?: string }
                     </p>
                   </div>
                 </Link>
+                <button
+                  onClick={() => concluir(t.id)}
+                  disabled={concluindo === t.id}
+                  title="Marcar como feita"
+                  aria-label={`Marcar "${t.title}" como feita`}
+                  className="shrink-0 px-2 rounded-md bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/30 transition-colors disabled:opacity-50"
+                >
+                  {concluindo === t.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Check className="h-3.5 w-3.5" />
+                  )}
+                </button>
               </li>
             );
           })}
