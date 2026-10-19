@@ -232,16 +232,26 @@ async function resolveAutomaticAssignee(
   // Rodízio real: alterna os NOVOS leads entre os vendedores ignorando o volume
   // histórico — leva o próximo quem recebeu há mais tempo (ou nunca). Assim a
   // distribuição fica ~50/50 mesmo com um vendedor cheio de leads antigos.
+  // As duas estratégias perguntam ao banco UMA coisa por vendedor, em vez de
+  // trazer os leads de todos e contar aqui. Antes buscavam todas as linhas, e o
+  // PostgREST corta em 1.000: numa loja maior, "menos leads ativos" contava
+  // errado e escolhia o vendedor errado. O rodízio acertava por sorte (a lista
+  // vinha do mais novo para o mais velho), mas trazia até 1.000 linhas a cada
+  // lead que chegava.
   if (strategy === "round_robin") {
-    const { data: recent } = await db
-      .from("leads")
-      .select("assigned_to, created_at")
-      .in("assigned_to", candidateIds)
-      .order("created_at", { ascending: false });
-    const lastAt = new Map<string, string>();
-    for (const lead of (recent ?? []) as Array<{ assigned_to?: string | null; created_at?: string | null }>) {
-      if (lead.assigned_to && !lastAt.has(lead.assigned_to)) lastAt.set(lead.assigned_to, lead.created_at ?? "");
-    }
+    const ultimos = await Promise.all(
+      candidateIds.map(async (id) => {
+        const { data } = await db
+          .from("leads")
+          .select("created_at")
+          .eq("assigned_to", id)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        const ultimo = (data?.[0] as { created_at?: string | null } | undefined)?.created_at;
+        return [id, ultimo ?? ""] as const;
+      })
+    );
+    const lastAt = new Map<string, string>(ultimos);
     return (
       [...candidateIds].sort(
         (a, b) => (lastAt.get(a) ?? "").localeCompare(lastAt.get(b) ?? "") || a.localeCompare(b)
@@ -249,22 +259,17 @@ async function resolveAutomaticAssignee(
     );
   }
 
-  const { data: leads } = await db
-    .from("leads")
-    .select("assigned_to, status")
-    .in("assigned_to", candidateIds);
+  // "Menos leads ativos" conta os abertos; qualquer outra estratégia, todos.
+  const contagens = await Promise.all(
+    candidateIds.map(async (id) => {
+      let q = db.from("leads").select("id", { count: "exact", head: true }).eq("assigned_to", id);
+      if (strategy === "least_active") q = q.eq("status", "open");
+      const { count } = await q;
+      return [id, count ?? 0] as const;
+    })
+  );
 
-  const score = new Map<string, number>(candidateIds.map((id) => [id, 0]));
-  for (const lead of (leads ?? []) as Array<{ assigned_to?: string | null; status?: string | null }>) {
-    const assignedTo = lead.assigned_to;
-    if (!assignedTo || !score.has(assignedTo)) continue;
-
-    const status = lead.status;
-    if (strategy === "least_active" && status !== "open") continue;
-    score.set(assignedTo, (score.get(assignedTo) ?? 0) + 1);
-  }
-
-  return [...score.entries()].sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? null;
+  return [...contagens].sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? null;
 }
 
 function evaluateCondition(
