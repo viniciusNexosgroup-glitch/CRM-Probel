@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { Search, MessageSquare, ChevronDown, Tag as TagIcon, X, Pin, Star, Archive, MessageSquarePlus, UserCircle2 } from "lucide-react";
+import { Search, MessageSquare, ChevronDown, Tag as TagIcon, X, Pin, Star, Archive, MessageSquarePlus, UserCircle2, MailOpen, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { acaoSegura } from "@/lib/ui/acao-segura";
+import { markAsUnreadAction } from "../actions";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -64,6 +67,30 @@ export function ConversationList({
   // `clicada` marca a escolha na hora; a URL confirma logo depois.
   const selecionadaNaUrl = searchParams.get("c") ?? undefined;
   const [clicada, setClicada] = useState<string | undefined>(undefined);
+  const [marcando, setMarcando] = useState<string | null>(null);
+
+  /**
+   * Marca como não lida sem abrir a conversa.
+   *
+   * O item inteiro é um link, então o clique precisa ser interrompido antes de
+   * navegar. E se a conversa marcada for justamente a que está aberta, sai
+   * dela: deixá-la aberta e não lida ao mesmo tempo faria o CRM marcá-la como
+   * lida de novo no próximo carregamento.
+   */
+  async function marcarNaoLida(e: React.MouseEvent, id: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (marcando) return;
+    setMarcando(id);
+    const res = await acaoSegura(() => markAsUnreadAction(id));
+    setMarcando(null);
+    if (!res.ok) {
+      toast.error("Não consegui marcar", { description: res.error });
+      return;
+    }
+    if (selectedId === id) router.push("/chat");
+    else router.refresh();
+  }
   const selectedId = clicada ?? selecionadaNaUrl;
   useEffect(() => setClicada(undefined), [selecionadaNaUrl]);
   const [conversations, setConversations] = useState(initial);
@@ -452,7 +479,7 @@ export function ConversationList({
                     onMouseEnter={() => router.prefetch(hrefForConversation(c.id))}
                     onTouchStart={() => router.prefetch(hrefForConversation(c.id))}
                     className={cn(
-                      "flex items-center gap-3 px-3 py-3 border-b border-wa-border/40 hover:bg-wa-hover transition-colors",
+                      "group/conversa flex items-center gap-3 px-3 py-3 border-b border-wa-border/40 hover:bg-wa-hover transition-colors",
                       selectedId === c.id && "bg-wa-active"
                     )}
                   >
@@ -500,10 +527,25 @@ export function ConversationList({
                           )}
                           {c.last_message_text ?? "—"}
                         </span>
-                        {c.unread_count > 0 && (
+                        {c.unread_count > 0 ? (
                           <span className="bg-wa-unread text-black text-[11px] font-bold rounded-full h-5 min-w-5 px-1.5 flex items-center justify-center">
                             {c.unread_count > 99 ? "99+" : c.unread_count}
                           </span>
+                        ) : (
+                          <button
+                            onClick={(e) => marcarNaoLida(e, c.id)}
+                            disabled={marcando === c.id}
+                            title="Marcar como não lida"
+                            aria-label="Marcar como não lida"
+                            // No celular não existe passar o mouse: ali o botão fica sempre visível.
+                            className="opacity-100 md:opacity-0 md:group-hover/conversa:opacity-100 focus:opacity-100 p-1 rounded-full text-wa-textSecondary hover:text-wa-accent hover:bg-wa-active transition-opacity shrink-0"
+                          >
+                            {marcando === c.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <MailOpen className="h-3.5 w-3.5" />
+                            )}
+                          </button>
                         )}
                       </div>
                       {(tags.length > 0 || c.assigned_user) && (

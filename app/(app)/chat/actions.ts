@@ -90,6 +90,40 @@ export async function markAsReadAction(conversationId: string) {
 }
 
 /**
+ * Marca a conversa como não lida, para o atendente voltar nela depois.
+ *
+ * É um marcador local: o WhatsApp não desfaz a confirmação de leitura já
+ * enviada ao cliente, então não há o que avisar à Evolution. O cliente
+ * continua vendo que foi lido -- aqui só muda o que o CRM destaca.
+ *
+ * Grava 1 em vez de recontar as mensagens: o número serve de sinalizador, e
+ * recontar daria um valor que não corresponde a nada que o atendente fez.
+ */
+export async function markAsUnreadAction(conversationId: string): Promise<Result> {
+  const supabase = await createClient();
+
+  const { data: conv } = await supabase
+    .from("conversations")
+    .select("id, unread_count")
+    .eq("id", conversationId)
+    .maybeSingle();
+  if (!conv) return { ok: false, error: "Conversa não encontrada" };
+
+  // Já está não lida: não sobrescreve a contagem real das mensagens que
+  // chegaram e ninguém abriu.
+  if (conv.unread_count > 0) return { ok: true };
+
+  const { error } = await supabase
+    .from("conversations")
+    .update({ unread_count: 1 })
+    .eq("id", conversationId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/chat");
+  return { ok: true };
+}
+
+/**
  * Envia mensagem de texto pela Evolution e persiste no Supabase.
  *
  * Fluxo:
