@@ -39,3 +39,19 @@ export const SELECT_LEAD_CARTAO = `
 
 /** Total real de leads e valor de uma coluna (calculados no banco). */
 export type TotaisColuna = { total: number; valor: number };
+
+/**
+ * Ordem dos cartões numa coluna. TEM que ser a mesma no primeiro lote e no
+ * "carregar mais", e TEM que ser estável.
+ *
+ * Só `updated_at` não basta: 1.558 leads da Ticiany têm exatamente o mesmo
+ * horário de atualização (foram atribuídos a ela de uma vez). Com empate, a
+ * ordem entre eles é arbitrária e muda a cada consulta -- os lotes se
+ * sobrepunham (4 repetidos a cada 150) e, na mesma conta, outros nunca
+ * apareciam. Desempata pelo mais novo e, por último, pelo id, que é único.
+ */
+export const ORDEM_KANBAN = [
+  { coluna: "updated_at", ascending: false },
+  { coluna: "created_at", ascending: false },
+  { coluna: "id", ascending: false },
+] as const;

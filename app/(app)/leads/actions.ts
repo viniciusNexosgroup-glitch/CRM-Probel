@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { handleLeadStageTransition } from "@/lib/leads/activity";
-import { LOTE_KANBAN, SELECT_LEAD_CARTAO, type LeadWithContact } from "./types";
+import { LOTE_KANBAN, ORDEM_KANBAN, SELECT_LEAD_CARTAO, type LeadWithContact } from "./types";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -90,9 +90,9 @@ export async function carregarMaisLeadsAction(
   let q = supabase
     .from("leads")
     .select(SELECT_LEAD_CARTAO)
-    .eq("stage_id", stageId)
-    .order("updated_at", { ascending: false })
-    .range(jaCarregados, jaCarregados + LOTE_KANBAN - 1);
+    .eq("stage_id", stageId);
+  for (const o of ORDEM_KANBAN) q = q.order(o.coluna, { ascending: o.ascending });
+  q = q.range(jaCarregados, jaCarregados + LOTE_KANBAN - 1);
   q = donoId === null ? q.is("assigned_to", null) : q.eq("assigned_to", donoId);
 
   const { data, error } = await q;

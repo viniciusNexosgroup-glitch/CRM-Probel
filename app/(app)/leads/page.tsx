@@ -5,6 +5,7 @@ import { getCurrentProfile } from "@/lib/auth/roles";
 import { KanbanBoard } from "./_components/kanban-board";
 import {
   LOTE_KANBAN,
+  ORDEM_KANBAN,
   SELECT_LEAD_CARTAO,
   type LeadWithContact,
   type PipelineStageRow,
@@ -56,9 +57,9 @@ async function getPrimeirosLotes(
       let q = supabase
         .from("leads")
         .select(SELECT_LEAD_CARTAO)
-        .eq("stage_id", s.id)
-        .order("updated_at", { ascending: false })
-        .limit(LOTE_KANBAN);
+        .eq("stage_id", s.id);
+      for (const o of ORDEM_KANBAN) q = q.order(o.coluna, { ascending: o.ascending });
+      q = q.limit(LOTE_KANBAN);
       q = ownerId === null ? q.is("assigned_to", null) : q.eq("assigned_to", ownerId);
       return q;
     })
