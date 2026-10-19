@@ -3,7 +3,13 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/auth/roles";
 import { KanbanBoard } from "./_components/kanban-board";
-import type { LeadWithContact, PipelineStageRow } from "./types";
+import {
+  LOTE_KANBAN,
+  SELECT_LEAD_CARTAO,
+  type LeadWithContact,
+  type PipelineStageRow,
+  type TotaisColuna,
+} from "./types";
 
 export const dynamic = "force-dynamic";
 
@@ -17,22 +23,47 @@ async function getStages(ownerId: string | null): Promise<PipelineStageRow[]> {
   return data ?? [];
 }
 
-async function getLeads(ownerId: string | null): Promise<LeadWithContact[]> {
+/** Total real e valor de cada coluna do quadro, contados no banco. */
+async function getTotais(ownerId: string | null): Promise<Record<string, TotaisColuna>> {
   const supabase = await createClient();
-  let q = supabase
-    .from("leads")
-    .select(
-      `
-      *,
-      contact:contacts!leads_contact_id_fkey (
-        id, name, push_name, phone, profile_pic_url, whatsapp_id
-      )
-    `
-    )
-    .order("updated_at", { ascending: false });
-  q = ownerId === null ? q.is("assigned_to", null) : q.eq("assigned_to", ownerId);
-  const { data } = await q;
-  return (data ?? []) as unknown as LeadWithContact[];
+  const { data, error } = await supabase.rpc("kanban_colunas", { p_dono: ownerId });
+  if (error) {
+    console.error("[leads] totais por coluna:", error.message);
+    return {};
+  }
+  const totais: Record<string, TotaisColuna> = {};
+  for (const linha of (data ?? []) as { stage_id: string; total: number; valor: number }[]) {
+    totais[linha.stage_id] = { total: Number(linha.total), valor: Number(linha.valor) };
+  }
+  return totais;
+}
+
+/**
+ * Primeiro lote de cartões de cada coluna.
+ *
+ * Uma consulta por coluna, todas ao mesmo tempo. Só pergunta pelas colunas que
+ * têm leads: as vazias já se sabem vazias pelos totais.
+ */
+async function getPrimeirosLotes(
+  stages: PipelineStageRow[],
+  totais: Record<string, TotaisColuna>,
+  ownerId: string | null
+): Promise<LeadWithContact[]> {
+  const supabase = await createClient();
+  const comLeads = stages.filter((s) => (totais[s.id]?.total ?? 0) > 0);
+  const lotes = await Promise.all(
+    comLeads.map((s) => {
+      let q = supabase
+        .from("leads")
+        .select(SELECT_LEAD_CARTAO)
+        .eq("stage_id", s.id)
+        .order("updated_at", { ascending: false })
+        .limit(LOTE_KANBAN);
+      q = ownerId === null ? q.is("assigned_to", null) : q.eq("assigned_to", ownerId);
+      return q;
+    })
+  );
+  return lotes.flatMap((r) => (r.data ?? []) as unknown as LeadWithContact[]);
 }
 
 export default async function LeadsPage({
@@ -70,10 +101,13 @@ export default async function LeadsPage({
     boards[0].value;
   const selectedOwnerId = boards.find((b) => b.value === selectedValue)!.ownerId;
 
-  const [stages, leads] = await Promise.all([
+  const [stages, totais] = await Promise.all([
     getStages(selectedOwnerId),
-    getLeads(selectedOwnerId),
+    getTotais(selectedOwnerId),
   ]);
+  const leads = await getPrimeirosLotes(stages, totais, selectedOwnerId);
+  // O total do cabeçalho é o real, não o número de cartões carregados.
+  const totalDoQuadro = stages.reduce((soma, s) => soma + (totais[s.id]?.total ?? 0), 0);
 
   return (
     <div className="h-full bg-wa-bg flex flex-col">
@@ -83,7 +117,7 @@ export default async function LeadsPage({
             <KanbanSquare className="h-4 w-4 text-primary" /> Funil de Leads
           </h1>
           <span className="text-xs text-wa-textSecondary">
-            {leads.length} {leads.length === 1 ? "lead" : "leads"}
+            {totalDoQuadro} {totalDoQuadro === 1 ? "lead" : "leads"}
           </span>
         </div>
       </header>
@@ -92,6 +126,8 @@ export default async function LeadsPage({
         <KanbanBoard
           stages={stages}
           leads={leads}
+          totais={totais}
+          donoId={selectedOwnerId}
           isAdmin={isAdmin}
           boards={boards}
           selectedValue={selectedValue}

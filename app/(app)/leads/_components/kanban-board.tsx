@@ -1,24 +1,45 @@
 "use client";
 
-import { useState, useTransition, useMemo, useEffect } from "react";
+import { useState, useTransition, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { KanbanColumn } from "./kanban-column";
 import { LeadDetailModal } from "./lead-detail-modal";
-import { updateLeadStageAction } from "../actions";
-import type { LeadWithContact, PipelineStageRow } from "../types";
+import { carregarMaisLeadsAction, updateLeadStageAction } from "../actions";
+import { acaoSegura } from "@/lib/ui/acao-segura";
+import type { LeadWithContact, PipelineStageRow, TotaisColuna } from "../types";
 
 type Board = { value: string; label: string; ownerId: string | null };
+
+/**
+ * Recarga automática do quadro, para trazer leads novos dos webhooks.
+ *
+ * Era a cada 15 s, sempre -- e cada recarga refazia o quadro inteiro no
+ * servidor. Com o quadro da Ticiany aberto, eram 1.000 cartões consultados e
+ * serializados quatro vezes por minuto, por aba, pesando na VPS para todos.
+ * Agora: a cada minuto, só com a aba visível, e ao voltar para a aba.
+ */
+const RECARGA_MS = 60_000;
+
+/** Quanto um lead soma no valor da coluna: ganho conta o fechado; o resto, o estimado. */
+function contribuicao(lead: LeadWithContact, stage: PipelineStageRow | undefined): number {
+  if (!stage) return 0;
+  return Number((stage.is_won ? lead.closed_value : lead.estimated_value) ?? 0);
+}
 
 export function KanbanBoard({
   stages,
   leads: initialLeads,
+  totais: initialTotais,
+  donoId,
   isAdmin = false,
   boards = [],
   selectedValue,
 }: {
   stages: PipelineStageRow[];
   leads: LeadWithContact[];
+  totais: Record<string, TotaisColuna>;
+  donoId: string | null;
   isAdmin?: boolean;
   boards?: Board[];
   selectedValue?: string;
@@ -26,15 +47,32 @@ export function KanbanBoard({
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [leads, setLeads] = useState(initialLeads);
+  const [totais, setTotais] = useState(initialTotais);
   const [selected, setSelected] = useState<LeadWithContact | null>(null);
+  const [carregandoColuna, setCarregandoColuna] = useState<string | null>(null);
+  // Depois de carregar mais, a recarga automática devolveria só o primeiro
+  // lote de cada coluna -- o vendedor perderia o que acabou de abrir.
+  const carregouMais = useRef(false);
 
-  useEffect(() => setLeads(initialLeads), [initialLeads]);
-
-  // Polling pra refletir leads novos criados pelos webhooks
   useEffect(() => {
-    const id = setInterval(() => router.refresh(), 15000);
-    return () => clearInterval(id);
+    setLeads(initialLeads);
+    setTotais(initialTotais);
+  }, [initialLeads, initialTotais]);
+
+  useEffect(() => {
+    function recarregar() {
+      if (document.visibilityState !== "visible" || carregouMais.current) return;
+      router.refresh();
+    }
+    const id = setInterval(recarregar, RECARGA_MS);
+    document.addEventListener("visibilitychange", recarregar);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", recarregar);
+    };
   }, [router]);
+
+  const stagePorId = useMemo(() => new Map(stages.map((s) => [s.id, s])), [stages]);
 
   const byStage = useMemo(() => {
     const map = new Map<string, LeadWithContact[]>();
@@ -47,26 +85,58 @@ export function KanbanBoard({
     return map;
   }, [leads, stages]);
 
+  async function carregarMais(stageId: string) {
+    if (carregandoColuna) return;
+    setCarregandoColuna(stageId);
+    const jaCarregados = byStage.get(stageId)?.length ?? 0;
+    const res = await acaoSegura(() => carregarMaisLeadsAction(stageId, donoId, jaCarregados));
+    setCarregandoColuna(null);
+    if (!res.ok) {
+      toast.error("Não consegui carregar mais leads", { description: res.error });
+      return;
+    }
+    carregouMais.current = true;
+    setLeads((prev) => {
+      const existentes = new Set(prev.map((l) => l.id));
+      return [...prev, ...res.leads.filter((l) => !existentes.has(l.id))];
+    });
+  }
+
+  /** Move um lead entre colunas nos totais (sinal -1 desfaz). */
+  function ajustarTotais(lead: LeadWithContact, de: string, para: string, sinal: 1 | -1) {
+    setTotais((t) => {
+      const novo = { ...t };
+      const origem = novo[de] ?? { total: 0, valor: 0 };
+      const destino = novo[para] ?? { total: 0, valor: 0 };
+      novo[de] = {
+        total: origem.total - sinal,
+        valor: origem.valor - sinal * contribuicao(lead, stagePorId.get(de)),
+      };
+      novo[para] = {
+        total: destino.total + sinal,
+        valor: destino.valor + sinal * contribuicao(lead, stagePorId.get(para)),
+      };
+      return novo;
+    });
+  }
+
   function onDropLead(leadId: string, stageId: string) {
     const lead = leads.find((l) => l.id === leadId);
-    if (!lead || lead.stage_id === stageId) return;
+    if (!lead || !lead.stage_id || lead.stage_id === stageId) return;
+    const origem = lead.stage_id;
 
-    // Optimistic update
-    setLeads((prev) =>
-      prev.map((l) => (l.id === leadId ? { ...l, stage_id: stageId } : l))
-    );
+    // Otimista: move o cartão e os totais na hora.
+    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, stage_id: stageId } : l)));
+    ajustarTotais(lead, origem, stageId, 1);
 
     startTransition(async () => {
-      const res = await updateLeadStageAction(leadId, stageId);
+      const res = await acaoSegura(() => updateLeadStageAction(leadId, stageId));
       if (!res.ok) {
         toast.error("Falha ao mover lead", { description: res.error });
-        // Reverte
-        setLeads((prev) =>
-          prev.map((l) => (l.id === leadId ? { ...l, stage_id: lead.stage_id } : l))
-        );
+        setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, stage_id: origem } : l)));
+        ajustarTotais(lead, origem, stageId, -1);
       } else {
-        const stage = stages.find((s) => s.id === stageId);
-        toast.success(`Movido para "${stage?.name}"`);
+        toast.success(`Movido para "${stagePorId.get(stageId)?.name}"`);
       }
     });
   }
@@ -100,6 +170,10 @@ export function KanbanBoard({
               key={s.id}
               stage={s}
               leads={byStage.get(s.id) ?? []}
+              total={totais[s.id]?.total ?? 0}
+              valor={totais[s.id]?.valor ?? 0}
+              carregando={carregandoColuna === s.id}
+              onCarregarMais={() => carregarMais(s.id)}
               onDropLead={onDropLead}
               onClickLead={setSelected}
             />

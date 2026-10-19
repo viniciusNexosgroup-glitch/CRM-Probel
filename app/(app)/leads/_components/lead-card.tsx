@@ -9,6 +9,7 @@ import { formatPhone } from "@/lib/format/avatar";
 import { cn } from "@/lib/utils";
 import type { LeadWithContact } from "../types";
 
+import { formatarMoeda } from "@/lib/format/moeda";
 function displayName(lead: LeadWithContact): string {
   return (
     lead.name?.trim() ||
@@ -21,7 +22,7 @@ function displayName(lead: LeadWithContact): string {
 
 function formatCurrency(value: number | null): string | null {
   if (value == null) return null;
-  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  return formatarMoeda(value);
 }
 
 export function LeadCard({

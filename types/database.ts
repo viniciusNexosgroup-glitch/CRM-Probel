@@ -1243,6 +1243,17 @@ export type Database = {
         };
         Returns: undefined;
       };
+      dashboard_resumo: {
+        Args: {
+          p_inicio_dia: string;
+          p_inicio_mes: string;
+        };
+        Returns: Json;
+      };
+      kanban_colunas: {
+        Args: { p_dono: string | null };
+        Returns: { stage_id: string; total: number; valor: number }[];
+      };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };

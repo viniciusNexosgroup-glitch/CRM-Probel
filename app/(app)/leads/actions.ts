@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { handleLeadStageTransition } from "@/lib/leads/activity";
+import { LOTE_KANBAN, SELECT_LEAD_CARTAO, type LeadWithContact } from "./types";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -69,4 +70,32 @@ export async function updateLeadAction(
   if (error) return { ok: false, error: error.message };
   revalidatePath("/leads");
   return { ok: true };
+}
+
+/**
+ * Próximo lote de cartões de uma coluna do Kanban.
+ *
+ * O quadro abre com um lote por coluna; este botão traz os seguintes. Usa as
+ * regras de acesso de quem pede, então ninguém carrega lead de outro vendedor
+ * ou de outra loja. `donoId` nulo = quadro "Sem vendedor".
+ */
+export async function carregarMaisLeadsAction(
+  stageId: string,
+  donoId: string | null,
+  jaCarregados: number
+): Promise<{ ok: true; leads: LeadWithContact[] } | { ok: false; error: string }> {
+  if (!stageId || jaCarregados < 0) return { ok: false, error: "Pedido inválido" };
+
+  const supabase = await createClient();
+  let q = supabase
+    .from("leads")
+    .select(SELECT_LEAD_CARTAO)
+    .eq("stage_id", stageId)
+    .order("updated_at", { ascending: false })
+    .range(jaCarregados, jaCarregados + LOTE_KANBAN - 1);
+  q = donoId === null ? q.is("assigned_to", null) : q.eq("assigned_to", donoId);
+
+  const { data, error } = await q;
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, leads: (data ?? []) as unknown as LeadWithContact[] };
 }

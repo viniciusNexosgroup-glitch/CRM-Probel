@@ -2,9 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 import { parseLeadSources, sourceLabelMap } from "@/lib/lead-sources";
 
+import { formatarMoeda } from "@/lib/format/moeda";
 type LeadRow = Database["public"]["Tables"]["leads"]["Row"];
 type StageRow = Database["public"]["Tables"]["pipeline_stages"]["Row"];
-type ContactRow = Database["public"]["Tables"]["contacts"]["Row"];
 
 export type DashboardData = {
   kpis: {
@@ -61,40 +61,68 @@ function startOfMonth() {
   return new Date(d.getFullYear(), d.getMonth(), 1).toISOString();
 }
 
+/** Formato do que `dashboard_resumo` devolve (ver migração 0029). */
+type Resumo = {
+  kpis: {
+    totalLeads: number;
+    totalWon: number;
+    totalLost: number;
+    estimatedValueOpen: number;
+    closedValueAllTime: number;
+    closedValueThisMonth: number;
+    leadsToday: number;
+    leadsThisMonth: number;
+  };
+  conversas: { openConversations: number; unreadConversations: number };
+  funil: { stage: StageRow; count: number; totalValue: number }[];
+  origens: { source: string; count: number; won: number; estimatedValue: number }[];
+  porVendedor: Record<string, { open: number; won: number; lost: number; closedValue: number }>;
+  conversasPorVendedor: Record<string, number>;
+};
+
+type ContatoResumido = { name: string | null; push_name: string | null; phone: string | null };
+
+/**
+ * Dados do Dashboard.
+ *
+ * Antes, trazia todos os leads da loja (com o contato de cada um) e somava aqui.
+ * Era lento -- na Probel, 979 KB e 385 ms numa única consulta -- e estava
+ * ERRADO: o PostgREST devolve no máximo 1.000 linhas, e a Probel tem mais de
+ * 2.800 leads e conversas. Total, conversão, valores, funil, origens e ranking
+ * saíam calculados sobre uma parte da loja, sem aviso.
+ *
+ * Agora o banco soma tudo (`dashboard_resumo`) e devolve só os resultados, e
+ * as listas curtas (top 5, últimos 8, parados) vêm já cortadas. Tudo sai numa
+ * leva só: nenhuma consulta depende de outra.
+ */
 export async function getDashboardData(): Promise<DashboardData> {
   const supabase = await createClient();
-
-  const [stagesRes, leadsRes, conversationsRes, todayLeadsRes, monthLeadsRes] =
-    await Promise.all([
-      supabase.from("pipeline_stages").select("*").order("position", { ascending: true }),
-      supabase
-        .from("leads")
-        .select(
-          "*, contact:contacts!leads_contact_id_fkey(name, push_name, phone)"
-        )
-        .order("updated_at", { ascending: false }),
-      supabase.from("conversations").select("unread_count", { count: "exact" }),
-      supabase
-        .from("leads")
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", startOfDay()),
-      supabase
-        .from("leads")
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", startOfMonth()),
-    ]);
-
-  // As consultas abaixo não dependem umas das outras, então vão juntas: em
-  // série eram 5 idas à rede esperando uma pela outra, e é o que fazia o
-  // dashboard ser a tela mais lenta (o banco responde em milissegundos).
   const paradosDesde = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const comContato = "*, contact:contacts!leads_contact_id_fkey(name, push_name, phone)";
+
   const [
-    { data: stalledConvs },
+    resumoRes,
+    paradosTotalRes,
+    paradosRes,
     { data: srcSetting },
     { data: profiles },
-    { data: assignedConvs },
     { data: tempoRespostaSalvo },
+    topLeadsRes,
+    recentLeadsRes,
   ] = await Promise.all([
+    supabase.rpc("dashboard_resumo", {
+      p_inicio_dia: startOfDay(),
+      p_inicio_mes: startOfMonth(),
+    }),
+    // Conversas em que o cliente foi o último a falar há mais de 24h. O total é
+    // contado à parte: antes vinha do tamanho de uma lista limitada a 100, então
+    // nunca passava de 100 mesmo quando havia mais.
+    supabase
+      .from("conversations")
+      .select("id", { count: "exact", head: true })
+      .eq("last_message_from_me", false)
+      .eq("is_archived", false)
+      .lt("last_message_at", paradosDesde),
     supabase
       .from("conversations")
       .select(
@@ -104,99 +132,50 @@ export async function getDashboardData(): Promise<DashboardData> {
       .eq("is_archived", false)
       .lt("last_message_at", paradosDesde)
       .order("last_message_at", { ascending: true })
-      .limit(100),
+      .limit(8),
     supabase.from("settings").select("value").eq("key", "lead_sources").maybeSingle(),
     supabase.from("profiles").select("id, full_name, email"),
-    supabase.from("conversations").select("assigned_to").not("assigned_to", "is", null),
     // Calculado pela rotina diária. A regra de acesso já limita à loja do
     // usuário, então não precisa descobrir a loja antes de buscar.
     supabase.from("settings").select("value").eq("key", "tempo_resposta_cache").maybeSingle(),
+    supabase
+      .from("leads")
+      .select(comContato)
+      .eq("status", "open")
+      .gt("estimated_value", 0)
+      .order("estimated_value", { ascending: false })
+      .limit(5),
+    supabase.from("leads").select(comContato).order("created_at", { ascending: false }).limit(8),
   ]);
 
+  if (resumoRes.error) throw new Error(`Dashboard: ${resumoRes.error.message}`);
+  const r = resumoRes.data as unknown as Resumo;
+  const n = (v: unknown) => Number(v ?? 0);
 
-  const stages = stagesRes.data ?? [];
-  const leads = (leadsRes.data ?? []) as unknown as DashboardData["topLeads"];
+  const totalWon = n(r.kpis.totalWon);
+  const totalLost = n(r.kpis.totalLost);
+  const totalClosed = totalWon + totalLost;
 
-  // KPIs
-  const won = leads.filter((l) => l.status === "won");
-  const lost = leads.filter((l) => l.status === "lost");
-  const wonMonth = won.filter(
-    (l) => new Date(l.updated_at) >= new Date(startOfMonth())
-  );
+  const funnel = (r.funil ?? []).map((f) => ({
+    stage: f.stage,
+    count: n(f.count),
+    totalValue: n(f.totalValue),
+  }));
 
-  const totalClosed = won.length + lost.length;
-  const conversionRate = totalClosed > 0 ? won.length / totalClosed : 0;
+  const bySource = (r.origens ?? []).map((o) => ({
+    source: o.source,
+    count: n(o.count),
+    won: n(o.won),
+    estimatedValue: n(o.estimatedValue),
+    conversionRate: n(o.count) > 0 ? n(o.won) / n(o.count) : 0,
+  }));
 
-  const estimatedValueOpen = leads
-    .filter((l) => l.status === "open")
-    .reduce((s, l) => s + Number(l.estimated_value ?? 0), 0);
-
-  const closedValueAllTime = won.reduce(
-    (s, l) => s + Number(l.closed_value ?? l.estimated_value ?? 0),
-    0
-  );
-  const closedValueThisMonth = wonMonth.reduce(
-    (s, l) => s + Number(l.closed_value ?? l.estimated_value ?? 0),
-    0
-  );
-
-  const conversations = conversationsRes.data ?? [];
-  const openConversations = conversations.length;
-  const unreadConversations = conversations.filter(
-    (c) => (c.unread_count ?? 0) > 0
-  ).length;
-
-  // Funnel — agrega por NOME do estágio. Com estágios por vendedor, o admin vê o
-  // funil somado de todos os boards; o vendedor vê o próprio (nomes já únicos).
-  const funnelMap = new Map<string, { stage: StageRow; count: number; totalValue: number }>();
-  for (const stage of stages) {
-    const inStage = leads.filter((l) => l.stage_id === stage.id);
-    const value = inStage.reduce((s, l) => {
-      const v = stage.is_won
-        ? Number(l.closed_value ?? l.estimated_value ?? 0)
-        : Number(l.estimated_value ?? 0);
-      return s + v;
-    }, 0);
-    const existing = funnelMap.get(stage.name);
-    if (existing) {
-      existing.count += inStage.length;
-      existing.totalValue += value;
-    } else {
-      funnelMap.set(stage.name, { stage, count: inStage.length, totalValue: value });
-    }
-  }
-  const funnel = [...funnelMap.values()];
-
-  // By source (com conversão: quantos viraram Ganho)
-  const sourceMap = new Map<string, { count: number; won: number; estimatedValue: number }>();
-  for (const l of leads) {
-    const src = l.source ?? "sem origem";
-    const entry = sourceMap.get(src) ?? { count: 0, won: 0, estimatedValue: 0 };
-    entry.count += 1;
-    if (l.status === "won") entry.won += 1;
-    entry.estimatedValue += Number(l.estimated_value ?? 0);
-    sourceMap.set(src, entry);
-  }
-  const bySource = Array.from(sourceMap.entries())
-    .map(([source, v]) => ({
-      source,
-      ...v,
-      conversionRate: v.count > 0 ? v.won / v.count : 0,
-    }))
-    .sort((a, b) => b.count - a.count);
-
-  // #20 Leads parados: conversas onde o cliente foi o último a falar há +24h
-  // Labels de origem (customizáveis #25)
   const sourceLabels = sourceLabelMap(parseLeadSources(srcSetting?.value));
 
   const stalled = {
-    count: stalledConvs?.length ?? 0,
-    items: (stalledConvs ?? []).slice(0, 8).map((c) => {
-      const ct = c.contact as unknown as {
-        name: string | null;
-        push_name: string | null;
-        phone: string | null;
-      } | null;
+    count: paradosTotalRes.count ?? 0,
+    items: (paradosRes.data ?? []).map((c) => {
+      const ct = c.contact as unknown as ContatoResumido | null;
       return {
         conversationId: c.id as string,
         name: ct?.name ?? ct?.push_name ?? null,
@@ -207,91 +186,54 @@ export async function getDashboardData(): Promise<DashboardData> {
     }),
   };
 
-  // Top leads abertos por valor estimado
-  const topLeads = leads
-    .filter((l) => l.status === "open" && (l.estimated_value ?? 0) > 0)
-    .sort((a, b) => Number(b.estimated_value ?? 0) - Number(a.estimated_value ?? 0))
-    .slice(0, 5);
-
-  // Últimos 8 leads criados
-  const recentLeads = [...leads]
-    .sort((a, b) => b.created_at.localeCompare(a.created_at))
-    .slice(0, 8);
-
-  // ============================================================
-  // Tempo médio de resposta (últimos 30 dias)
-  // ============================================================
-  // Vem pronto do lote acima: a rotina diária calcula e guarda. Antes, cada
-  // abertura do Dashboard puxava milhares de mensagens só para chegar a este
-  // número.
+  // Vem pronto do lote acima: a rotina diária calcula e guarda.
   const avgResponseMinutes =
     (tempoRespostaSalvo?.value as { minutos?: number | null } | null)?.minutos ?? null;
 
-  // ============================================================
-  // Ranking por atendente
-  // ============================================================
-  const convsByUser = new Map<string, number>();
-  for (const c of assignedConvs ?? []) {
-    if (c.assigned_to) {
-      convsByUser.set(c.assigned_to, (convsByUser.get(c.assigned_to) ?? 0) + 1);
-    }
-  }
-
-  const leadsByUser = new Map<string, { open: number; won: number; lost: number; closedValue: number }>();
-  for (const l of leads) {
-    if (!l.assigned_to) continue;
-    const entry = leadsByUser.get(l.assigned_to) ?? { open: 0, won: 0, lost: 0, closedValue: 0 };
-    if (l.status === "open") entry.open++;
-    if (l.status === "won") {
-      entry.won++;
-      entry.closedValue += Number(l.closed_value ?? l.estimated_value ?? 0);
-    }
-    if (l.status === "lost") entry.lost++;
-    leadsByUser.set(l.assigned_to, entry);
-  }
-
+  const porVendedor = r.porVendedor ?? {};
+  const conversasPorVendedor = r.conversasPorVendedor ?? {};
   const attendantRanking = (profiles ?? [])
     .map((p) => {
-      const ls = leadsByUser.get(p.id) ?? { open: 0, won: 0, lost: 0, closedValue: 0 };
+      const ls = porVendedor[p.id] ?? { open: 0, won: 0, lost: 0, closedValue: 0 };
       return {
         profile: { id: p.id, full_name: p.full_name, email: p.email },
-        conversations: convsByUser.get(p.id) ?? 0,
-        leadsOpen: ls.open,
-        leadsWon: ls.won,
-        leadsLost: ls.lost,
-        closedValue: ls.closedValue,
+        conversations: n(conversasPorVendedor[p.id]),
+        leadsOpen: n(ls.open),
+        leadsWon: n(ls.won),
+        leadsLost: n(ls.lost),
+        closedValue: n(ls.closedValue),
       };
     })
-    .filter((r) => r.conversations > 0 || r.leadsOpen > 0 || r.leadsWon > 0 || r.leadsLost > 0)
+    .filter((x) => x.conversations > 0 || x.leadsOpen > 0 || x.leadsWon > 0 || x.leadsLost > 0)
     .sort((a, b) => b.closedValue - a.closedValue || b.leadsWon - a.leadsWon);
 
   return {
     kpis: {
-      leadsToday: todayLeadsRes.count ?? 0,
-      leadsThisMonth: monthLeadsRes.count ?? 0,
-      totalLeads: leads.length,
-      totalWon: won.length,
-      totalLost: lost.length,
-      conversionRate,
-      estimatedValueOpen,
-      closedValueAllTime,
-      closedValueThisMonth,
-      openConversations,
-      unreadConversations,
+      leadsToday: n(r.kpis.leadsToday),
+      leadsThisMonth: n(r.kpis.leadsThisMonth),
+      totalLeads: n(r.kpis.totalLeads),
+      totalWon,
+      totalLost,
+      conversionRate: totalClosed > 0 ? totalWon / totalClosed : 0,
+      estimatedValueOpen: n(r.kpis.estimatedValueOpen),
+      closedValueAllTime: n(r.kpis.closedValueAllTime),
+      closedValueThisMonth: n(r.kpis.closedValueThisMonth),
+      openConversations: n(r.conversas.openConversations),
+      unreadConversations: n(r.conversas.unreadConversations),
       avgResponseMinutes,
     },
     funnel,
     bySource,
     sourceLabels,
     stalled,
-    topLeads,
-    recentLeads,
+    topLeads: (topLeadsRes.data ?? []) as unknown as DashboardData["topLeads"],
+    recentLeads: (recentLeadsRes.data ?? []) as unknown as DashboardData["recentLeads"],
     attendantRanking,
   };
 }
 
 export function formatBRL(v: number): string {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  return formatarMoeda(v);
 }
 
 export const SOURCE_LABELS: Record<string, string> = {

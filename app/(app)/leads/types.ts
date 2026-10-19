@@ -18,3 +18,24 @@ export const LEAD_SOURCES = [
   { value: "indicacao", label: "Indicação" },
   { value: "outros", label: "Outros" },
 ] as const;
+
+/**
+ * Cartões carregados por coluna de cada vez.
+ *
+ * O quadro trazia todos os leads e desenhava todos. Na Probel, com 1.516 leads
+ * só em "Novo Lead", isso era 3,3 MB e 1,9 s -- e o PostgREST cortava em 1.000,
+ * escondendo os demais sem aviso. Um lote por coluna mostra o que cabe na tela
+ * com folga; o cabeçalho mostra o total real, e o resto vem em "carregar mais".
+ */
+export const LOTE_KANBAN = 50;
+
+/** O mesmo recorte de lead que os cartões usam, em todo carregamento. */
+export const SELECT_LEAD_CARTAO = `
+  *,
+  contact:contacts!leads_contact_id_fkey (
+    id, name, push_name, phone, profile_pic_url, whatsapp_id
+  )
+`;
+
+/** Total real de leads e valor de uma coluna (calculados no banco). */
+export type TotaisColuna = { total: number; valor: number };
