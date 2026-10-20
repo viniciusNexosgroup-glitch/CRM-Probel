@@ -426,6 +426,7 @@ export type Database = {
           position: number;
           color: string;
           is_won: boolean;
+          is_initial: boolean;
           is_lost: boolean;
           created_at: string;
           updated_at: string;
@@ -443,6 +444,7 @@ export type Database = {
           position: number;
           color?: string;
           is_won?: boolean;
+          is_initial?: boolean;
           is_lost?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -460,6 +462,7 @@ export type Database = {
           position?: number;
           color?: string;
           is_won?: boolean;
+          is_initial?: boolean;
           is_lost?: boolean;
           created_at?: string;
           updated_at?: string;

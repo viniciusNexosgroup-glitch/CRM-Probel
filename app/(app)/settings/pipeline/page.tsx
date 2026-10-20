@@ -64,7 +64,8 @@ export default async function PipelineSettingsPage({
       <div className="flex-1 overflow-y-auto wa-scroll">
         <div className="container max-w-3xl py-6">
           <p className="text-sm text-muted-foreground mb-6">
-            Customize os estágios do Kanban. Marque um como <strong>Ganho</strong> ou{" "}
+            Customize os estágios do Kanban. A etapa <strong>Inicial</strong> é onde todo lead
+            novo entra quando chega a este funil. Marque um como <strong>Ganho</strong> ou{" "}
             <strong>Perdido</strong> pra fechar o lead automaticamente quando o card chegar lá.
             {isAdmin
               ? " Como admin, você edita o funil de cada vendedor (e o board “Sem vendedor”) pelo seletor abaixo."

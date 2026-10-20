@@ -39,10 +39,13 @@ export async function createStageAction(
   posQuery = ownerId === null ? posQuery.is("user_id", null) : posQuery.eq("user_id", ownerId);
   const { data: existing } = await posQuery;
   const nextPos = (existing?.[0]?.position ?? -1) + 1;
+  // Funil que ainda não tinha coluna: a primeira já nasce como etapa inicial,
+  // para o vendedor montando o funil dele não ficar sem porta de entrada.
+  const funilVazio = (existing?.length ?? 0) === 0;
 
   const { error } = await supabase
     .from("pipeline_stages")
-    .insert({ name: name.trim(), color, position: nextPos, user_id: ownerId });
+    .insert({ name: name.trim(), color, position: nextPos, user_id: ownerId, is_initial: funilVazio });
   if (error) return { ok: false, error: error.message };
   revalidatePath("/settings/pipeline");
   revalidatePath("/jornada");
@@ -111,6 +114,43 @@ export async function reorderStagesAction(orderedIds: string[]): Promise<Result>
   }
   revalidatePath("/settings/pipeline");
   revalidatePath("/jornada");
+  revalidatePath("/leads");
+  return { ok: true };
+}
+
+/**
+ * Marca a etapa por onde os leads novos entram neste funil.
+ *
+ * Só uma por funil: o banco recusa duas iniciais no mesmo funil, então desmarca
+ * a anterior antes de marcar esta. Se a segunda parte falhar, o funil fica sem
+ * etapa marcada e os leads entram pela coluna mais à esquerda -- nunca por uma
+ * coluna qualquer.
+ */
+export async function definirEtapaInicialAction(id: string): Promise<Result> {
+  const supabase = await createClient();
+
+  const { data: etapa, error: erroBusca } = await supabase
+    .from("pipeline_stages")
+    .select("id, instance_id, user_id, is_initial")
+    .eq("id", id)
+    .maybeSingle();
+  if (erroBusca) return { ok: false, error: erroBusca.message };
+  if (!etapa) return { ok: false, error: "Etapa não encontrada" };
+  if (etapa.is_initial) return { ok: true };
+
+  let desmarcar = supabase
+    .from("pipeline_stages")
+    .update({ is_initial: false })
+    .eq("instance_id", etapa.instance_id)
+    .eq("is_initial", true);
+  desmarcar = etapa.user_id === null ? desmarcar.is("user_id", null) : desmarcar.eq("user_id", etapa.user_id);
+  const { error: erroDesmarcar } = await desmarcar;
+  if (erroDesmarcar) return { ok: false, error: erroDesmarcar.message };
+
+  const { error } = await supabase.from("pipeline_stages").update({ is_initial: true }).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/settings/pipeline");
   revalidatePath("/leads");
   return { ok: true };
 }

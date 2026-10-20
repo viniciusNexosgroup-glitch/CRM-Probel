@@ -397,13 +397,15 @@ async function ensureLeadForContact(
     .maybeSingle();
   if (existing) return existing.id;
 
-  // Primeiro stage do board "Sem vendedor" (user_id null) — leads novos nascem sem dono.
-  // Ao serem atribuídos (SalesBot/manual), o trigger move pro board do dono.
+  // Etapa inicial do funil "Sem vendedor" — leads novos nascem sem dono. Ao
+  // serem atribuídos (SalesBot/manual), o gatilho do banco os leva para a etapa
+  // inicial do vendedor (migração 0032). Sem etapa marcada, a mais à esquerda.
   const { data: stage } = await supabase
     .from("pipeline_stages")
     .select("id")
     .eq("instance_id", instanceId)
     .is("user_id", null)
+    .order("is_initial", { ascending: false })
     .order("position", { ascending: true })
     .limit(1)
     .single();

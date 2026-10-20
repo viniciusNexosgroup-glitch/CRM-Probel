@@ -12,6 +12,7 @@ import {
   Loader2,
   ArrowUp,
   ArrowDown,
+  LogIn,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,9 @@ import {
   updateStageAction,
   deleteStageAction,
   reorderStagesAction,
+  definirEtapaInicialAction,
 } from "../actions";
+import { acaoSegura } from "@/lib/ui/acao-segura";
 import type { Database } from "@/types/database";
 
 type Stage = Database["public"]["Tables"]["pipeline_stages"]["Row"];
@@ -74,6 +77,28 @@ export function StagesEditor({
         router.refresh();
       } else {
         toast.error("Falha", { description: res.error });
+      }
+    });
+  }
+
+  /**
+   * Só uma etapa inicial por funil: marcar esta desmarca a anterior. Atualiza a
+   * tela na hora e volta atrás se o servidor recusar.
+   */
+  function marcarInicial(s: Stage) {
+    if (s.is_initial) return;
+    const antes = stages;
+    setStages((arr) => arr.map((x) => ({ ...x, is_initial: x.id === s.id })));
+    setPendingId(s.id);
+    startTransition(async () => {
+      const res = await acaoSegura(() => definirEtapaInicialAction(s.id));
+      setPendingId(null);
+      if (res.ok) {
+        toast.success(`Leads novos agora entram em "${s.name}"`);
+        router.refresh();
+      } else {
+        setStages(antes);
+        toast.error("Não consegui marcar a etapa inicial", { description: res.error });
       }
     });
   }
@@ -191,6 +216,24 @@ export function StagesEditor({
               />
 
               <div className="flex items-center gap-1">
+                <button
+                  onClick={() => marcarInicial(s)}
+                  disabled={busy}
+                  className={cn(
+                    "px-2 py-1 rounded text-xs flex items-center gap-1 border",
+                    s.is_initial
+                      ? "bg-sky-500/20 text-sky-400 border-sky-500/40 cursor-default"
+                      : "border-wa-border text-wa-textSecondary hover:bg-wa-hover"
+                  )}
+                  title={
+                    s.is_initial
+                      ? "Leads novos entram nesta etapa"
+                      : "Fazer os leads novos entrarem nesta etapa"
+                  }
+                  aria-pressed={s.is_initial}
+                >
+                  <LogIn className="h-3 w-3" /> Inicial
+                </button>
                 <button
                   onClick={() => {
                     setField(s.id, "is_won", !s.is_won);
