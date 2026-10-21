@@ -110,17 +110,31 @@ export async function inviteUserAction(
   return { ok: true };
 }
 
+/**
+ * Muda o cargo de alguém da equipe.
+ *
+ * Nunca funcionou para outra pessoa: o banco só deixava cada um alterar o
+ * PRÓPRIO perfil, então a troca recusava em silêncio e a tela dizia
+ * "Permissão alterada" sem ter mudado nada. Agora grava pelo servidor, depois
+ * de `autorizarAlvo` confirmar que quem pede é admin da mesma loja do alvo --
+ * o usuário comum não altera mais cargo nenhum, nem o próprio (migração 0034).
+ */
 export async function updateUserRoleAction(
   userId: string,
   role: "admin" | "user"
 ): Promise<Result> {
-  if (!(await isCurrentUserAdmin())) return { ok: false, error: ADMIN_ONLY };
-  const supabase = await createClient();
-  const { error } = await supabase
+  if (role !== "admin" && role !== "user") return { ok: false, error: "Cargo inválido" };
+  const permissao = await autorizarAlvo(userId);
+  if (!permissao.ok) return permissao;
+
+  const { data: alterado, error } = await createServiceClient()
     .from("profiles")
     .update({ role })
-    .eq("id", userId);
+    .eq("id", userId)
+    .select("id")
+    .maybeSingle();
   if (error) return { ok: false, error: error.message };
+  if (!alterado) return { ok: false, error: "Atendente não encontrado." };
 
   const actor = await getCurrentProfile();
   await logAudit({
@@ -136,13 +150,18 @@ export async function updateUserRoleAction(
   return { ok: true };
 }
 
+/**
+ * Remove alguém da equipe (apaga a conta).
+ *
+ * Só conferia se quem pede é admin, e apagava com a chave administrativa --
+ * que ignora as regras de loja. Chamando o servidor direto, o admin de uma
+ * loja conseguia apagar a conta de alguém da outra. `autorizarAlvo` exige
+ * que o alvo seja da mesma loja que o admin está vendo.
+ */
 export async function removeUserAction(userId: string): Promise<Result> {
-  if (!(await isCurrentUserAdmin())) return { ok: false, error: ADMIN_ONLY };
-  const supabase = await createClient();
-  const {
-    data: { user: currentUser },
-  } = await supabase.auth.getUser();
-  if (currentUser?.id === userId) {
+  const permissao = await autorizarAlvo(userId);
+  if (!permissao.ok) return permissao;
+  if (permissao.atorId === userId) {
     return { ok: false, error: "Você não pode remover a si mesmo." };
   }
 

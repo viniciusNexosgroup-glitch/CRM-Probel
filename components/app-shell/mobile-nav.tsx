@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { NAV_ITEMS, isNavActive } from "./nav-items";
+import { SeletorLoja } from "./seletor-loja";
 
 /**
  * Navegação do mobile: barra fixa embaixo (alcance do polegar) com os destinos
@@ -112,6 +113,9 @@ export function MobileNav() {
                 <X className="h-5 w-5" />
               </button>
             </div>
+
+            {/* Só aparece para quem tem acesso a mais de uma loja. */}
+            <SeletorLoja variante="celular" />
 
             <nav className="flex-1 overflow-y-auto wa-scroll p-2 grid grid-cols-2 gap-1 content-start">
               {rest.map((item) => {

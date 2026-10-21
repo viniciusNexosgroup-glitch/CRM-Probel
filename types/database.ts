@@ -1257,6 +1257,18 @@ export type Database = {
         Args: { p_dono: string | null };
         Returns: { stage_id: string; total: number; valor: number }[];
       };
+      current_instance_id: {
+        Args: Record<PropertyKey, never>;
+        Returns: string;
+      };
+      minhas_lojas: {
+        Args: Record<PropertyKey, never>;
+        Returns: { id: string; nome: string; ativa: boolean }[];
+      };
+      trocar_loja: {
+        Args: { p_instance: string };
+        Returns: undefined;
+      };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };

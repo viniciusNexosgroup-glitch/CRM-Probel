@@ -15,6 +15,7 @@ import { createClient } from "@/lib/supabase/client";
 // Lista única, compartilhada com o menu do celular — antes cada um tinha a
 // sua, e item novo aparecia só num dos dois.
 import { NAV_ITEMS, isNavActive, type NavItem } from "./nav-items";
+import { SeletorLoja } from "./seletor-loja";
 
 
 export function AppRail() {
@@ -35,21 +36,21 @@ export function AppRail() {
       setUserEmail(user.email ?? "");
       const meta = user.user_metadata as { full_name?: string } | null;
       setUserName(meta?.full_name ?? user.email?.split("@")[0] ?? "");
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role, instance_id")
-        .eq("id", user.id)
-        .single();
+      const [{ data: profile }, { data: lojaAtiva }] = await Promise.all([
+        supabase.from("profiles").select("role").eq("id", user.id).single(),
+        // A loja que a pessoa está VENDO -- para quem tem acesso a mais de uma,
+        // pode não ser a de cadastro.
+        supabase.rpc("current_instance_id"),
+      ]);
       setIsAdmin(profile?.role === "admin");
-      // Com uma conta por loja, mostrar o nome da empresa evita a dúvida de
-      // "em qual loja eu estou?" ao alternar entre os logins.
-      if (profile?.instance_id) {
+      // Mostrar o nome da empresa evita a dúvida de "em qual loja eu estou?".
+      if (lojaAtiva) {
         const { data: loja } = await supabase
           .from("whatsapp_instances")
           .select("label, profile_name, instance_name")
-          .eq("id", profile.instance_id)
+          .eq("id", lojaAtiva)
           .single();
-        setLojaLabel(loja?.label ?? loja?.profile_name ?? loja?.instance_name ?? "");
+        setLojaLabel(loja?.label || loja?.profile_name || loja?.instance_name || "");
       }
     });
   }, []);
@@ -96,6 +97,11 @@ export function AppRail() {
           </p>
           <p className="text-[10px] text-wa-textSecondary truncate">CRM de atendimento</p>
         </div>
+      </div>
+
+      {/* Só aparece para quem tem acesso a mais de uma loja. */}
+      <div className={cn("px-2 pt-2", isCompact && "hidden")}>
+        <SeletorLoja variante="lateral" />
       </div>
 
       <div className="flex-1 flex flex-col gap-0.5 p-2 overflow-y-auto wa-scroll">

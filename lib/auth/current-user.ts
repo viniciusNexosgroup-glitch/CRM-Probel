@@ -6,7 +6,11 @@ export type CurrentProfile = {
   role: "admin" | "user";
   full_name: string | null;
   email: string | null;
-  /** Loja (instância de WhatsApp) à qual o usuário pertence. */
+  /**
+   * Loja que o usuário está VENDO agora. Para quase todos é a loja de cadastro;
+   * quem tem acesso a mais de uma escolhe no seletor. É nesta loja que o CRM
+   * grava o que a pessoa cria (respostas rápidas, configurações, convites...).
+   */
   instance_id: string | null;
 };
 
@@ -46,19 +50,26 @@ export const getCachedProfile = cache(async (): Promise<CurrentProfile | null> =
   const idDoCookie = session?.user?.id ?? null;
   if (!idDoCookie) return null;
 
-  const [user, perfil] = await Promise.all([
+  const [user, perfil, lojaAtiva] = await Promise.all([
     getCachedUser(),
     supabase
       .from("profiles")
       .select("id, role, full_name, email, instance_id")
       .eq("id", idDoCookie)
       .single(),
+    // A mesma função que as regras de acesso usam: devolve a loja escolhida
+    // no seletor, se ela estiver liberada para a pessoa, senão a de cadastro.
+    // Perguntar ao banco em vez de repetir a regra aqui garante que o que o
+    // CRM grava e o que o banco deixa ver nunca divergem.
+    supabase.rpc("current_instance_id"),
   ]);
 
   // A sessão do cookie não basta: só vale o que o servidor de autenticação
   // confirmou.
   if (!user || user.id !== idDoCookie) return null;
-  return (perfil.data as CurrentProfile) ?? null;
+  const p = perfil.data as CurrentProfile | null;
+  if (!p) return null;
+  return { ...p, instance_id: (lojaAtiva.data as string | null) ?? p.instance_id };
 });
 
 /** Id da loja do usuário logado — usado para gravar dados na loja certa. */
