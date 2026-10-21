@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 import { EXTERNAL_PREFIX } from "./lib";
 
@@ -77,22 +77,38 @@ export async function updateMediaAction(
   return { ok: true };
 }
 
+/**
+ * Apaga uma mídia da biblioteca.
+ *
+ * Primeiro o registro, com as regras de acesso de quem pede: se a pessoa não
+ * podia apagar, nada sai e o arquivo fica intocado. Antes era o contrário -- o
+ * arquivo saía primeiro, e uma recusa no registro deixava a biblioteca
+ * apontando para um arquivo que não existia mais.
+ *
+ * Só então o arquivo, pela chave administrativa: o armazenamento deixa cada
+ * pessoa apagar apenas o que ela mesma enviou (migração 0033), e um admin pode
+ * apagar mídia que outro admin da loja subiu. A permissão já foi decidida acima.
+ */
 export async function deleteMediaAction(mediaId: string): Promise<Result> {
   const supabase = await createClient();
 
-  const { data: media } = await supabase
+  const { data: apagado, error } = await supabase
     .from("media_library")
-    .select("file_path")
+    .delete()
     .eq("id", mediaId)
-    .single();
+    .select("file_path")
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  if (!apagado) return { ok: false, error: "Mídia não encontrada ou sem permissão para apagar." };
 
   // Só apaga do Storage se for arquivo hospedado lá (não-externo)
-  if (media?.file_path && !media.file_path.startsWith(EXTERNAL_PREFIX)) {
-    await supabase.storage.from("media-library").remove([media.file_path]);
+  if (apagado.file_path && !apagado.file_path.startsWith(EXTERNAL_PREFIX)) {
+    const { error: erroArquivo } = await createServiceClient()
+      .storage.from("media-library")
+      .remove([apagado.file_path]);
+    // O registro já saiu; um arquivo que sobrou não aparece em lugar nenhum.
+    if (erroArquivo) console.warn("[biblioteca] arquivo não removido:", erroArquivo.message);
   }
-
-  const { error } = await supabase.from("media_library").delete().eq("id", mediaId);
-  if (error) return { ok: false, error: error.message };
 
   revalidatePath("/settings/media-library");
   revalidatePath("/chat");
