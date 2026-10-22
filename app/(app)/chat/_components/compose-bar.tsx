@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition, useRef, useEffect, KeyboardEvent } from "react";
+import { useState, useTransition, useRef, useEffect, useCallback, KeyboardEvent } from "react";
 import { toast } from "sonner";
-import { Smile, Paperclip, SendHorizonal, Loader2, Zap, Reply, X, Mic, StickyNote, Calendar, Plus } from "lucide-react";
+import { Smile, Paperclip, SendHorizonal, Loader2, Zap, Reply, X, Mic, StickyNote, Calendar, Plus, Images } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { acaoSegura } from "@/lib/ui/acao-segura";
@@ -11,7 +11,9 @@ import { QuickReplyPicker } from "./quick-reply-picker";
 import { MediaPopup } from "./media-popup";
 import { AudioRecorder } from "./audio-recorder";
 import { VideoRecorder } from "./video-recorder";
-import { ImagemColada } from "./imagem-colada";
+import { useImagemColada } from "./imagem-colada";
+import { PreviaEnvio } from "./previa-envio";
+import { LIMITE_ARQUIVO, formatarTamanho } from "../_lib/enviar-arquivo";
 import { EmojiPickerPopup } from "./emoji-picker-popup";
 import { ScheduleDialog } from "./schedule-dialog";
 import { resolveTemplate, type TemplateContext } from "@/lib/format/template";
@@ -74,6 +76,27 @@ export function ComposeBar({
   const [actionsOpen, setActionsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const zapButtonRef = useRef<HTMLButtonElement>(null);
+  const galeriaRef = useRef<HTMLInputElement>(null);
+
+  // Arquivos esperando conferência antes de ir ao cliente: da galeria, do
+  // clipe, da câmera ou colados com Ctrl+V. Todos passam pela mesma tela.
+  const [pendentes, setPendentes] = useState<File[]>([]);
+  const adicionarArquivos = useCallback((novos: File[]) => {
+    const grandes = novos.filter((f) => f.size > LIMITE_ARQUIVO);
+    if (grandes.length > 0) {
+      toast.error(grandes.length === 1 ? "Arquivo muito grande" : `${grandes.length} arquivos muito grandes`, {
+        description: `${grandes.map((f) => `${f.name} (${formatarTamanho(f.size)})`).join(", ")} — o limite é ${formatarTamanho(LIMITE_ARQUIVO)} por arquivo.`,
+      });
+    }
+    const aceitos = novos.filter((f) => f.size <= LIMITE_ARQUIVO);
+    if (aceitos.length > 0) setPendentes((lista) => [...lista, ...aceitos]);
+  }, []);
+  useImagemColada(adicionarArquivos);
+
+  // Trocar de conversa com arquivos pendentes os mandaria ao cliente errado.
+  useEffect(() => {
+    setPendentes([]);
+  }, [conversationId]);
 
   // #9 Rascunhos: guarda o texto digitado por conversa (restaura ao voltar)
   const draftKey = `crm-draft-${conversationId}`;
@@ -307,7 +330,11 @@ export function ComposeBar({
           />
         </div>
       )}
-      <ImagemColada conversationId={conversationId} />
+      <PreviaEnvio
+        conversationId={conversationId}
+        arquivos={pendentes}
+        setArquivos={setPendentes}
+      />
       <ScheduleDialog
         conversationId={conversationId}
         open={scheduleOpen}
@@ -319,6 +346,7 @@ export function ComposeBar({
           conversationId={conversationId}
           medias={medias}
           categories={mediaCategories}
+          onArquivos={adicionarArquivos}
           onClose={() => setMediaPickerOpen(false)}
         />
       )}
@@ -377,7 +405,7 @@ export function ComposeBar({
               : "text-wa-textSecondary hover:bg-wa-hover hover:text-primary"
           )}
           aria-label="Anexar arquivo"
-          title="Anexar arquivo do computador ou enviar da biblioteca"
+          title="Anexar fotos, vídeos e documentos, ou enviar da biblioteca"
         >
           <Paperclip className="h-5 w-5" />
         </button>
@@ -460,7 +488,32 @@ export function ComposeBar({
           </>
         ) : (
           <>
-            <VideoRecorder conversationId={conversationId} />
+            {/* Galeria direto na barra, como no WhatsApp. Só no celular, e some
+                com os atalhos abertos para não espremer o campo de texto. */}
+            <input
+              ref={galeriaRef}
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const arquivos = Array.from(e.target.files ?? []);
+                e.target.value = "";
+                if (arquivos.length > 0) adicionarArquivos(arquivos);
+              }}
+            />
+            <button
+              onClick={() => galeriaRef.current?.click()}
+              className={cn(
+                "md:hidden p-2 rounded text-wa-textSecondary hover:bg-wa-hover hover:text-primary transition-colors shrink-0",
+                actionsOpen && "hidden"
+              )}
+              title="Fotos e vídeos da galeria"
+              aria-label="Enviar fotos e vídeos da galeria"
+            >
+              <Images className="h-5 w-5" />
+            </button>
+            <VideoRecorder onVideo={(video) => adicionarArquivos([video])} />
             <button
               onClick={() => setRecordingAudio(true)}
               className="p-2 rounded text-wa-textSecondary hover:bg-wa-hover hover:text-primary transition-colors shrink-0"

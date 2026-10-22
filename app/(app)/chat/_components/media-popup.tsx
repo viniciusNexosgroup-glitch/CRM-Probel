@@ -2,29 +2,11 @@
 
 import { useEffect, useMemo, useState, useTransition, useRef } from "react";
 import { toast } from "sonner";
-import { Search, Loader2, Library, Upload } from "lucide-react";
+import { Search, Loader2, Library, Images, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
 import { MediaThumb } from "@/components/media-thumb";
-import { acaoSegura } from "@/lib/ui/acao-segura";
-import { sendMediaFromLibraryAction, sendUploadedMediaAction } from "../actions";
+import { sendMediaFromLibraryAction } from "../actions";
 import type { Database } from "@/types/database";
-
-/**
- * Tetos de tamanho. O WhatsApp recusa foto, vídeo e áudio acima de 16 MB, mas
- * aceita documento bem maior. Um teto único de 50 MB fazia um vídeo de 30 MB
- * subir inteiro para só então falhar na ponta.
- */
-const MAX_MIDIA_MB = 16;
-const MAX_DOCUMENTO_MB = 50;
-
-function fileTypeFromMime(mime: string): "image" | "video" | "audio" | "document" | "sticker" {
-  if (mime === "image/webp") return "sticker"; // webp = figurinha no WhatsApp
-  if (mime.startsWith("image/")) return "image";
-  if (mime.startsWith("video/")) return "video";
-  if (mime.startsWith("audio/")) return "audio";
-  return "document";
-}
 
 type Media = Database["public"]["Tables"]["media_library"]["Row"];
 type Category = Database["public"]["Tables"]["media_categories"]["Row"];
@@ -32,69 +14,40 @@ type Category = Database["public"]["Tables"]["media_categories"]["Row"];
 /**
  * Popup inline acima do compose com thumbnails da biblioteca de mídias.
  * Click numa mídia envia direto.
+ *
+ * No topo, dois botões para mandar o que não está na biblioteca. São dois de
+ * propósito: com "fotos e vídeos" o celular abre a GALERIA; um seletor único,
+ * que aceitasse qualquer arquivo, abria só "Câmera / Filmadora / Arquivos" --
+ * e o atendente não achava as fotos. Os arquivos escolhidos vão para a tela de
+ * conferência (PreviaEnvio), onde ganham legenda e são enviados.
  */
 export function MediaPopup({
   conversationId,
   medias,
   categories,
+  onArquivos,
   onClose,
 }: {
   conversationId: string;
   medias: Media[];
   categories: Category[];
+  onArquivos: (arquivos: File[]) => void;
   onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [sendingId, setSendingId] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [, startTransition] = useTransition();
   const containerRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const galeriaRef = useRef<HTMLInputElement>(null);
+  const documentoRef = useRef<HTMLInputElement>(null);
 
-  async function onUploadAndSend(file: File) {
-    const tipo = fileTypeFromMime(file.type);
-    const tetoMb = tipo === "document" ? MAX_DOCUMENTO_MB : MAX_MIDIA_MB;
-    if (file.size > tetoMb * 1024 * 1024) {
-      toast.error("Arquivo muito grande", {
-        description: `${(file.size / 1024 / 1024).toFixed(1)} MB — o WhatsApp aceita até ${tetoMb} MB para este tipo.`,
-      });
-      return;
-    }
-    setUploading(true);
-    const supabase = createClient();
-    const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const path = `adhoc/${Date.now()}-${crypto.randomUUID().slice(0, 8)}-${safe}`;
-
-    const { error: upErr } = await supabase.storage
-      .from("contact-media")
-      .upload(path, file, {
-        contentType: file.type || "application/octet-stream",
-        upsert: false,
-      });
-    if (upErr) {
-      toast.error("Falha no upload", { description: upErr.message });
-      setUploading(false);
-      return;
-    }
-
-    const { data: pub } = supabase.storage.from("contact-media").getPublicUrl(path);
-
-    const res = await acaoSegura(() =>
-      sendUploadedMediaAction(conversationId, {
-        fileUrl: pub.publicUrl,
-        fileType: tipo,
-        mimetype: file.type || "application/octet-stream",
-        fileName: file.name,
-      })
-    );
-
-    setUploading(false);
-    if (!res.ok) {
-      toast.error("Falha ao enviar", { description: res.error });
-      return;
-    }
-    toast.success("Enviado!");
+  function escolher(e: React.ChangeEvent<HTMLInputElement>) {
+    const arquivos = Array.from(e.target.files ?? []);
+    // Permite escolher o mesmo arquivo de novo depois de cancelar.
+    e.target.value = "";
+    if (arquivos.length === 0) return;
+    onArquivos(arquivos);
     onClose();
   }
 
@@ -166,32 +119,30 @@ export function MediaPopup({
           </span>
         </div>
 
-        {/* Enviar do computador (sem cadastrar) */}
+        {/* Enviar o que não está na biblioteca */}
         <input
-          ref={fileInputRef}
+          ref={galeriaRef}
           type="file"
+          accept="image/*,video/*"
+          multiple
           className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) onUploadAndSend(f);
-            e.target.value = "";
-          }}
+          onChange={escolher}
         />
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="w-full flex items-center justify-center gap-2 py-2 rounded-md border border-dashed border-primary/40 text-xs text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
-        >
-          {uploading ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Enviando…
-            </>
-          ) : (
-            <>
-              <Upload className="h-3.5 w-3.5" /> Enviar arquivo do computador
-            </>
-          )}
-        </button>
+        <input ref={documentoRef} type="file" multiple className="hidden" onChange={escolher} />
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => galeriaRef.current?.click()}
+            className="flex items-center justify-center gap-2 py-2 rounded-md border border-dashed border-primary/40 text-xs text-primary hover:bg-primary/10 transition-colors"
+          >
+            <Images className="h-3.5 w-3.5" /> Fotos e vídeos
+          </button>
+          <button
+            onClick={() => documentoRef.current?.click()}
+            className="flex items-center justify-center gap-2 py-2 rounded-md border border-dashed border-primary/40 text-xs text-primary hover:bg-primary/10 transition-colors"
+          >
+            <FileText className="h-3.5 w-3.5" /> Documento
+          </button>
+        </div>
 
         <div className="flex items-center gap-2">
           <div className="relative flex-1">

@@ -35,18 +35,25 @@ function StatusIcon({ status }: { status: MessageRow["status"] }) {
 }
 
 function MediaPlaceholder({
-  type,
+  type: tipoOriginal,
   caption,
   filename,
   duration,
   mediaUrl,
+  mimetype,
 }: {
   type: MessageRow["message_type"];
   caption?: string | null;
   filename?: string | null;
   duration?: number | null;
   mediaUrl?: string | null;
+  mimetype?: string | null;
 }) {
+  // Vídeo acima de 16 MB viaja pelo WhatsApp como documento -- nos dois
+  // sentidos. Aqui continua sendo vídeo: o atendente assiste no player.
+  const type: MessageRow["message_type"] =
+    tipoOriginal === "document" && mimetype?.startsWith("video/") ? "video" : tipoOriginal;
+
   // Renderiza inline se for imagem com URL estável (Supabase Storage)
   if (type === "image" && mediaUrl && isStableUrl(mediaUrl)) {
     return (
@@ -281,6 +288,7 @@ export function MessageBubble({
             filename={msg.media_filename}
             duration={msg.duration}
             mediaUrl={msg.media_url}
+            mimetype={msg.media_mimetype}
           />
         ) : (
           <p className="whitespace-pre-wrap break-words pr-12">
