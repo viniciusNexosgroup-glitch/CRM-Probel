@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition, useRef, useEffect, useCallback, KeyboardEvent } from "react";
+import { useState, useTransition, useRef, useEffect, useLayoutEffect, useCallback, KeyboardEvent } from "react";
 import { toast } from "sonner";
 import { Smile, Paperclip, SendHorizonal, Loader2, Zap, Reply, X, Mic, StickyNote, Calendar, Plus, Images } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { acaoSegura } from "@/lib/ui/acao-segura";
 import { sendTextMessageAction, createInternalNoteAction } from "../actions";
@@ -24,6 +24,9 @@ import type { MessageRow } from "../types";
 type QuickReplyRow = Database["public"]["Tables"]["quick_replies"]["Row"];
 type MediaRow = Database["public"]["Tables"]["media_library"]["Row"];
 type CategoryRow = Database["public"]["Tables"]["media_categories"]["Row"];
+
+/** Altura máxima do campo (~7 linhas); passando disso, rola por dentro. */
+const ALTURA_MAX_CAMPO = 160;
 
 function previewOfMsg(m: MessageRow): string {
   if (m.content) return m.content;
@@ -74,7 +77,7 @@ export function ComposeBar({
   // um "+" — assim o campo de mensagem nasce com a largura toda. No desktop
   // continuam sempre visíveis.
   const [actionsOpen, setActionsOpen] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const zapButtonRef = useRef<HTMLButtonElement>(null);
   const galeriaRef = useRef<HTMLInputElement>(null);
 
@@ -97,6 +100,18 @@ export function ComposeBar({
   useEffect(() => {
     setPendentes([]);
   }, [conversationId]);
+
+  // O campo cresce com o texto (Shift+Enter quebra linha), até o teto; depois
+  // rola por dentro. Vazio, volta a uma linha -- o placeholder longo não
+  // estica o campo.
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const altura = text ? el.scrollHeight : 0;
+    el.style.height = altura ? `${Math.min(altura, ALTURA_MAX_CAMPO)}px` : "";
+    el.style.overflowY = altura > ALTURA_MAX_CAMPO ? "auto" : "hidden";
+  }, [text]);
 
   // #9 Rascunhos: guarda o texto digitado por conversa (restaura ao voltar)
   const draftKey = `crm-draft-${conversationId}`;
@@ -237,7 +252,7 @@ export function ComposeBar({
       .slice(0, 8);
   }
 
-  function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+  function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (showPicker) {
       const filtered = getFilteredReplies();
       const visible = filtered.length;
@@ -271,7 +286,9 @@ export function ComposeBar({
       }
     }
 
-    if (e.key === "Enter" && !e.shiftKey) {
+    // Enter envia; Shift+Enter quebra a linha (o próprio campo faz isso).
+    // Durante a composição de acento/IME, o Enter confirma o caractere.
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       onSend();
     }
@@ -350,7 +367,7 @@ export function ComposeBar({
           onClose={() => setMediaPickerOpen(false)}
         />
       )}
-      <div className="flex items-center gap-2">
+      <div className="flex items-end gap-2">
         {emojiOpen && (
           <EmojiPickerPopup
             onSelect={(emoji) => insertAtCursor(emoji)}
@@ -443,8 +460,10 @@ export function ComposeBar({
           <StickyNote className="h-5 w-5" />
         </button>
         </div>
-        <Input
+        <Textarea
           ref={inputRef}
+          rows={1}
+          enterKeyHint="send"
           value={text}
           onChange={(e) => setTextWithDraft(e.target.value)}
           onKeyDown={onKeyDown}
@@ -456,7 +475,7 @@ export function ComposeBar({
                 : "Digite uma mensagem"
           }
           className={cn(
-            "border-0 text-base md:text-sm h-10",
+            "border-0 text-base md:text-sm min-h-10 resize-none overflow-y-hidden",
             internalMode ? "bg-amber-500/10 text-amber-100 placeholder:text-amber-300/60" : "bg-wa-panel"
           )}
           autoFocus
