@@ -15,14 +15,16 @@ export type EtapaFollowUp = {
   mensagens: string[];
 };
 
+/** Horário de envio de um dia da semana (0=domingo … 6=sábado), hora local. */
+export type HorarioDia = { dia: number; inicio: string; fim: string };
+
 export type FollowUpConfig = {
   /** Trava geral da loja: nada sai enquanto estiver pausado. */
   pausado: boolean;
   etapas: EtapaFollowUp[];
-  /** Janela de envio: dias (0=domingo … 6=sábado) e horário local. */
-  dias: number[];
-  inicio: string; // "HH:MM"
-  fim: string; // "HH:MM"
+  /** Quando pode sair mensagem. Dia que não está na lista não envia. Cada dia
+   *  tem o próprio horário: o sábado da loja, por exemplo, fecha mais cedo. */
+  horarios: HorarioDia[];
   timezone: string;
   /** Máximo de mensagens de follow-up por dia, por loja. */
   limiteDiario: number;
@@ -59,9 +61,15 @@ export const DEFAULT_FOLLOW_UP: FollowUpConfig = {
       ],
     },
   ],
-  dias: [1, 2, 3, 4, 5, 6],
-  inicio: "09:00",
-  fim: "18:00",
+  // Horário comercial das lojas: seg a sex das 9h às 18h, sáb das 9h às 12h.
+  horarios: [
+    { dia: 1, inicio: "09:00", fim: "18:00" },
+    { dia: 2, inicio: "09:00", fim: "18:00" },
+    { dia: 3, inicio: "09:00", fim: "18:00" },
+    { dia: 4, inicio: "09:00", fim: "18:00" },
+    { dia: 5, inicio: "09:00", fim: "18:00" },
+    { dia: 6, inicio: "09:00", fim: "12:00" },
+  ],
   timezone: "America/Sao_Paulo",
   limiteDiario: 40,
   intervaloMinMin: 2,
@@ -91,16 +99,12 @@ export function normalizarFollowUp(bruto: unknown): FollowUpConfig {
       mensagens: mensagens.length > 0 ? mensagens : padrao.mensagens,
     };
   });
-  const dias = Array.isArray(c.dias)
-    ? c.dias.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6)
-    : DEFAULT_FOLLOW_UP.dias;
+  const horarios = normalizarHorarios(c.horarios);
   const intervaloMinMin = numero(c.intervaloMinMin, DEFAULT_FOLLOW_UP.intervaloMinMin, 1, 120);
   return {
     pausado: c.pausado === true,
     etapas,
-    dias: dias.length > 0 ? dias : DEFAULT_FOLLOW_UP.dias,
-    inicio: hora(c.inicio, DEFAULT_FOLLOW_UP.inicio),
-    fim: hora(c.fim, DEFAULT_FOLLOW_UP.fim),
+    horarios: horarios.length > 0 ? horarios : DEFAULT_FOLLOW_UP.horarios,
     timezone: typeof c.timezone === "string" && c.timezone ? c.timezone : DEFAULT_FOLLOW_UP.timezone,
     limiteDiario: numero(c.limiteDiario, DEFAULT_FOLLOW_UP.limiteDiario, 1, 500),
     intervaloMinMin,
@@ -111,9 +115,32 @@ export function normalizarFollowUp(bruto: unknown): FollowUpConfig {
   };
 }
 
+/** Um horário por dia, ordenado, só com dias válidos e início antes do fim. */
+function normalizarHorarios(bruto: unknown): HorarioDia[] {
+  if (!Array.isArray(bruto)) return [];
+  const porDia = new Map<number, HorarioDia>();
+  for (const h of bruto as Partial<HorarioDia>[]) {
+    const dia = Number(h?.dia);
+    if (!Number.isInteger(dia) || dia < 0 || dia > 6) continue;
+    const inicio = hora(h.inicio, "");
+    const fim = hora(h.fim, "");
+    if (!inicio || !fim || inicio >= fim) continue;
+    porDia.set(dia, { dia, inicio, fim });
+  }
+  return [...porDia.values()].sort((a, b) => a.dia - b.dia);
+}
+
+/** Dia da semana (0=domingo) agora, no fuso da loja. */
+function diaDaSemana(timezone: string, agora: Date): number {
+  const curto = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" }).format(agora);
+  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(curto);
+}
+
 export function dentroDaJanela(cfg: FollowUpConfig, agora: Date = new Date()): boolean {
+  const hoje = cfg.horarios.find((h) => h.dia === diaDaSemana(cfg.timezone, agora));
+  if (!hoje) return false;
   return isWithinBusinessHours(
-    { enabled: true, start: cfg.inicio, end: cfg.fim, days: cfg.dias, timezone: cfg.timezone },
+    { enabled: true, start: hoje.inicio, end: hoje.fim, days: [hoje.dia], timezone: cfg.timezone },
     agora
   );
 }
@@ -214,12 +241,35 @@ export function descreverHoras(horas: number): string {
 
 const NOMES_DIAS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 
-/** "seg a sáb" quando os dias são seguidos; senão "seg, qua, sex". */
-export function descreverDias(dias: number[]): string {
-  const ordenados = [...dias].sort((a, b) => a - b);
-  const seguidos = ordenados.every((d, i) => i === 0 || d === ordenados[i - 1] + 1);
-  if (seguidos && ordenados.length > 2) {
-    return `${NOMES_DIAS[ordenados[0]]} a ${NOMES_DIAS[ordenados[ordenados.length - 1]]}`;
+/** "09:00" → "9h"; "09:30" → "9h30". */
+function horaCurta(hhmm: string): string {
+  const [h, m] = hhmm.split(":");
+  return `${Number(h)}h${m === "00" ? "" : m}`;
+}
+
+/**
+ * "seg a sex, das 9h às 18h; sáb, das 9h às 12h". Junta os dias seguidos que
+ * têm o mesmo horário.
+ */
+export function descreverJanela(horarios: HorarioDia[]): string {
+  const grupos: { de: number; ate: number; inicio: string; fim: string }[] = [];
+  for (const h of [...horarios].sort((a, b) => a.dia - b.dia)) {
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo && ultimo.ate === h.dia - 1 && ultimo.inicio === h.inicio && ultimo.fim === h.fim) {
+      ultimo.ate = h.dia;
+    } else {
+      grupos.push({ de: h.dia, ate: h.dia, inicio: h.inicio, fim: h.fim });
+    }
   }
-  return ordenados.map((d) => NOMES_DIAS[d]).join(", ");
+  return grupos
+    .map((g) => {
+      const dias =
+        g.de === g.ate
+          ? NOMES_DIAS[g.de]
+          : g.ate === g.de + 1
+            ? `${NOMES_DIAS[g.de]} e ${NOMES_DIAS[g.ate]}`
+            : `${NOMES_DIAS[g.de]} a ${NOMES_DIAS[g.ate]}`;
+      return `${dias}, das ${horaCurta(g.inicio)} às ${horaCurta(g.fim)}`;
+    })
+    .join("; ");
 }

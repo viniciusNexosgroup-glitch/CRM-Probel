@@ -18,8 +18,12 @@ export async function salvarFollowUpAction(cfg: FollowUpConfig): Promise<Result>
       return { ok: false, error: `A ${i + 1}ª mensagem precisa de pelo menos um texto.` };
     }
   }
-  if (cfg.dias.length === 0) return { ok: false, error: "Escolha pelo menos um dia de envio." };
-  if (cfg.inicio >= cfg.fim) return { ok: false, error: "O horário de início tem de ser antes do fim." };
+  if (cfg.horarios.length === 0) return { ok: false, error: "Escolha pelo menos um dia de envio." };
+  const torto = cfg.horarios.find((h) => !h.inicio || !h.fim || h.inicio >= h.fim);
+  if (torto) {
+    const dia = ["No domingo", "Na segunda", "Na terça", "Na quarta", "Na quinta", "Na sexta", "No sábado"][torto.dia];
+    return { ok: false, error: `${dia}, o início tem de ser antes do fim.` };
+  }
 
   const instanceId = await getCurrentInstanceId();
   if (!instanceId) return { ok: false, error: "Usuário sem loja vinculada" };

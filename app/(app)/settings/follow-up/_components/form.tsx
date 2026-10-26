@@ -35,7 +35,16 @@ export function FollowUpForm({ inicial }: { inicial: FollowUpConfig }) {
   function alternarDia(d: number) {
     setCfg((c) => ({
       ...c,
-      dias: c.dias.includes(d) ? c.dias.filter((x) => x !== d) : [...c.dias, d].sort(),
+      horarios: c.horarios.some((h) => h.dia === d)
+        ? c.horarios.filter((h) => h.dia !== d)
+        : [...c.horarios, { dia: d, inicio: "09:00", fim: "18:00" }].sort((a, b) => a.dia - b.dia),
+    }));
+  }
+
+  function mudarHorario(d: number, campo: "inicio" | "fim", valor: string) {
+    setCfg((c) => ({
+      ...c,
+      horarios: c.horarios.map((h) => (h.dia === d ? { ...h, [campo]: valor } : h)),
     }));
   }
 
@@ -156,47 +165,49 @@ export function FollowUpForm({ inicial }: { inicial: FollowUpConfig }) {
         </h2>
         <div className="space-y-3 p-3 rounded-md border border-border bg-card/40">
           <div className="space-y-1.5">
-            <Label className="text-xs">Dias de envio</Label>
-            <div className="flex gap-1.5 flex-wrap">
+            <Label className="text-xs">Dias e horários de envio</Label>
+            <div className="space-y-1.5">
               {WEEKDAYS.map((d) => {
-                const ativo = cfg.dias.includes(d.v);
+                const horario = cfg.horarios.find((h) => h.dia === d.v);
                 return (
-                  <button
-                    key={d.v}
-                    type="button"
-                    onClick={() => alternarDia(d.v)}
-                    className={cn(
-                      "w-12 h-9 rounded-md border text-xs font-medium transition-colors",
-                      ativo
-                        ? "bg-primary/15 border-primary text-primary"
-                        : "border-wa-border text-wa-textSecondary hover:bg-wa-hover"
+                  <div key={d.v} className="flex items-center gap-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => alternarDia(d.v)}
+                      aria-pressed={!!horario}
+                      className={cn(
+                        "w-12 h-9 rounded-md border font-medium transition-colors shrink-0",
+                        horario
+                          ? "bg-primary/15 border-primary text-primary"
+                          : "border-wa-border text-wa-textSecondary hover:bg-wa-hover"
+                      )}
+                    >
+                      {d.label}
+                    </button>
+                    {horario ? (
+                      <>
+                        <Input
+                          type="time"
+                          value={horario.inicio}
+                          onChange={(e) => mudarHorario(d.v, "inicio", e.target.value)}
+                          className="w-28 h-9"
+                          aria-label={`${d.label}: início`}
+                        />
+                        <span className="text-muted-foreground">às</span>
+                        <Input
+                          type="time"
+                          value={horario.fim}
+                          onChange={(e) => mudarHorario(d.v, "fim", e.target.value)}
+                          className="w-28 h-9"
+                          aria-label={`${d.label}: fim`}
+                        />
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">não envia</span>
                     )}
-                  >
-                    {d.label}
-                  </button>
+                  </div>
                 );
               })}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="fu-inicio" className="text-xs">Das</Label>
-              <Input
-                id="fu-inicio"
-                type="time"
-                value={cfg.inicio}
-                onChange={(e) => setCfg({ ...cfg, inicio: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="fu-fim" className="text-xs">Até</Label>
-              <Input
-                id="fu-fim"
-                type="time"
-                value={cfg.fim}
-                onChange={(e) => setCfg({ ...cfg, fim: e.target.value })}
-              />
             </div>
           </div>
 

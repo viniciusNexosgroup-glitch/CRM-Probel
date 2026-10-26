@@ -16,7 +16,7 @@ import { createClient } from "@/lib/supabase/client";
 import { acaoSegura } from "@/lib/ui/acao-segura";
 import { formatarDiaHora } from "@/lib/format/date";
 import {
-  descreverDias,
+  descreverJanela,
   descreverHoras,
   montarMensagem,
   normalizarFollowUp,
@@ -177,7 +177,7 @@ export function FollowUpPill({
                   depois da 1ª e a 3ª {descreverHoras(cfg.etapas[2].horas)} depois da 2ª.
                 </li>
                 <li>
-                  Só sai de {descreverDias(cfg.dias)}, das {cfg.inicio} às {cfg.fim}, uma mensagem
+                  Só sai em horário comercial ({descreverJanela(cfg.horarios)}), uma mensagem
                   por vez, com intervalo entre os envios da loja.
                 </li>
                 <li>Se o cliente responder, para sozinho. Você pode cancelar quando quiser.</li>
