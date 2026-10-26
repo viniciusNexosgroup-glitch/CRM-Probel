@@ -14,6 +14,7 @@ import {
   Tag,
   Bell,
   ShieldCheck,
+  Repeat,
 } from "lucide-react";
 
 export type NavItem = {
@@ -36,6 +37,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/settings/quick-replies", label: "Respostas", icon: Zap },
   { href: "/settings/media-library", label: "Mídias", icon: Library },
   { href: "/settings/business-hours", label: "Horário", icon: Clock },
+  { href: "/settings/follow-up", label: "Follow-up", icon: Repeat, adminOnly: true },
   { href: "/settings/tags", label: "Etiquetas", icon: Tag },
   { href: "/settings/notifications", label: "Notificações", icon: Bell },
   { href: "/settings/security", label: "Segurança", icon: ShieldCheck },

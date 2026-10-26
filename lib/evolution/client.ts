@@ -206,13 +206,16 @@ function makeEvolution(instanceOverride?: string) {
       remoteJid: string;
       fromMe: boolean;
       content: string;
-    }
+    },
+    /** `delay`: ms mostrando "digitando…" antes de a mensagem sair. */
+    opcoes?: { delay?: number }
   ): Promise<EvolutionSendTextResponse> {
     const instanceName = resolveInstance();
     const body: Record<string, unknown> = {
       number: jidToNumber(remoteJid),
       text,
     };
+    if (opcoes?.delay) body.delay = Math.round(opcoes.delay);
     if (quoted) {
       body.quoted = {
         key: {

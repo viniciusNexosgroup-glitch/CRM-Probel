@@ -668,6 +668,16 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
   // Mensagem da loja (de qualquer lugar: CRM, celular, etc) → zera unread
   // (faz sentido: se a loja respondeu, ela viu)
   if (!data.key.fromMe) {
+    // Cliente respondeu: o follow-up desta conversa cumpriu o papel e para.
+    // Só conta resposta posterior ao início -- mensagens antigas reenviadas
+    // numa reconexão não podem encerrá-lo.
+    await supabase
+      .from("follow_ups")
+      .update({ status: "respondeu", encerrado_em: timestamp, proximo_em: null })
+      .eq("conversation_id", conversationId)
+      .eq("status", "ativo")
+      .lt("iniciado_em", timestamp);
+
     const { data: conv } = await supabase
       .from("conversations")
       .select("unread_count")

@@ -18,6 +18,7 @@ const DATA_CURTA = new Intl.DateTimeFormat("pt-BR", {
   month: "2-digit",
   year: "2-digit",
 });
+const DIA_MES = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" });
 
 export function isSameDay(a: Date, b: Date) {
   return (
@@ -64,4 +65,10 @@ export function formatRelativeTime(input: string | Date | null) {
   if (isYesterday(d)) return "Ontem";
   if (isWithinWeek(d)) return DIA_DA_SEMANA_CURTO.format(d).replace(".", "");
   return DATA_CURTA.format(d);
+}
+
+/** "26/10 às 14:32" -- para datas próximas, sem o ano. */
+export function formatarDiaHora(input: string | Date) {
+  const d = typeof input === "string" ? new Date(input) : input;
+  return `${DIA_MES.format(d)} às ${HORA.format(d)}`;
 }

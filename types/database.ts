@@ -777,7 +777,7 @@ export type Database = {
           instance_id: string;
           content: string;
           scheduled_for: string;
-          status: "pending" | "sent" | "failed" | "cancelled";
+          status: "pending" | "sending" | "sent" | "failed" | "cancelled";
           sent_at: string | null;
           error_message: string | null;
           created_by: string | null;
@@ -790,7 +790,7 @@ export type Database = {
           instance_id: string;
           content: string;
           scheduled_for: string;
-          status?: "pending" | "sent" | "failed" | "cancelled";
+          status?: "pending" | "sending" | "sent" | "failed" | "cancelled";
           sent_at?: string | null;
           error_message?: string | null;
           created_by?: string | null;
@@ -803,13 +803,106 @@ export type Database = {
           instance_id?: string;
           content?: string;
           scheduled_for?: string;
-          status?: "pending" | "sent" | "failed" | "cancelled";
+          status?: "pending" | "sending" | "sent" | "failed" | "cancelled";
           sent_at?: string | null;
           error_message?: string | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
+      };
+      follow_ups: {
+        Row: {
+          id: string;
+          instance_id: string;
+          conversation_id: string;
+          lead_id: string | null;
+          status: "ativo" | "concluido" | "respondeu" | "cancelado" | "falhou";
+          etapa: number;
+          proximo_em: string | null;
+          tentativas: number;
+          iniciado_por: string | null;
+          iniciado_em: string;
+          encerrado_por: string | null;
+          encerrado_em: string | null;
+          erro: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          instance_id: string;
+          conversation_id: string;
+          lead_id?: string | null;
+          status?: "ativo" | "concluido" | "respondeu" | "cancelado" | "falhou";
+          etapa?: number;
+          proximo_em?: string | null;
+          tentativas?: number;
+          iniciado_por?: string | null;
+          iniciado_em?: string;
+          encerrado_por?: string | null;
+          encerrado_em?: string | null;
+          erro?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          instance_id?: string;
+          conversation_id?: string;
+          lead_id?: string | null;
+          status?: "ativo" | "concluido" | "respondeu" | "cancelado" | "falhou";
+          etapa?: number;
+          proximo_em?: string | null;
+          tentativas?: number;
+          iniciado_por?: string | null;
+          iniciado_em?: string;
+          encerrado_por?: string | null;
+          encerrado_em?: string | null;
+          erro?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      follow_up_envios: {
+        Row: {
+          id: string;
+          follow_up_id: string;
+          instance_id: string;
+          etapa: number;
+          texto: string;
+          evolution_message_id: string | null;
+          erro: string | null;
+          enviado_em: string;
+        };
+        Insert: {
+          id?: string;
+          follow_up_id: string;
+          instance_id: string;
+          etapa: number;
+          texto: string;
+          evolution_message_id?: string | null;
+          erro?: string | null;
+          enviado_em?: string;
+        };
+        Update: {
+          id?: string;
+          follow_up_id?: string;
+          instance_id?: string;
+          etapa?: number;
+          texto?: string;
+          evolution_message_id?: string | null;
+          erro?: string | null;
+          enviado_em?: string;
+        };
+        Relationships: [];
+      };
+      follow_up_ritmo: {
+        Row: { instance_id: string; proximo_envio_em: string };
+        Insert: { instance_id: string; proximo_envio_em?: string };
+        Update: { instance_id?: string; proximo_envio_em?: string };
         Relationships: [];
       };
       lead_activity: {

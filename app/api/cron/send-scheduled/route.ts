@@ -1,9 +1,9 @@
 /**
  * Cron endpoint que envia mensagens programadas cujo scheduled_for já passou.
  *
- * Como acionar:
- * - Vercel Cron (Pro): configurado em vercel.json
- * - Externo (free): cron-job.org chamando este endpoint a cada minuto
+ * Como acionar: cron da VPS, a cada minuto (/etc/cron.d/crm-probel). O
+ * vercel.json ainda o chama uma vez por dia na Vercel; a reserva abaixo impede
+ * que as duas mandem a mesma mensagem.
  *
  * Auth: header `Authorization: Bearer <CRON_SECRET>`
  */
@@ -49,6 +49,16 @@ async function run() {
   let failed = 0;
 
   for (const msg of pending ?? []) {
+    // Reserva antes de enviar: a rotina roda a cada minuto, e duas execuções
+    // que se cruzem não podem mandar a mesma mensagem duas vezes.
+    const { data: reservada } = await supabase
+      .from("scheduled_messages")
+      .update({ status: "sending" })
+      .eq("id", msg.id)
+      .eq("status", "pending")
+      .select("id");
+    if (!reservada?.length) continue;
+
     const remoteJid = (msg as unknown as { conversation: { remote_jid: string } | null }).conversation
       ?.remote_jid;
     if (!remoteJid) {

@@ -24,6 +24,7 @@ import {
   setLeadQualificationAction,
 } from "../actions";
 import { getInitials } from "@/lib/format/avatar";
+import { FollowUpPill } from "./follow-up-pill";
 import type {
   ContactPanelData,
   ConversationWithContact,
@@ -436,6 +437,13 @@ export function ChatHeaderActions({
         />
       )}
       <QualificationPill panelData={panelData} />
+      {conversation && (
+        <FollowUpPill
+          conversationId={conversation.id}
+          nomeContato={panelData.contact.name}
+          pushName={panelData.contact.push_name}
+        />
+      )}
       <TagPills panelData={panelData} />
     </div>
   );
