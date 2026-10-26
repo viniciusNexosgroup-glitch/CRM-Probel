@@ -1275,12 +1275,29 @@ export async function startConversationAction(
   if (!text) return { ok: false, error: "Mensagem vazia" };
   if (text.length > 4096) return { ok: false, error: "Mensagem muito longa" };
 
-  const remoteJid = `${phone}@s.whatsapp.net`;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Não autenticado" };
 
-  // Envia via Evolution
+  // A mensagem sai pelo WhatsApp da loja que a pessoa está vendo -- para quem
+  // tem acesso às duas, a escolhida no seletor. Antes saía pela instância fixa
+  // do .env (a Probel), mesmo com o usuário na Vivence: a conversa nascia na
+  // Vivence, mas o cliente recebia a mensagem do número da Probel.
+  const service = createServiceClient();
+  const instanceId = await getCurrentInstanceId();
+  if (!instanceId) return { ok: false, error: "Usuário sem loja vinculada" };
+  const { data: instance } = await service
+    .from("whatsapp_instances")
+    .select("id")
+    .eq("id", instanceId)
+    .single();
+  if (!instance) return { ok: false, error: "Loja não encontrada no banco" };
+
   let sent;
   try {
-    sent = await evolution.sendText(remoteJid, text);
+    sent = await (await evoFor(instance.id)).sendText(`${phone}@s.whatsapp.net`, text);
   } catch (e) {
     if (e instanceof EvolutionError) {
       if (e.status === 400 || e.status === 404) {
@@ -1291,27 +1308,24 @@ export async function startConversationAction(
     return { ok: false, error: (e as Error).message };
   }
 
+  // O número como o WhatsApp o conhece. Muito celular antigo é registrado sem
+  // o 9 (5534 99143-8706 vira 553491438706). Com o nosso formato, nascia uma
+  // segunda conversa ao lado da verdadeira, e a resposta do cliente caía na
+  // outra.
+  const remoteJid = sent.key?.remoteJid?.endsWith("@s.whatsapp.net")
+    ? sent.key.remoteJid
+    : `${phone}@s.whatsapp.net`;
+  const phoneReal = remoteJid.split("@")[0];
+
   // Cria contato + conversa + mensagem idempotentes (o webhook MESSAGES_UPSERT
   // vai upsert depois também, mas fazendo aqui já temos algo pra navegar)
-  const service = createServiceClient();
-  // A conversa nasce no WhatsApp da loja de quem está iniciando — nunca na
-  // instância fixa do .env, que com duas empresas mandaria pelo número errado.
-  const instanceId = await getCurrentInstanceId();
-  if (!instanceId) return { ok: false, error: "Usuário sem loja vinculada" };
-  const { data: instance } = await service
-    .from("whatsapp_instances")
-    .select("id")
-    .eq("id", instanceId)
-    .single();
-  if (!instance) return { ok: false, error: "Loja não encontrada no banco" };
-
   const { data: contact, error: contactErr } = await service
     .from("contacts")
     .upsert(
       {
         instance_id: instance.id,
         whatsapp_id: remoteJid,
-        phone,
+        phone: phoneReal,
         is_group: false,
       },
       { onConflict: "instance_id,whatsapp_id" }
@@ -1361,25 +1375,34 @@ export async function startConversationAction(
     .eq("contact_id", contact.id)
     .maybeSingle();
   if (!existingLead) {
+    // Etapa de entrada do funil "Sem vendedor" DESTA loja. Sem filtrar a loja,
+    // pegava a coluna da Probel para um lead da Vivence -- e o lead sumia do
+    // funil das duas.
     const { data: stage } = await service
       .from("pipeline_stages")
       .select("id")
+      .eq("instance_id", instance.id)
       .is("user_id", null)
+      .order("is_initial", { ascending: false })
       .order("position", { ascending: true })
       .limit(1)
       .single();
     if (stage) {
       await service.from("leads").insert({
+        instance_id: instance.id,
         contact_id: contact.id,
         conversation_id: conv.id,
         stage_id: stage.id,
-        phone,
+        phone: phoneReal,
         source: "outbound", // inicializada por nós
         status: "open",
         last_contact_at: now,
       });
     }
   }
+
+  // Quem puxou a conversa é o dono dela, como em qualquer primeiro atendimento.
+  await assumirSeSemDono(conv.id, user.id);
 
   revalidatePath("/chat");
   return { ok: true, data: { conversationId: conv.id } };
