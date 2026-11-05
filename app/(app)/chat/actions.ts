@@ -1309,7 +1309,7 @@ export async function startConversationAction(
   }
 
   // O número como o WhatsApp o conhece. Muito celular antigo é registrado sem
-  // o 9 (5534 99143-8706 vira 553491438706). Com o nosso formato, nascia uma
+  // o 9 (55 34 9XXXX-XXXX vira 55 34 XXXX-XXXX). Com o nosso formato, nascia uma
   // segunda conversa ao lado da verdadeira, e a resposta do cliente caía na
   // outra.
   const remoteJid = sent.key?.remoteJid?.endsWith("@s.whatsapp.net")

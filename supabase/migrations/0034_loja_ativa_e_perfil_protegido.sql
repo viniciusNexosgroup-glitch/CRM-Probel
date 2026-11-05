@@ -5,9 +5,9 @@
 --
 -- A regra deixava cada pessoa alterar o próprio perfil, e a permissão incluía
 -- TODAS as colunas -- inclusive `role` e `instance_id`. Provado numa transação
--- desfeita: só com o próprio login, o Diogo se tornou administrador (passou a
--- ver 349 leads em vez de 280) e se mudou para a Probel (2.840 leads e 47.807
--- mensagens de outra empresa). Não aparecia nas telas, mas a API é pública.
+-- desfeita: só com o próprio login, um vendedor se tornou administrador e se
+-- mudou para a outra loja, passando a ver os leads e as mensagens
+-- de outra empresa. Não aparecia nas telas, mas a API é pública.
 --
 -- Agora o usuário só altera colunas inofensivas do próprio perfil. Cargo, loja
 -- e e-mail mudam apenas pelo servidor, depois de checar a permissão. Perfis
@@ -21,7 +21,7 @@
 --   * `loja_ativa`: a loja que a pessoa está VENDO agora.
 --
 -- Se a troca mudasse `instance_id`, quem olhasse a Probel passaria a constar
--- na equipe da Probel -- a Ticiany poderia removê-lo ou ele entraria no rodízio
+-- na equipe da Probel -- o admin de lá poderia removê-lo ou ele entraria no rodízio
 -- de leads de lá. Separando, ele só enxerga a outra loja.
 --
 -- Quem pode ver quais lojas fica em `usuario_lojas`, que só o servidor escreve.

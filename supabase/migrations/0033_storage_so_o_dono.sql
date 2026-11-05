@@ -6,8 +6,8 @@
 --
 --   * LISTAR estava liberado para `public` -- inclusive quem nem fez login.
 --     Com a chave pública, que fica dentro do próprio site, qualquer pessoa
---     listava 465 arquivos de mídia das duas lojas; como o balde é público,
---     também os baixava. A Ticiany listava 244 arquivos da Vivence.
+--     listava os arquivos de mídia das duas lojas; como o balde é público,
+--     também os baixava. Um usuário de uma loja listava os arquivos da outra.
 --   * APAGAR e ALTERAR estavam liberados para qualquer usuário logado, em
 --     qualquer arquivo, de qualquer loja.
 --

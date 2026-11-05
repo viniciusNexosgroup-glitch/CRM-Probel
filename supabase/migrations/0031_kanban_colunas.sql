@@ -2,7 +2,7 @@
 -- 0031 — Total e valor de cada coluna do Kanban, calculados no banco.
 --
 -- O Kanban buscava todos os leads do quadro e contava no navegador. Com o teto
--- de 1.000 linhas do PostgREST, o quadro da Ticiany (1.560 leads) mostrava
+-- de 1.000 linhas do PostgREST, um quadro com 1.560 leads mostrava
 -- "1000 leads" e simplesmente não exibia os outros 560 -- e o total e o valor
 -- de cada coluna saíam errados junto. Abrir o quadro levava 1,9 s e 3,3 MB.
 --

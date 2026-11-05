@@ -3,7 +3,7 @@
 --
 -- O lead que chega a um vendedor ia para a coluna de MESMA POSIÇÃO que ocupava
 -- no funil de origem. Isso só funciona quando os funis têm a mesma estrutura.
--- O João Paulo montou o dele do zero, e a 4ª coluna dele é "Perdido", enquanto
+-- Um vendedor montou o dele do zero, e a 4ª coluna dele é "Perdido", enquanto
 -- a 4ª do "Sem vendedor" é "Orçamento Enviado". Resultado: 23 leads novos dele
 -- foram parar em "Perdido" sem ninguém mexer (nenhum tem movimentação
 -- registrada -- e toda mudança manual de coluna é registrada).

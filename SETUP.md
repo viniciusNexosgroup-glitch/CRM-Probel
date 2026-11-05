@@ -69,7 +69,7 @@ Você já tem o projeto em `D:\CRM Probel` (eu deixei tudo lá). Pule este passo
 
 ```powershell
 cd D:\
-git clone https://github.com/viniciusNexosgroup-glitch/CRM-Probel.git "CRM Probel"
+git clone https://github.com/SEU-USUARIO/SEU-REPOSITORIO.git "CRM Probel"
 cd "CRM Probel"
 ```
 
@@ -313,7 +313,7 @@ Abra seu navegador em **http://localhost:3000**.
 1. Na tela de login, clique no link **"Criar conta"** embaixo
 2. Preencha:
    - **Nome completo:** Seu nome (ex: `Vinícius`)
-   - **Email:** Use um email que você acessa (ex: `viniguisan@gmail.com`)
+   - **Email:** Use um email que você acessa (ex: `voce@exemplo.com`)
    - **Senha:** Mínimo 8 caracteres, anote em um lugar seguro
 3. Clique **Criar conta**
 4. Aparece um toast verde "Conta criada!"

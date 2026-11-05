@@ -71,7 +71,7 @@ CRM de WhatsApp interno da Probel — visual estilo WhatsApp Web, integrado via 
 ### 1) Clonar o repo
 
 ```bash
-git clone https://github.com/viniciusNexosgroup-glitch/CRM-Probel.git
+git clone https://github.com/SEU-USUARIO/SEU-REPOSITORIO.git
 cd CRM-Probel
 ```
 
@@ -230,7 +230,7 @@ Abra http://localhost:3000 — vai redirecionar para `/login`. Clique em **Criar
 ### 1) Push do código
 
 ```bash
-git remote add origin https://github.com/viniciusNexosgroup-glitch/CRM-Probel.git
+git remote add origin https://github.com/SEU-USUARIO/SEU-REPOSITORIO.git
 git add .
 git commit -m "feat: foundation (Next 15 + Supabase + Auth + SQL)"
 git push -u origin main

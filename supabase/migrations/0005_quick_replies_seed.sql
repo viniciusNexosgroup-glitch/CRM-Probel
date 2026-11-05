@@ -1,12 +1,12 @@
 -- =============================================================================
--- Respostas rápidas iniciais (exemplos editáveis pela Ticiany)
+-- Respostas rápidas iniciais (exemplos editáveis pela loja)
 -- =============================================================================
 
 insert into public.quick_replies (shortcut, title, content, category) values
   (
     '/oi',
     'Saudação inicial',
-    'Olá {primeiro_nome}, tudo bem? Sou a Ticiany da Colchões Probel Uberlândia 😊 Como posso te ajudar?',
+    'Olá {primeiro_nome}, tudo bem? Sou [seu nome], da [nome da loja] 😊 Como posso te ajudar?',
     'Saudação'
   ),
   (

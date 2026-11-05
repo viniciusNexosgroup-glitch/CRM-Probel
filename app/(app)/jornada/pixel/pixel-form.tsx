@@ -50,7 +50,7 @@ export function PixelForm({
           <Input
             value={c.dataset_id}
             onChange={(e) => setC({ ...c, dataset_id: e.target.value })}
-            placeholder="Ex.: 916932600874619"
+            placeholder="Ex.: 123456789012345"
             disabled={!podeEditar}
           />
           <span className="block text-xs text-wa-textSecondary">

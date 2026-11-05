@@ -3,7 +3,7 @@
  * Escritos à mão a partir de supabase/migrations/0001_init.sql.
  *
  * Para regenerar automaticamente no futuro (quando linkar o projeto):
- *   npx supabase gen types typescript --project-id ibcnfdqthqglpnqcyauq --schema public > types/database.ts
+ *   npx supabase gen types typescript --project-id <id-do-projeto> --schema public > types/database.ts
  */
 export type Json =
   | string

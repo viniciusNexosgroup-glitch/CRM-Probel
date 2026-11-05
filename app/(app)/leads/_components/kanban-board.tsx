@@ -15,7 +15,7 @@ type Board = { value: string; label: string; ownerId: string | null };
  * Recarga automática do quadro, para trazer leads novos dos webhooks.
  *
  * Era a cada 15 s, sempre -- e cada recarga refazia o quadro inteiro no
- * servidor. Com o quadro da Ticiany aberto, eram 1.000 cartões consultados e
+ * servidor. Com um quadro grande aberto, eram 1.000 cartões consultados e
  * serializados quatro vezes por minuto, por aba, pesando na VPS para todos.
  * Agora: a cada minuto, só com a aba visível, e ao voltar para a aba.
  */

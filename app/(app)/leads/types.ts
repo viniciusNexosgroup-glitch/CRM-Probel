@@ -22,7 +22,7 @@ export const LEAD_SOURCES = [
 /**
  * Cartões carregados por coluna de cada vez.
  *
- * O quadro trazia todos os leads e desenhava todos. Na Probel, com 1.516 leads
+ * O quadro trazia todos os leads e desenhava todos. Numa loja com 1.500 leads
  * só em "Novo Lead", isso era 3,3 MB e 1,9 s -- e o PostgREST cortava em 1.000,
  * escondendo os demais sem aviso. Um lote por coluna mostra o que cabe na tela
  * com folga; o cabeçalho mostra o total real, e o resto vem em "carregar mais".
@@ -44,8 +44,8 @@ export type TotaisColuna = { total: number; valor: number };
  * Ordem dos cartões numa coluna. TEM que ser a mesma no primeiro lote e no
  * "carregar mais", e TEM que ser estável.
  *
- * Só `updated_at` não basta: 1.558 leads da Ticiany têm exatamente o mesmo
- * horário de atualização (foram atribuídos a ela de uma vez). Com empate, a
+ * Só `updated_at` não basta: leads atribuídos em massa têm exatamente o mesmo
+ * horário de atualização (foram atribuídos de uma vez). Com empate, a
  * ordem entre eles é arbitrária e muda a cada consulta -- os lotes se
  * sobrepunham (4 repetidos a cada 150) e, na mesma conta, outros nunca
  * apareciam. Desempata pelo mais novo e, por último, pelo id, que é único.
