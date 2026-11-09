@@ -870,23 +870,29 @@ export async function handleMessagesUpdate(instanceName: string, data: MessagesU
     .update({ status: newStatus })
     .eq("instance_id", instance.id)
     .eq("evolution_message_id", data.keyId)
-    .select("conversation_id, from_me")
+    .select("conversation_id, from_me, timestamp")
     .maybeSingle();
 
-  // Se essa mensagem é RECEBIDA (from_me=false) e virou 'read' → loja leu
-  // (no celular ou outro device). Recomputa unread_count da conversa.
+  // Mensagem RECEBIDA lida no celular ou em outro aparelho. Ler uma mensagem é
+  // ter lido tudo o que veio antes, então só contam as que chegaram depois.
+  //
+  // Antes contava toda recebida sem status "read", e muita mensagem antiga nunca
+  // recebe esse status: a confirmação de leitura religava o aviso de uma conversa
+  // que acabara de ser vista. Por isso este evento só baixa o contador.
   if (updated && !updated.from_me && newStatus === "read") {
     const { count } = await supabase
       .from("messages")
       .select("id", { count: "exact", head: true })
       .eq("conversation_id", updated.conversation_id)
       .eq("from_me", false)
-      .neq("status", "read");
+      .gt("timestamp", updated.timestamp);
 
+    const restantes = count ?? 0;
     await supabase
       .from("conversations")
-      .update({ unread_count: count ?? 0 })
-      .eq("id", updated.conversation_id);
+      .update({ unread_count: restantes })
+      .eq("id", updated.conversation_id)
+      .gt("unread_count", restantes);
   }
 }
 

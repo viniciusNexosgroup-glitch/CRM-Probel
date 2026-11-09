@@ -40,7 +40,7 @@ export async function loadOlderMessagesAction(
  *
  * Falha na Evolution não bloqueia o local (best-effort).
  */
-export async function markAsReadAction(conversationId: string) {
+export async function markAsReadAction(conversationId: string): Promise<Result> {
   const supabase = await createClient();
 
   const { data: conv } = await supabase
@@ -58,7 +58,9 @@ export async function markAsReadAction(conversationId: string) {
       .eq("from_me", false)
       .not("evolution_message_id", "is", null)
       .order("timestamp", { ascending: false })
-      .limit(50);
+      // Só as pendentes: a conversa aberta confirma leitura a cada mensagem que
+      // chega, e repetir as antigas é tráfego à toa num número sem API oficial.
+      .limit(Math.min(conv.unread_count, 50));
 
     const keys = (msgs ?? [])
       .filter((m) => m.evolution_message_id)
@@ -223,6 +225,9 @@ export async function sendTextMessageAction(
       last_message_at: now,
       last_message_from_me: true,
       answered_at: now,
+      // Quem respondeu viu a conversa. O eco desta mensagem chega como
+      // send.message, que o webhook não processa, então é aqui que zera.
+      unread_count: 0,
     })
     .eq("id", conv.id);
 

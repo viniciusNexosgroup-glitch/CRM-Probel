@@ -29,6 +29,7 @@ import { isSameDay } from "@/lib/format/date";
 import { formatPhone } from "@/lib/format/avatar";
 import { formatPresence } from "@/lib/format/presence";
 import { cn } from "@/lib/utils";
+import { acaoSegura } from "@/lib/ui/acao-segura";
 import {
   markAsReadAction,
   toggleFavoriteAction,
@@ -46,6 +47,8 @@ import {
  */
 const POLL_MS = 20000;
 const POLL_LIMITE = 30;
+/** Dá tempo de o webhook somar a mensagem no contador antes de zerá-lo. */
+const ATRASO_LEITURA_MS = 1500;
 import { MESSAGE_COLUMNS, MENSAGENS_INICIAIS } from "../types";
 import type {
   ConversationWithContact,
@@ -261,6 +264,37 @@ export function ChatWindow({
     const supabase = createClient();
     let mounted = true;
 
+    // Mensagem que chega com a conversa aberta, diante do atendente, já foi
+    // vista, como no WhatsApp. Com o CRM em segundo plano, espera ele voltar.
+    const conhecidas = new Set(initialMessages.map((m) => m.id));
+    let leituraPendente = false;
+    let timerLeitura: ReturnType<typeof setTimeout> | undefined;
+
+    function marcarVista() {
+      if (document.visibilityState !== "visible" || !document.hasFocus()) {
+        leituraPendente = true;
+        return;
+      }
+      leituraPendente = false;
+      clearTimeout(timerLeitura);
+      timerLeitura = setTimeout(() => {
+        acaoSegura(() => markAsReadAction(conversation.id));
+      }, ATRASO_LEITURA_MS);
+    }
+
+    function aoVoltarParaTela() {
+      if (leituraPendente) marcarVista();
+    }
+
+    function registrarMensagem(m: MessageRow) {
+      if (conhecidas.has(m.id)) return;
+      conhecidas.add(m.id);
+      if (!m.from_me) marcarVista();
+    }
+
+    document.addEventListener("visibilitychange", aoVoltarParaTela);
+    window.addEventListener("focus", aoVoltarParaTela);
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.access_token && mounted) {
         supabase.realtime.setAuth(session.access_token);
@@ -280,6 +314,7 @@ export function ChatWindow({
         .limit(POLL_LIMITE);
       if (!mounted || !data) return;
       const incoming = (data as unknown as MessageRow[]).slice().reverse();
+      incoming.forEach(registrarMensagem);
       setMessages((prev) => {
         const map = new Map(prev.map((m) => [m.id, m]));
         let changed = false;
@@ -314,6 +349,7 @@ export function ChatWindow({
         },
         (payload) => {
           const m = payload.new as MessageRow;
+          registrarMensagem(m);
           setMessages((prev) => {
             if (prev.some((x) => x.id === m.id)) return prev;
             return [...prev, m].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
@@ -339,9 +375,13 @@ export function ChatWindow({
 
     return () => {
       mounted = false;
+      clearTimeout(timerLeitura);
+      document.removeEventListener("visibilitychange", aoVoltarParaTela);
+      window.removeEventListener("focus", aoVoltarParaTela);
       clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation.id]);
 
   // Ao abrir/trocar de conversa: ancora no final imediatamente (como o WhatsApp).
