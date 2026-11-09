@@ -28,15 +28,28 @@ function formatPhoneInput(raw: string): string {
   return `(${d.slice(0, 2)}) ${d.slice(2, 3)} ${d.slice(3, 7)}-${d.slice(7)}`;
 }
 
+/** O número sem o 55, que é como este campo trabalha. */
+function semCodigoDoPais(raw: string): string {
+  const d = raw.replace(/\D/g, "");
+  return d.length >= 12 && d.startsWith("55") ? d.slice(2) : d;
+}
+
 export function NewConversationDialog({
   open,
   onClose,
+  telefoneInicial,
+  nomeContato,
 }: {
   open: boolean;
   onClose: () => void;
+  /** Preenche o número, quando a conversa parte de um contato compartilhado. */
+  telefoneInicial?: string;
+  nomeContato?: string;
 }) {
   const router = useRouter();
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(() =>
+    telefoneInicial ? formatPhoneInput(semCodigoDoPais(telefoneInicial)) : ""
+  );
   const [text, setText] = useState("");
   const [pending, startTransition] = useTransition();
 
@@ -52,7 +65,7 @@ export function NewConversationDialog({
       return;
     }
     startTransition(async () => {
-      const res = await startConversationAction(phone, text);
+      const res = await startConversationAction(phone, text, nomeContato);
       if (!res.ok) {
         toast.error("Falha ao iniciar conversa", { description: res.error });
         return;
@@ -82,8 +95,9 @@ export function NewConversationDialog({
             <MessageSquarePlus className="h-5 w-5 text-primary" /> Nova conversa
           </DialogTitle>
           <DialogDescription>
-            Inicie uma conversa com um número que ainda não te enviou mensagem (lead
-            do site, anúncio, indicação, etc).
+            {nomeContato
+              ? `Escreva a primeira mensagem para ${nomeContato}.`
+              : "Inicie uma conversa com um número que ainda não te enviou mensagem (lead do site, anúncio, indicação, etc)."}
           </DialogDescription>
         </DialogHeader>
 
@@ -114,7 +128,7 @@ export function NewConversationDialog({
               value={text}
               onChange={(e) => setText(e.target.value)}
               rows={4}
-              placeholder="Olá! Sou da Colchões Probel, vi que você se interessou pelo nosso catálogo..."
+              placeholder="Olá! Vi que você se interessou pelos nossos produtos..."
               disabled={pending}
             />
           </div>

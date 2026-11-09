@@ -56,7 +56,11 @@ export interface WhatsAppMessageContent {
     fileLength?: number;
   };
   stickerMessage?: { url?: string; mimetype?: string };
-  contactMessage?: unknown;
+  contactMessage?: { displayName?: string; vcard?: string };
+  contactsArrayMessage?: {
+    displayName?: string;
+    contacts?: Array<{ displayName?: string; vcard?: string }>;
+  };
   locationMessage?: unknown;
   reactionMessage?: { text: string; key: WhatsAppMessageKey };
 }

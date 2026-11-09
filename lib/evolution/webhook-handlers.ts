@@ -16,6 +16,7 @@ import {
 import { resolveTemplate } from "@/lib/format/template";
 import { runSalesbotForMessage } from "@/lib/salesbot/engine";
 import { urlPublica } from "@/lib/supabase/endereco";
+import { cartoesParaTexto, lerVcard, previaDoCartao } from "@/lib/format/cartao-contato";
 import type {
   MessagesUpsertData,
   MessagesUpdateData,
@@ -165,7 +166,16 @@ function extractMessageContent(msg: WhatsAppMessageContent | null): {
     };
   }
   if (msg.locationMessage) return { ...base, type: "location" };
-  if (msg.contactMessage) return { ...base, type: "contact" };
+  if (msg.contactMessage) {
+    const cartao = lerVcard(msg.contactMessage.vcard ?? "", msg.contactMessage.displayName);
+    return { ...base, type: "contact", content: cartao ? cartoesParaTexto([cartao]) : null };
+  }
+  if (msg.contactsArrayMessage) {
+    const cartoes = (msg.contactsArrayMessage.contacts ?? []).flatMap(
+      (c) => lerVcard(c.vcard ?? "", c.displayName) ?? []
+    );
+    return { ...base, type: "contact", content: cartoes.length ? cartoesParaTexto(cartoes) : null };
+  }
   if (msg.reactionMessage)
     return { ...base, type: "reaction", content: msg.reactionMessage.text };
 
@@ -651,18 +661,20 @@ export async function handleMessagesUpsert(instanceName: string, data: MessagesU
 
   // Atualiza preview + unread_count na conversa
   const preview =
-    extracted.content ??
-    (extracted.type === "image"
-      ? "📷 Imagem"
-      : extracted.type === "video"
-        ? "🎥 Vídeo"
-        : extracted.type === "audio"
-          ? "🎵 Áudio"
-          : extracted.type === "document"
-            ? "📄 Documento"
-            : extracted.type === "sticker"
-              ? "Figurinha"
-              : "Mensagem");
+    extracted.type === "contact"
+      ? previaDoCartao(extracted.content)
+      : (extracted.content ??
+        (extracted.type === "image"
+          ? "📷 Imagem"
+          : extracted.type === "video"
+            ? "🎥 Vídeo"
+            : extracted.type === "audio"
+              ? "🎵 Áudio"
+              : extracted.type === "document"
+                ? "📄 Documento"
+                : extracted.type === "sticker"
+                  ? "Figurinha"
+                  : "Mensagem"));
 
   // Mensagem do cliente → incrementa unread
   // Mensagem da loja (de qualquer lugar: CRM, celular, etc) → zera unread

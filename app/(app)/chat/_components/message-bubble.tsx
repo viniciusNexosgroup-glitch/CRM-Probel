@@ -1,9 +1,36 @@
 "use client";
 
+import { Fragment } from "react";
 import { Check, CheckCheck, Clock, AlertTriangle, FileText, Mic, Image as ImageIcon, Video, Reply, Forward, Ban, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTime } from "@/lib/format/date";
+import { dividirLinks } from "@/lib/format/links";
+import { previaDoCartao } from "@/lib/format/cartao-contato";
+import { CartoesContato } from "./cartao-contato";
 import type { MessageRow } from "../types";
+
+/** Mostra o texto da mensagem com os links clicáveis, abrindo em outra aba. */
+function TextoComLinks({ texto }: { texto: string }) {
+  return (
+    <>
+      {dividirLinks(texto).map((trecho, i) =>
+        trecho.href ? (
+          <a
+            key={i}
+            href={trecho.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="break-all text-sky-400 underline underline-offset-2 hover:text-sky-300"
+          >
+            {trecho.texto}
+          </a>
+        ) : (
+          <Fragment key={i}>{trecho.texto}</Fragment>
+        )
+      )}
+    </>
+  );
+}
 
 /**
  * True se a URL é "tocável" — não expira em pouco tempo.
@@ -65,7 +92,11 @@ function MediaPlaceholder({
           className="rounded-md max-w-full max-h-80 object-cover cursor-pointer"
           onClick={() => window.open(mediaUrl, "_blank")}
         />
-        {caption && <p className="text-sm whitespace-pre-wrap break-words">{caption}</p>}
+        {caption && (
+          <p className="text-sm whitespace-pre-wrap break-words">
+            <TextoComLinks texto={caption} />
+          </p>
+        )}
       </div>
     );
   }
@@ -82,7 +113,11 @@ function MediaPlaceholder({
           className="rounded-md max-w-full max-h-80"
           playsInline
         />
-        {caption && <p className="text-sm whitespace-pre-wrap break-words">{caption}</p>}
+        {caption && (
+          <p className="text-sm whitespace-pre-wrap break-words">
+            <TextoComLinks texto={caption} />
+          </p>
+        )}
         <a
           href={mediaUrl}
           target="_blank"
@@ -165,13 +200,18 @@ function MediaPlaceholder({
       <Icon className="h-5 w-5 opacity-70" />
       <div className="text-sm">
         <p className="font-medium">{label}</p>
-        {caption && <p className="text-xs opacity-80 mt-0.5">{caption}</p>}
+        {caption && (
+          <p className="text-xs opacity-80 mt-0.5">
+            <TextoComLinks texto={caption} />
+          </p>
+        )}
       </div>
     </div>
   );
 }
 
 function previewOf(msg: MessageRow): string {
+  if (msg.message_type === "contact") return previaDoCartao(msg.content);
   if (msg.content) return msg.content;
   if (msg.media_caption) return msg.media_caption;
   switch (msg.message_type) {
@@ -281,6 +321,8 @@ export function MessageBubble({
           <p className="italic text-wa-textSecondary flex items-center gap-1 pr-12">
             <Ban className="h-3.5 w-3.5 shrink-0" /> Mensagem apagada
           </p>
+        ) : msg.message_type === "contact" ? (
+          <CartoesContato texto={msg.content} />
         ) : isMedia ? (
           <MediaPlaceholder
             type={msg.message_type}
@@ -292,7 +334,11 @@ export function MessageBubble({
           />
         ) : (
           <p className="whitespace-pre-wrap break-words pr-12">
-            {msg.content ?? <span className="opacity-60">(mensagem sem conteúdo)</span>}
+            {msg.content ? (
+              <TextoComLinks texto={msg.content} />
+            ) : (
+              <span className="opacity-60">(mensagem sem conteúdo)</span>
+            )}
           </p>
         )}
         <div className="float-right flex items-center gap-1 -mb-0.5 ml-2 mt-0.5">

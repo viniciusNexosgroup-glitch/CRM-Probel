@@ -1260,9 +1260,81 @@ function normalizeBrazilianPhone(input: string): string | null {
   return digits;
 }
 
+/**
+ * O mesmo celular brasileiro existe com e sem o 9 depois do DDD: muito número
+ * antigo é registrado no WhatsApp sem ele.
+ */
+function variantesDoNumero(phone: string): string[] {
+  const resto = phone.slice(4);
+  const ddd = phone.slice(0, 4);
+  if (phone.length === 13 && resto.startsWith("9")) return [phone, ddd + resto.slice(1)];
+  if (phone.length === 12) return [phone, `${ddd}9${resto}`];
+  return [phone];
+}
+
+type ClienteBanco = Awaited<ReturnType<typeof createClient>> | ReturnType<typeof createServiceClient>;
+
+async function conversaDoNumero(
+  db: ClienteBanco,
+  instanceId: string,
+  numeros: string[]
+): Promise<string | null> {
+  const jids = numeros.map((n) => `"${n}@s.whatsapp.net"`).join(",");
+  const { data: contatos } = await db
+    .from("contacts")
+    .select("id")
+    .eq("instance_id", instanceId)
+    .or(`whatsapp_id.in.(${jids}),phone.in.(${numeros.join(",")})`);
+  if (!contatos?.length) return null;
+
+  const { data: conversa } = await db
+    .from("conversations")
+    .select("id")
+    .eq("instance_id", instanceId)
+    .in("contact_id", contatos.map((c) => c.id))
+    .order("last_message_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+  return conversa?.id ?? null;
+}
+
+/**
+ * Procura, na loja que a pessoa está vendo, a conversa de um número recebido
+ * num contato compartilhado.
+ *
+ * A primeira busca respeita o que a pessoa pode ver. A segunda só responde se a
+ * conversa existe nas mãos de outro vendedor, sem revelar nada dela: abrir uma
+ * "Nova conversa" ali colocaria dois vendedores falando com o mesmo cliente.
+ */
+export async function localizarConversaDoNumeroAction(
+  numero: string
+): Promise<Result<{ conversationId: string | null; deOutroVendedor: boolean }>> {
+  const internacional = numero.trim().startsWith("+");
+  const phone =
+    internacional && !numero.trim().startsWith("+55") ? null : normalizeBrazilianPhone(numero);
+  if (!phone) return { ok: false, error: "Só dá para chamar por aqui números do Brasil, com DDD." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Não autenticado" };
+
+  const instanceId = await getCurrentInstanceId();
+  if (!instanceId) return { ok: false, error: "Usuário sem loja vinculada" };
+
+  const numeros = variantesDoNumero(phone);
+  const conversationId = await conversaDoNumero(supabase, instanceId, numeros);
+  if (conversationId) return { ok: true, data: { conversationId, deOutroVendedor: false } };
+
+  const existe = await conversaDoNumero(createServiceClient(), instanceId, numeros);
+  return { ok: true, data: { conversationId: null, deOutroVendedor: existe !== null } };
+}
+
 export async function startConversationAction(
   rawPhone: string,
-  message: string
+  message: string,
+  nomeContato?: string
 ): Promise<Result<{ conversationId: string }>> {
   const phone = normalizeBrazilianPhone(rawPhone);
   if (!phone) {
@@ -1334,6 +1406,15 @@ export async function startConversationAction(
     .single();
   if (contactErr || !contact) {
     return { ok: false, error: contactErr?.message ?? "Falha ao criar contato" };
+  }
+
+  // Veio de um contato compartilhado: já entra com o nome, sem apagar um existente.
+  if (nomeContato?.trim()) {
+    await service
+      .from("contacts")
+      .update({ name: nomeContato.trim().slice(0, 120) })
+      .eq("id", contact.id)
+      .is("name", null);
   }
 
   const now = new Date().toISOString();

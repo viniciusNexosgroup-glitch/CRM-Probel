@@ -17,6 +17,7 @@ import { LIMITE_ARQUIVO, formatarTamanho } from "../_lib/enviar-arquivo";
 import { EmojiPickerPopup } from "./emoji-picker-popup";
 import { ScheduleDialog } from "./schedule-dialog";
 import { resolveTemplate, type TemplateContext } from "@/lib/format/template";
+import { previaDoCartao } from "@/lib/format/cartao-contato";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/types/database";
 import type { MessageRow } from "../types";
@@ -29,6 +30,7 @@ type CategoryRow = Database["public"]["Tables"]["media_categories"]["Row"];
 const ALTURA_MAX_CAMPO = 160;
 
 function previewOfMsg(m: MessageRow): string {
+  if (m.message_type === "contact") return previaDoCartao(m.content);
   if (m.content) return m.content;
   if (m.media_caption) return m.media_caption;
   if (m.message_type === "image") return "📷 Imagem";
