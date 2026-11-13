@@ -315,7 +315,7 @@ export function SalesbotEditor({
     ]);
   }
 
-  function updateTriggerConfig(key: string, value: string) {
+  function updateTriggerConfig(key: string, value: Json) {
     setTriggers((current) =>
       current.map((trigger, index) =>
         index === 0 ? { ...trigger, config: { ...trigger.config, [key]: value } } : trigger
@@ -829,6 +829,19 @@ export function SalesbotEditor({
                 ))}
               </Select>
             </label>
+            {activeTrigger?.type === "lead_created" && (
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={activeTrigger.config?.tambem_sem_dono === true}
+                  onChange={(event) => updateTriggerConfig("tambem_sem_dono", event.target.checked)}
+                  className="accent-primary mt-0.5"
+                />
+                <span className="text-xs text-wa-textSecondary">
+                  {"Também quando o cliente responder uma conversa que a loja começou pelo celular e que ainda está sem vendedor."}
+                </span>
+              </label>
+            )}
             {activeTrigger?.type === "keyword_detected" && (
               <>
                 <label className="space-y-1 block">

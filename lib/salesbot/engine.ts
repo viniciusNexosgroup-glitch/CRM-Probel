@@ -16,6 +16,12 @@ type SalesbotContext = {
   remoteJid: string;
   messageText: string | null;
   evolutionMessageId: string | null;
+  /**
+   * O robô entrou porque o cliente respondeu uma conversa que a loja começou
+   * pelo celular, com o Lead ainda sem vendedor. A atribuição só vale se
+   * ninguém tiver pegado o Lead antes.
+   */
+  soSemDono?: boolean;
 };
 
 type FlowBundle = {
@@ -73,10 +79,25 @@ function normalizeMediaType(value: unknown): "image" | "video" | "document" {
   return "document";
 }
 
-function triggerMatches(trigger: SalesbotTrigger, context: SalesbotContext): boolean {
+/**
+ * Opção do gatilho "Novo lead". Quando a loja começa a conversa pelo celular, o
+ * Lead nasce na mensagem dela, e o robô, que só escuta o cliente, não o vê
+ * nascer. Com a opção, ele entra na primeira resposta do cliente, se o Lead
+ * ainda estiver sem vendedor.
+ */
+function incluiLeadSemDono(trigger: SalesbotTrigger): boolean {
+  return trigger.type === "lead_created" && asRecord(trigger.config).tambem_sem_dono === true;
+}
+
+function triggerMatches(
+  trigger: SalesbotTrigger,
+  context: SalesbotContext,
+  leadSemDono = false
+): boolean {
   if (!trigger.is_active) return false;
   if (trigger.type === context.event) return true;
   if (trigger.type === "lead_created" && context.event === "new_conversation" && Boolean(context.leadId)) return true;
+  if (context.event === "new_message" && leadSemDono && incluiLeadSemDono(trigger)) return true;
 
   if (trigger.type === "keyword_detected" && context.event === "new_message") {
     const config = asRecord(trigger.config);
@@ -458,7 +479,24 @@ async function executeNode(
         typeof config.user_id === "string" && config.user_id
           ? config.user_id
           : await resolveAutomaticAssignee(db, config, context.instanceId);
-      if (userId) {
+      if (userId && context.soSemDono) {
+        // Várias mensagens seguidas do cliente rodam o robô em paralelo. Só a
+        // primeira atribui: sem a condição, o Lead trocaria de vendedor no meio.
+        const { data: pegou } = await db
+          .from("conversations")
+          .update({ assigned_to: userId })
+          .eq("id", context.conversationId)
+          .is("assigned_to", null)
+          .select("id")
+          .maybeSingle();
+        if (!pegou) {
+          await logExecution(db, executionId, flowId, node.node_key, "info", "Lead já tinha vendedor");
+          return {};
+        }
+        if (context.leadId) {
+          await db.from("leads").update({ assigned_to: userId }).eq("id", context.leadId).is("assigned_to", null);
+        }
+      } else if (userId) {
         await db.from("conversations").update({ assigned_to: userId }).eq("id", context.conversationId);
         if (context.leadId) await db.from("leads").update({ assigned_to: userId }).eq("id", context.leadId);
       }
@@ -592,10 +630,22 @@ async function getActiveFlows(db: UntypedSupabase, context: SalesbotContext): Pr
 
   if (triggersRes.error || nodesRes.error || edgesRes.error) return [];
 
+  // Só consulta o dono do Lead quando algum robô ativo usa a opção.
+  let leadSemDono = false;
+  const gatilhos = (triggersRes.data ?? []) as SalesbotTrigger[];
+  if (context.event === "new_message" && context.leadId && gatilhos.some(incluiLeadSemDono)) {
+    const { data: lead } = await db
+      .from("leads")
+      .select("assigned_to")
+      .eq("id", context.leadId)
+      .maybeSingle();
+    leadSemDono = Boolean(lead) && !lead.assigned_to;
+  }
+
   return (flows as SalesbotFlow[])
     .map((flow) => ({
       flow,
-      triggers: (triggersRes.data ?? []).filter((trigger: SalesbotTrigger) => trigger.flow_id === flow.id && triggerMatches(trigger, context)),
+      triggers: gatilhos.filter((trigger) => trigger.flow_id === flow.id && triggerMatches(trigger, context, leadSemDono)),
       nodes: (nodesRes.data ?? []).filter((node: SalesbotNode) => node.flow_id === flow.id),
       edges: (edgesRes.data ?? []).filter((edge: SalesbotEdge) => edge.flow_id === flow.id),
     }))
@@ -626,6 +676,12 @@ export async function runSalesbotForMessage(context: SalesbotContext): Promise<S
 
   for (const bundle of flows) {
     if (await wasAlreadyExecuted(db, bundle.flow.id, context)) continue;
+
+    // Em mensagem comum, "Novo lead" só casa pelo caminho do Lead sem vendedor.
+    const contexto: SalesbotContext =
+      context.event === "new_message" && bundle.triggers.every((t) => t.type === "lead_created")
+        ? { ...context, soSemDono: true }
+        : context;
 
     const validation = validateSalesbotGraph(bundle.nodes, bundle.edges, bundle.triggers);
     if (!validation.ok) {
@@ -685,7 +741,7 @@ export async function runSalesbotForMessage(context: SalesbotContext): Promise<S
             .update({ current_node_key: node.node_key, variables: { ...variables } })
             .eq("id", execution.id);
 
-          const result = await executeNode(db, node, context, execution.id, bundle.flow.id);
+          const result = await executeNode(db, node, contexto, execution.id, bundle.flow.id);
           variables = { ...variables, ...(result.variables ?? {}) };
           runResult.responseSent = runResult.responseSent || Boolean(result.responseSent);
           runResult.handoff = runResult.handoff || Boolean(result.handoff);
