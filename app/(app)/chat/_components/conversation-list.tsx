@@ -20,6 +20,9 @@ import { formatPhone, getInitials } from "@/lib/format/avatar";
 import { showNotification, playNotificationSound } from "@/lib/notifications";
 import type { ConversationWithContact, TagRow } from "../types";
 
+/** Quanto a lista espera, depois do primeiro aviso, para juntar os seguintes. */
+const ESPERA_RECARGA_MS = 800;
+
 function displayName(c: ConversationWithContact["contact"]): string {
   const name = c.name?.trim();
   if (name) return name;
@@ -131,22 +134,27 @@ export function ConversationList({
       }
     });
 
+    // Junta os avisos que chegam em sequência numa recarga só. Cada aviso pedia
+    // a lista inteira ao servidor; uma mensagem gera dois (a mensagem e a
+    // conversa), e uma alteração em massa gerava milhares de recargas seguidas.
+    let recargaMarcada: ReturnType<typeof setTimeout> | undefined;
+    const recarregar = () => {
+      if (!mounted || recargaMarcada) return;
+      recargaMarcada = setTimeout(() => {
+        recargaMarcada = undefined;
+        if (mounted) startTransition(() => router.refresh());
+      }, ESPERA_RECARGA_MS);
+    };
+
     const channel = supabase
       .channel("crm-inbox")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "conversations" },
-        () => mounted && startTransition(() => router.refresh())
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        () => mounted && startTransition(() => router.refresh())
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, recarregar)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, recarregar)
       .subscribe();
 
     return () => {
       mounted = false;
+      clearTimeout(recargaMarcada);
       clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
