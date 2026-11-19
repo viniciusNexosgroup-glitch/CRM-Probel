@@ -254,6 +254,13 @@ export function ComposeBar({
       .slice(0, 8);
   }
 
+  // No celular não há Shift: o Enter do teclado quebra a linha, como no
+  // WhatsApp, e quem envia é o botão. Com teclado de computador, Enter envia.
+  const [enterQuebraLinha, setEnterQuebraLinha] = useState(false);
+  useEffect(() => {
+    setEnterQuebraLinha(window.matchMedia("(hover: none) and (pointer: coarse)").matches);
+  }, []);
+
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (showPicker) {
       const filtered = getFilteredReplies();
@@ -290,7 +297,7 @@ export function ComposeBar({
 
     // Enter envia; Shift+Enter quebra a linha (o próprio campo faz isso).
     // Durante a composição de acento/IME, o Enter confirma o caractere.
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !enterQuebraLinha) {
       e.preventDefault();
       onSend();
     }
@@ -465,7 +472,7 @@ export function ComposeBar({
         <Textarea
           ref={inputRef}
           rows={1}
-          enterKeyHint="send"
+          enterKeyHint={enterQuebraLinha ? "enter" : "send"}
           value={text}
           onChange={(e) => setTextWithDraft(e.target.value)}
           onKeyDown={onKeyDown}
